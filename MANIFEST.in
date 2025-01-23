@@ -19,5 +19,7 @@ include CONTRIBUTING.rst
 include LICENSE
 include README.rst
 
+recursive-include examples *
+
 recursive-exclude .devcontainer *
 global-exclude *.py[cod] __pycache__/* *.so *.dylib

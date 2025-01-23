@@ -6,21 +6,19 @@ Why does this file exist, and why not put this in __main__?
   You might be tempted to import things from __main__ later, but that will cause
   problems: the code will get executed twice:
 
-  - When you run `python -mlaser_polio` python will execute
+  - When you run `python -mlaser` python will execute
     ``__main__.py`` as a script. That means there will not be any
-    ``laser_polio.__main__`` in ``sys.modules``.
+    ``laser.__main__`` in ``sys.modules``.
   - When you import __main__ it will get executed again (as a module) because
-    there"s no ``laser_polio.__main__`` in ``sys.modules``.
+    there"s no ``laser.__main__`` in ``sys.modules``.
 
   Also see (1) from http://click.pocoo.org/5/setuptools/#setuptools-integration
 """
 
 import click
 
-from .polio import compute
-
 
 @click.command()
 @click.argument("names", nargs=-1)
-def run(names):
-    click.echo(compute(names))
+def main(names):
+    click.echo(repr(names))

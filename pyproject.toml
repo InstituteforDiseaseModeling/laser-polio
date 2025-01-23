@@ -31,14 +31,24 @@ classifiers = [
     # "Programming Language :: Python :: 3.13",   # Not until Numba supports it
     "Programming Language :: Python :: Implementation :: CPython",
 ]
+
 dependencies = [
     "click",
-    "laser-core @ git+https://github.com/InstituteforDiseaseModeling/laser.git@v0.1.0",
+    "laser-core~=0.2",
     "numpy>=1.26.4,<2.0.0",
     "numba>=0.59.1",
     "tqdm",
     "matplotlib",
+    "geopandas",
+    "requests",
+    "pypdf",
+    "h5py",
+    "pandas"
 ]
+
+[tool.setuptools.package-data]
+"laser_polio" = ["*.csv", "*.json", "*.py"]
+"examples" = ["**/*"]
 
 [project.optional-dependencies]
 dev = [

@@ -1,5 +1,5 @@
 """
-Entrypoint module, in case you use `python -mlaser_polio`.
+Entrypoint module, in case you use `python -mlaser`.
 
 
 Why does this file exist, and why __main__? For more info, read:
@@ -9,7 +9,7 @@ Why does this file exist, and why __main__? For more info, read:
 - https://docs.python.org/3/using/cmdline.html#cmdoption-m
 """
 
-from laser_polio.cli import run
+from laser.cli import main
 
 if __name__ == "__main__":
-    run()
+    main()
