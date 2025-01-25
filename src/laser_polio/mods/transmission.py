@@ -1,10 +1,10 @@
 import ctypes
-import pdb
 from importlib.resources import files
 
 import numba as nb
 import numpy as np
 
+# import pdb # for now we do a set_trace in certain exceptions
 from laser_polio.utils import load_csv_maybe_header
 from laser_polio.utils import viz_2D
 
@@ -259,7 +259,8 @@ def calculate_new_infections_by_node(total_forces, susceptibles):
         new_infections = np.random.binomial(susceptibles, capped_forces).astype(np.uint32)
     except Exception as ex:
         print(str(ex))
-        pdb.set_trace()
+        raise ValueError(ex) from ex
+        # pdb.set_trace()
     # print( f"new_infections = {new_infections}" )
 
     return new_infections

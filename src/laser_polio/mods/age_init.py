@@ -1,5 +1,5 @@
 # age_init.py
-import pdb
+# import pdb
 from pathlib import Path
 
 import laser_core.demographics.pyramid as pyramid
@@ -76,6 +76,7 @@ def init(model, manifest):
         except Exception as ex:
             print(str(ex))
             print(f" at i={i}.")
-            pdb.set_trace()
+            raise ValueError(ex) from ex
+            # pdb.set_trace()
         # Not negative actually
         model.population.age[mask] = model.population.dob[mask]

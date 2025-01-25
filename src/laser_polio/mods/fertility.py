@@ -1,4 +1,4 @@
-import pdb
+# import pdb
 
 import numpy as np
 
@@ -65,7 +65,8 @@ def step(model, tick):
     except Exception as ex:
         print("Exception setting ri_timers for newborns.")
         print(str(ex))
-        pdb.set_trace()
+        raise ValueError(ex) from ex
+        # pdb.set_trace()
 
     index = istart
     nodeids = model.population.nodeid  # grab this once for efficiency

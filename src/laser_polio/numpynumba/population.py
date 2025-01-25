@@ -1,6 +1,5 @@
 """Single array-based population class for agent-based models."""
 
-import pdb  # leave
 from pathlib import Path
 
 import h5py
@@ -409,7 +408,8 @@ class ExtendedLF(LaserFrame):
                         self.__dict__[key] = new_array
                     except Exception as ex:
                         print(str(ex))
-                        pdb.set_trace()
+                        raise ValueError(str(ex)) from ex
+                        # pdb.set_trace()
 
         return
 
