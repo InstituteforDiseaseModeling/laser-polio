@@ -7,7 +7,7 @@ def setup_sim():
     """Initialize a test simulation with DiseaseState_ABM component."""
     pars = PropertySet(dict(
         start_date      = lp.date('2020-01-01'),
-        timesteps       = 30,
+        dur       = 30,
         n_ppl           = np.array([1000, 500]),  # Two nodes with populations
         cbr             = np.array([30, 25]),  # Birth rate per 1000/year
         beta_spatial    = np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
@@ -49,7 +49,7 @@ def test_progression_manual_seeding():
     # Setup sim with 0 infections
     pars = PropertySet(dict(
         start_date      = lp.date('2020-01-01'),
-        timesteps       = 1,
+        dur       = 1,
         n_ppl           = np.array([1000, 500]),  # Two nodes with populations
         cbr             = np.array([30, 25]),  # Birth rate per 1000/year
         beta_spatial    = np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
@@ -82,7 +82,7 @@ def test_progression_with_transmission():
     # Setup sim with 0 infections
     pars = PropertySet(dict(
         start_date      = lp.date('2020-01-01'),
-        timesteps       = 2,
+        dur       = 1,
         n_ppl           = np.array([1000, 500]),  # Two nodes with populations
         cbr             = np.array([30, 25]),  # Birth rate per 1000/year
         beta_spatial    = np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
@@ -143,7 +143,7 @@ def test_paralysis_probability():
     # Setup sim with 0 infections
     pars = PropertySet(dict(
         start_date      = lp.date('2020-01-01'),
-        timesteps       = 1,
+        dur       = 1,
         n_ppl           = np.array([10000, 5000]),  # Two nodes with populations
         cbr             = np.array([30, 25]),  # Birth rate per 1000/year
         beta_spatial    = np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
