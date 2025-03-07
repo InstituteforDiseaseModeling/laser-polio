@@ -289,7 +289,7 @@ def process_sia_schedule_polio(df, region_names, sim_start_date):
 
 
 def get_woy(sim):
-    time = sim.dates[sim.t]
+    time = sim.datevec[sim.t]
 
     if isinstance(time, dt.date):
         date = time
