@@ -48,7 +48,7 @@ dependencies = [
     "pypdf",
     "pytest",
     "openpyxl",
-    "rastertools @ git+https://github.com/InstituteforDiseaseModeling/RasterTools.git",
+    "rastertools @ git+https://github.com/InstituteforDiseaseModeling/RasterTools.git@76e4b737337449b103d8d9070248a970e9c05713",
     "requests",
     "scipy",
     "shapely",

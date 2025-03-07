@@ -24,6 +24,15 @@ class SEIR_ABM:
     Disease state codes: 0=S, 1=E, 2=I, 3=R
     '''
 
+    # Set the order in which components should be run during step()
+    PRIORITY_ORDER = [
+        "VitalDynamics_ABM",
+        "DiseaseState_ABM",
+        "RI_ABM",
+        "SIA_ABM",
+        "Transmission_ABM"
+    ]
+
     def __init__(self, pars):
         self.pars = pars       
         pars = self.pars
@@ -56,6 +65,11 @@ class SEIR_ABM:
 
     def add_component(self, component):
         self.components.append(component)
+        self.sort_components()
+
+    def sort_components(self):
+        """ Sort components based on predefined priority order """
+        self.components.sort(key=lambda c: self.PRIORITY_ORDER.index(c.__class__.__name__) if c.__class__.__name__ in self.PRIORITY_ORDER else len(self.PRIORITY_ORDER))
 
     def run(self):
         self.component_times = { component: 0.0 for component in self.components }
