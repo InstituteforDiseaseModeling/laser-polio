@@ -21,7 +21,7 @@ The model uses the same data and setup as the EMOD model, except in the followin
 regions = ['NIGERIA']
 start_year = 2019
 n_days = 90
-pop_scale = 1 / 1000
+pop_scale = 1 # / 1000
 init_region = 'PLATEAU'
 init_prev = 0.01
 results_path = 'results/demo_nigeria'
@@ -121,6 +121,7 @@ pars = PropertySet(dict(
     vx_prob_ri      = ri,  # Probability of routine vaccination
     sia_schedule    = sia_schedule,  # Schedule of SIAs
     sia_eff         = sia,  # Effectiveness of SIAs
+    life_expectancies = np.ones(len(dot_names))*65 # placeholder, should probably derive from age pyramid
 ))
 
 # Initialize the sim
