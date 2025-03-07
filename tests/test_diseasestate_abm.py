@@ -118,6 +118,12 @@ def test_progression_with_transmission():
     assert n_inf_t0 > 0
     assert n_rec_t0 > 0
 
+    inf_idx = np.where(sim.people.disease_state == 2)[0]
+    sim.people.infection_timer[inf_idx]
+
+    exp_inx = np.where(sim.people.disease_state == 1)[0]
+    sim.people.exposure_timer[exp_inx]
+
     # Run the simulation for one timestep
     sim.run()
     n_sus_t1 = np.sum(sim.people.disease_state == 0)
