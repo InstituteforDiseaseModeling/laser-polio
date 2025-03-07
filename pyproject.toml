@@ -51,6 +51,7 @@ dependencies = [
     "rastertools @ git+https://github.com/InstituteforDiseaseModeling/RasterTools.git",
     "requests",
     "scipy",
+    "sciris",
     "shapely",
     "tables",
     "tqdm",

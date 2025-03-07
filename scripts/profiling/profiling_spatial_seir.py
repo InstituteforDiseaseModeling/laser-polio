@@ -21,7 +21,7 @@ def make_sim(n_ppl=100e3, n_nodes=1, dur=365):
 
         # Time 
         start_date      = sc.date('2025-01-01'),  # Start date of the simulation
-        timesteps       = dur,  # Number of timesteps
+        dur             = dur,  # Number of timesteps
 
         # Population
         n_ppl           = pop, # np.array([30000, 10000, 15000, 20000, 25000]),  

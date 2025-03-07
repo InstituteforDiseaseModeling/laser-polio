@@ -7,7 +7,7 @@
 #     """Ensure that if all individuals are immune, no infections occur."""
 #     pars = PropertySet(dict(
 #         start_date  = lp.date('2020-01-01'),
-#         timesteps   = 30,
+#         dur   = 30,
 #         n_ppl       = np.array([1000, 500]),
 #         init_immun  = [1.0],  # 100% immune
 #         init_prev   = [0.0],  # No initial infections

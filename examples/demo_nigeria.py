@@ -88,7 +88,7 @@ pars = PropertySet(dict(
 
     # Time 
     start_date      = start_date,  # Start date of the simulation
-    timesteps       = n_days,  # Number of timesteps
+    dur             = n_days,  # Number of timesteps
 
     # Population 
     n_ppl           = pop, # np.array([30000, 10000, 15000, 20000, 25000]),  
