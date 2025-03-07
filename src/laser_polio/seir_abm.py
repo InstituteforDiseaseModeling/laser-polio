@@ -168,10 +168,10 @@ def count_SEIRP(node_id, disease_state, paralyzed, n_nodes):
     return S, E, I, R, P
 
 
-# @nb.njit(parallel=True)
+@nb.njit(parallel=True)
 def step_nb(disease_state, exposure_timer, infection_timer, acq_risk_multiplier, daily_infectivity, paralyzed, p_paralysis):
-    for i in np.arange(disease_state.size):
-    # for i in nb.prange(disease_state.size):
+    # for i in np.arange(disease_state.size):
+    for i in nb.prange(disease_state.size):
         # Update states in reverse order so that newly exposed don't become infected on the same timestep
         if disease_state[i] == 2:  # Infected
             if infection_timer[i] <= 0:
