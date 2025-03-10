@@ -58,15 +58,47 @@ class SEIR_ABM:
         # Components
         self.components = []
 
-    def add_component(self, component):
-        self.components.append(component)
+    @property
+    def components(self) -> list:
+        """
+        Retrieve the list of model components.
+
+        Returns:
+
+            list: A list containing the components.
+        """
+
+        return self._components
+
+    @components.setter
+    def components(self, components: list) -> None:
+        """
+        Sets up the components of the model and initializes instances and phases.
+
+        This function takes a list of component types, creates an instance of each, and adds each callable component to the phase list.
+        It also registers any components with an `on_birth` function with the `Births` component.
+
+        Args:
+
+            components (list): A list of component classes to be initialized and integrated into the model.
+
+        Returns:
+
+            None
+        """
+
+        self._components = components
+        self.instances = []  # instantiated instances of components
+        for component in components:
+            instance = component(self)
+            self.instances.append(instance)
 
     def run(self):
-        self.component_times = { component: 0.0 for component in self.components }
+        self.component_times = { component: 0.0 for component in self.instances }
         self.component_times["report"] = 0
         with alive_bar(self.nt, title='Simulation progress:') as bar:
             for tick in range(self.nt):
-                for component in self.components:
+                for component in self.instances:
                     start_time = time.perf_counter()
                     component.step()
                     end_time = time.perf_counter()
@@ -80,7 +112,7 @@ class SEIR_ABM:
                 bar()  # Update the progress bar
 
     def log_results(self, t):
-        for component in self.components:
+        for component in self.instances:
             component.log(t)
     
     def plot(self, save=False, results_path=None):
@@ -91,17 +123,17 @@ class SEIR_ABM:
             else:
                 results_path = Path(results_path)  # Ensure results_path is a Path object
                 results_path.mkdir(parents=True, exist_ok=True)
-        for component in self.components:
+        for component in self.instances:
             component.plot(save=save, results_path=results_path)
         self.plot_node_pop(save=save, results_path=results_path)
 
         if self.component_times:
-            labels = [component.__class__.__name__ for component in self.components]
+            labels = [component.__class__.__name__ for component in self.instances]
             labels.append( "report" )
-            print( f"{self.components=}" )
+            print( f"{self.instances=}" )
             print( f"{labels=}" )
             #times = [self.component_times[component] for component in labels ]
-            times = [self.component_times[component] for component in self.components ]
+            times = [self.component_times[component] for component in self.instances ]
             times.append( self.component_times["report"] )# hack
             plt.figure(figsize=(6, 6))
             plt.pie(times, labels=labels, autopct='%1.1f%%', startangle=140, colors=plt.cm.Paired.colors)
