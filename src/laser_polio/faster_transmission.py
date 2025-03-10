@@ -8,35 +8,6 @@ import time
 import laser_polio as lp
 from laser_core.migration import gravity, row_normalizer
 
-# Load the shared library
-infect_lib = npct.load_library("infect_cdf_binsearch.so", ".")
-
-# Define argument types
-infect_lib.parallel_infect.argtypes = [
-    np.ctypeslib.ndpointer(dtype=np.int32,flags="C_CONTIGUOUS"), # nodes
-    ctypes.c_int, # num_nodes
-    np.ctypeslib.ndpointer(dtype=np.int32,flags="C_CONTIGUOUS"), # node_id, 
-    ctypes.c_int, # num_people
-    np.ctypeslib.ndpointer(dtype=np.int32,flags="C_CONTIGUOUS"), # is_sus
-    np.ctypeslib.ndpointer(dtype=np.float32,flags="C_CONTIGUOUS"), # acq_risk_multiplier
-    np.ctypeslib.ndpointer(dtype=np.int32,flags="C_CONTIGUOUS"), # new_infections
-    np.ctypeslib.ndpointer(dtype=np.int32,flags="C_CONTIGUOUS")  # disease_state
-]
-
-# Define the wrapper function
-def faster_infect(nodes, node_id, is_sus, acq_risk_multiplier, new_infections, disease_state):
-    # Call the C function
-    infect_lib.parallel_infect(
-        nodes.astype(np.int32),
-        len(nodes),
-        node_id,
-        len(node_id),
-        is_sus.astype(np.int32),
-        acq_risk_multiplier,
-        new_infections,
-        disease_state
-    )
-
 @nb.njit(parallel=True)
 def compute_beta_ind_sums(node_ids, daily_infectivity, disease_state, num_nodes):
     num_threads = nb.get_num_threads()
@@ -91,6 +62,74 @@ def compute_infections_nb(
             exposure_sums[nd] += local_sums[t, nd]
 
     return exposure_sums
+
+@nb.njit(parallel=True)
+def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
+    """
+    A Numba-accelerated version of faster_infect.
+    Parallelizes over nodes, computing a CDF for each node's susceptible population.
+    Selects 'n_to_draw' indices via binary search of random values, and marks them infected.
+    
+    NOTE: This version does NOT enforce uniqueness of selected indices within the same node.
+    """
+    num_nodes = len(new_infections)
+    # Precompute which individuals are susceptible
+    is_sus = (disease_state == 0)
+    n_people = len(node_ids)
+
+    for node in nb.prange(num_nodes):
+        n_to_draw = new_infections[node]
+        if n_to_draw <= 0:
+            continue
+
+        # 1) Gather susceptible indices for this node
+        count = 0
+        for i in range(n_people):
+            if node_ids[i] == node and is_sus[i]:
+                count += 1
+
+        if count == 0:
+            continue
+
+        sus_indices = np.empty(count, dtype=np.int64)
+        sus_probs   = np.empty(count, dtype=np.float32)
+
+        idx = 0
+        previous = 0.0 # build CDF simultaneously
+        for i in range(n_people):
+            if node_ids[i] == node and is_sus[i]:
+                sus_indices[idx] = i
+                sus_probs[idx]   = previous + exposure_probs[i]
+                previous         = sus_probs[idx]
+                idx += 1
+
+        # 2) Build a CDF in-place in sus_probs
+        # for i in range(1, count):
+        #     sus_probs[i] += sus_probs[i - 1]
+
+        total = sus_probs[count - 1]
+        if total <= 0.0:
+            continue
+
+        # don't use prange() here since we're already in a parallelized loop
+        # for i in range(count):
+        #     sus_probs[i] /= total
+
+        # 3) Draw 'n_to_draw' times via binary search
+        for _ in range(n_to_draw):
+            r = np.random.uniform(0, total)
+            left = 0
+            right = count - 1
+
+            while left < right:
+                mid = (left + right) // 2
+                if sus_probs[mid] < r:
+                    left = mid + 1
+                else:
+                    right = mid
+
+            # Infect the chosen individual
+            disease_state[sus_indices[left]] = 1
 
 @nb.njit((nb.int32[:], nb.int32[:], nb.int32[:], nb.int32), nogil=True, cache=True)
 def count_SEIRP(node_id, disease_state, paralyzed, n_nodes):
@@ -278,7 +317,8 @@ class Transmission_ABM:
                         # Mark them as exposed
                         disease_state[new_exposed_inds] = 1
 
-        faster_infect( self.nodes, node_ids, is_sus, risk, new_infections, disease_state )
+        fast_infect( node_ids, risk, disease_state, new_infections )
+        #faster_infect( self.nodes, node_ids, is_sus, risk, new_infections, disease_state )
         #new_check_time = time.perf_counter()
         #elapsed = new_check_time - check_time
         #self.do_ni_time += elapsed
