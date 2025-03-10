@@ -316,13 +316,13 @@ class DiseaseState_ABM:
 
         #sc.printcyan(f'DiseaseState_ABM t={self.sim.t}')
 
-        exp_inx = np.where(self.sim.people.disease_state == 1)[0]
-        exp_timer = self.sim.people.exposure_timer[exp_inx]
+        #exp_inx = np.where(self.sim.people.disease_state == 1)[0]
+        #exp_timer = self.sim.people.exposure_timer[exp_inx]
         #print( f"DEBUG: {exp_inx=}" )
         #print( f"DEBUG: {exp_timer=}" )
 
-        inf_idx = np.where(self.sim.people.disease_state == 2)[0]
-        inf_timer = self.sim.people.infection_timer[inf_idx]
+        #inf_idx = np.where(self.sim.people.disease_state == 2)[0]
+        #inf_timer = self.sim.people.infection_timer[inf_idx]
         #print( f"DEBUG: {inf_idx=}" )
         #print( f"DEBUG: {inf_timer=}" )
 
@@ -579,13 +579,13 @@ class Transmission_ABM:
 
         #sc.printcyan(f'Transmission_ABM t={self.sim.t}')
 
-        exp_inx = np.where(self.sim.people.disease_state == 1)[0]
-        exp_timer = self.sim.people.exposure_timer[exp_inx]
+        #exp_inx = np.where(self.sim.people.disease_state == 1)[0]
+        #exp_timer = self.sim.people.exposure_timer[exp_inx]
         #print( f"DEBUG: {exp_inx=}" )
         #print( f"DEBUG: {exp_timer=}" )
 
-        inf_idx = np.where(self.sim.people.disease_state == 2)[0]
-        inf_timer = self.sim.people.infection_timer[inf_idx]
+        #inf_idx = np.where(self.sim.people.disease_state == 2)[0]
+        #inf_timer = self.sim.people.infection_timer[inf_idx]
         #print( f"DEBUG: {inf_idx=}" )
         #print( f"DEBUG: {inf_timer=}" )
 
