@@ -240,6 +240,12 @@ class DiseaseState_ABM:
         sim.people.add_scalar_property("infection_timer", dtype=np.int32, default=0)
         sim.people.infection_timer[:np.sum(self.pars.n_ppl)] = self.pars.dur_inf(np.sum(self.pars.n_ppl)) # initialize all agents with an infection_timer
 
+        sim.results.add_array_property("S", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
+        sim.results.add_array_property("E", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
+        sim.results.add_array_property("I", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
+        sim.results.add_array_property("R", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
+        sim.results.add_array_property("paralyzed", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
+
         # Initialize immunity
         if isinstance(pars.init_immun, float):
             # Initialize across total population
@@ -454,11 +460,6 @@ class Transmission_ABM:
 
         # Track disease states here because transmission will be the last component to run
         self.results = sim.results
-        sim.results.add_array_property("S", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
-        sim.results.add_array_property("E", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
-        sim.results.add_array_property("I", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
-        sim.results.add_array_property("R", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
-        sim.results.add_array_property("paralyzed", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
 
         # Calcultate geographic R0 modifiers based on underweight data (one for each node)
         underwt = self.pars.beta_spatial  # Placeholder for now
