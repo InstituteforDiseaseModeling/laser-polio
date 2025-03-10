@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "laser_polio"
-version = "0.0.0"
+version = "0.1.0"
 authors = [
   { name="Jonathan Bloedow", email="jonathan.bloedow@gatesfoundation.org" },
   { name="Christopher Lorton", email="christopher.lorton@gatesfoundation.org" },
@@ -16,7 +16,7 @@ maintainers = [
   { name="Steve Kroiss", email="steve.kroiss@gatesfoundation.org" },
 ]
 description = "A spatial polio model built using LASER"
-readme = "README.rst"
+readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.9"
 keywords = ["polio", "simulation", "laser", "spatial modeling"]
@@ -142,7 +142,7 @@ force-single-line = true
 quote-style = "double"
 
 [tool.bumpversion]
-current_version = "0.5.0"
+current_version = "0.1.0"
 parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
 serialize = ["{major}.{minor}.{patch}"]
 search = "{current_version}"
@@ -159,17 +159,12 @@ message = "Bump version: {current_version} → {new_version}"
 commit_args = ""
 
 [[tool.bumpversion.files]]
-filename = "setup.py"
-search = 'version="{current_version}"'
-replace = 'version="{new_version}"'
-
-[[tool.bumpversion.files]]
- filename = "README.rst"
+ filename = "README.md"
 search = "/v{current_version}.svg"
 replace = "/v{new_version}.svg"
 
 [[tool.bumpversion.files]]
-filename = "README.rst"
+filename = "README.md"
 search = "/v{current_version}...main"
 replace = "/v{new_version}...main"
 
@@ -179,7 +174,7 @@ search = 'version = release = "{current_version}"'
 replace = 'version = release = "{new_version}"'
 
 [[tool.bumpversion.files]]
-filename = "src/laser_measles/__init__.py"
+filename = "src/laser_polio/__init__.py"
 search = '__version__ = "{current_version}"'
 replace = '__version__ = "{new_version}"'
 
@@ -187,3 +182,90 @@ replace = '__version__ = "{new_version}"'
 filename = "pyproject.toml"
 search = 'version = "{current_version}"'
 replace = 'version = "{new_version}"'
+
+[tool.tox]
+legacy_tox_ini = """
+    [testenv:bootstrap]
+    deps =
+        jinja2
+        tox
+    skip_install = true
+    commands =
+        python ci/bootstrap.py --no-env
+    passenv =
+        *
+
+    ; a generative tox configuration, see: https://tox.wiki/en/latest/user_guide.html#generative-environments
+    [tox]
+    envlist =
+        clean,
+        check,
+        docs,
+        {py39,py310,py311,py312},
+        report
+    ignore_basepython_conflict = true
+
+    [testenv]
+    basepython =
+        py39: {env:TOXPYTHON:python3.9}
+        py310: {env:TOXPYTHON:python3.10}
+        py311: {env:TOXPYTHON:python3.11}
+        py312: {env:TOXPYTHON:python3.12}
+        {bootstrap,clean,check,report,docs,codecov}: {env:TOXPYTHON:python39}
+    setenv =
+        PYTHONPATH={toxinidir}/tests
+        PYTHONUNBUFFERED=yes
+        cover: SETUPPY_EXT_COVERAGE=yes
+    passenv =
+        *
+    usedevelop = false
+    deps =
+        pytest
+        pytest-cov
+        setuptools
+        llvmlite
+        numba
+    commands =
+        {posargs:pytest --cov --cov-report=term-missing --cov-report=xml -vv tests}
+
+    [testenv:check]
+    deps =
+        twine
+        readme-renderer[md]
+        check-manifest
+        pre-commit
+    skip_install = false
+    commands =
+        twine check .tox/.pkg/dist/*
+        python -m readme_renderer README.md --output /dev/null
+        check-manifest .
+        pre-commit autoupdate
+        pre-commit run --all-files --show-diff-on-failure
+
+    [testenv:docs]
+    usedevelop = true
+    deps =
+        -r{toxinidir}/docs/requirements.txt
+    commands =
+        sphinx-build {posargs:-E} -b doctest docs dist/docs
+        sphinx-build {posargs:-E} -b html docs dist/docs
+        sphinx-build -b linkcheck docs dist/docs
+
+    [testenv:report]
+    deps =
+        coverage
+    skip_install = true
+    commands =
+        coverage report
+        coverage html
+
+    [testenv:clean]
+    allowlist_externals = rm
+    commands =
+        rm -rf dist
+        coverage erase
+    skip_install = true
+    deps =
+        setuptools
+        coverage
+"""

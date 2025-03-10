@@ -25,3 +25,33 @@ uv.lock
 *geojson.zip
 *sia_district_rows.csv
 *WPP2024_POP_F02_1_POPULATION_5-YEAR_AGE_GROUPS_BOTH_SEXES.xlsx
+
+# Python
+*.py[cod]
+__pycache__
+
+# Temp files
+*.bak
+.DS_Store
+tmp/
+
+# C extensions
+*.so
+*.dll
+
+# Build and package files
+dist/
+*.egg
+*.egg-info
+.venv*/
+
+# Unit test / coverage reports
+.coverage
+coverage.xml
+htmlcov
+
+# Sphinx
+docs/_build
+
+# Tox
+.tox/

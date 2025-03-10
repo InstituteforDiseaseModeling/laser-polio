@@ -21,5 +21,9 @@ include README.rst
 
 recursive-include examples *
 
+exclude TODO.md
+recursive-exclude data *
+recursive-exclude scripts *
+
 recursive-exclude .devcontainer *
 global-exclude *.py[cod] __pycache__/* *.so *.dylib
