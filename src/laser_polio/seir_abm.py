@@ -63,14 +63,6 @@ class SEIR_ABM:
         # Components
         self.components = []
 
-    def add_component(self, component):
-        self.components.append(component)
-        self.sort_components()
-
-    def sort_components(self):
-        """ Sort components based on predefined priority order """
-        self.components.sort(key=lambda c: self.PRIORITY_ORDER.index(c.__class__.__name__) if c.__class__.__name__ in self.PRIORITY_ORDER else len(self.PRIORITY_ORDER))
-
     def run(self):
         self.component_times = { component: 0.0 for component in self.components }
         self.component_times["report"] = 0

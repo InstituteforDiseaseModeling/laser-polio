@@ -125,11 +125,13 @@ pars = PropertySet(dict(
 
 # Initialize the sim
 sim = lp.SEIR_ABM(pars)
-sim.add_component(lp.VitalDynamics_ABM(sim))
-sim.add_component(lp.DiseaseState_ABM(sim))
-sim.add_component(lp.Transmission_ABM(sim))
-sim.add_component(lp.RI_ABM(sim))
-sim.add_component(lp.SIA_ABM(sim))
+sim.components = [
+    lp.VitalDynamics_ABM(sim),
+    lp.DiseaseState_ABM(sim),
+    lp.Transmission_ABM(sim),
+    lp.RI_ABM(sim),
+    lp.SIA_ABM(sim)
+]
 
 # Run the simulation
 sim.run()
