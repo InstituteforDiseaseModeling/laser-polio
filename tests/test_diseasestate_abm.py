@@ -19,7 +19,7 @@ def setup_sim():
         p_paralysis     = 1 / 2000,  # 1% paralysis probability
     ))
     sim = lp.SEIR_ABM(pars)
-    sim.add_component(lp.DiseaseState_ABM(sim))
+    sim.components = [ lp.DiseaseState_ABM ]
     return sim
 
 # Test Initialization
@@ -61,7 +61,6 @@ def test_progression_manual_seeding():
         p_paralysis     = 1 / 2000,  # 1% paralysis probability
     ))
     sim = lp.SEIR_ABM(pars)
-    sim.add_component(lp.DiseaseState_ABM(sim))
     assert np.all(sim.people.exposure_timer[:pars['n_ppl'].sum()] == 1), 'The exposure timer was not initialized correctly'
     assert np.all(sim.people.infection_timer[:pars['n_ppl'].sum()] == 1), 'The infection timer was not initialized correctly'
     sim.people.disease_state[:sim.pars.n_ppl.sum()] = 1  # Set all to Exposed
@@ -105,8 +104,7 @@ def test_progression_with_transmission():
         max_migr_frac   = 0.01, # Fraction of population that migrates
     ))
     sim = lp.SEIR_ABM(pars)
-    sim.add_component(lp.DiseaseState_ABM(sim))
-    sim.add_component(lp.Transmission_ABM(sim))
+    sim.components = [ lp.DiseaseState_ABM, lp.Transmission_ABM ]
 
     # Ensure that there's a mix of disease states
     n_sus_t0 = np.sum(sim.people.disease_state == 0)
@@ -161,7 +159,7 @@ def test_paralysis_probability():
         p_paralysis     = 1 / 2000,  # 1% paralysis probability
     ))
     sim = lp.SEIR_ABM(pars)
-    sim.add_component(lp.DiseaseState_ABM(sim))
+    sim.components = [ lp.DiseaseState_ABM ]
     sim.people.disease_state[:sim.pars.n_ppl.sum()] = 1  # Set all to Exposed
     sim.run()
     exp_paralysis = int(pars.p_paralysis * pars.n_ppl.sum())

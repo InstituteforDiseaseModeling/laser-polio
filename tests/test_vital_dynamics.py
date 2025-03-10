@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from functools import partial
 import laser_polio as lp
 from laser_core.propertyset import PropertySet
 
@@ -14,7 +15,8 @@ def setup_sim(step_size=1):
         age_pyramid_path    = 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
     ))
     sim = lp.SEIR_ABM(pars)
-    sim.add_component(lp.VitalDynamics_ABM(sim, step_size=step_size))
+    steppy_vd = partial( lp.VitalDynamics_ABM, step_size=step_size )
+    sim.components = [steppy_vd] 
     return sim
 
 # Test Initialization
@@ -103,7 +105,8 @@ def test_zero_birth_rate():
         age_pyramid_path    = 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
     ))
     sim = lp.SEIR_ABM(pars)
-    sim.add_component(lp.VitalDynamics_ABM(sim, step_size=1))
+    steppy_vd = partial( lp.VitalDynamics_ABM, step_size=1 )
+    sim.components = [steppy_vd] 
     initial_population = sim.people.count
     sim.run()
     assert sim.people.count == initial_population  # No new births
