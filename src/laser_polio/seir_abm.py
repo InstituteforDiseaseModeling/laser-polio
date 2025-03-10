@@ -1,6 +1,6 @@
 import numpy as np
 import numba as nb
-import sciris as sc
+#import sciris as sc
 import matplotlib.pyplot as plt
 from laser_core.laserframe import LaserFrame
 from laser_core.migration import gravity, row_normalizer
@@ -314,17 +314,17 @@ class DiseaseState_ABM:
             self.pars.p_paralysis
         )
 
-        sc.printcyan(f'DiseaseState_ABM t={self.sim.t}')
+        #sc.printcyan(f'DiseaseState_ABM t={self.sim.t}')
 
         exp_inx = np.where(self.sim.people.disease_state == 1)[0]
         exp_timer = self.sim.people.exposure_timer[exp_inx]
-        print( f"{exp_inx=}" )
-        print( f"{exp_timer=}" )
+        #print( f"DEBUG: {exp_inx=}" )
+        #print( f"DEBUG: {exp_timer=}" )
 
         inf_idx = np.where(self.sim.people.disease_state == 2)[0]
         inf_timer = self.sim.people.infection_timer[inf_idx]
-        print( f"{inf_idx=}" )
-        print( f"{inf_timer=}" )
+        #print( f"DEBUG: {inf_idx=}" )
+        #print( f"DEBUG: {inf_timer=}" )
 
     def log(self, t):
         pass
@@ -367,7 +367,7 @@ class DiseaseState_ABM:
             plt.show()
 
     def plot_infected_map(self, save=False, results_path=None, n_panels=6):
-        timepoints = np.linspace(0, self.nt - 1, n_panels, dtype=int)
+        timepoints = np.linspace(0, self.pars.dur, n_panels, dtype=int)
         
         rows, cols = 2, int(np.ceil(n_panels / 2))
         fig, axs = plt.subplots(rows, cols, figsize=(cols * 6, rows * 6), sharex=True, sharey=True)
@@ -577,17 +577,17 @@ class Transmission_ABM:
 
 
 
-        sc.printcyan(f'Transmission_ABM t={self.sim.t}')
+        #sc.printcyan(f'Transmission_ABM t={self.sim.t}')
 
         exp_inx = np.where(self.sim.people.disease_state == 1)[0]
         exp_timer = self.sim.people.exposure_timer[exp_inx]
-        print( f"{exp_inx=}" )
-        print( f"{exp_timer=}" )
+        #print( f"DEBUG: {exp_inx=}" )
+        #print( f"DEBUG: {exp_timer=}" )
 
         inf_idx = np.where(self.sim.people.disease_state == 2)[0]
         inf_timer = self.sim.people.infection_timer[inf_idx]
-        print( f"{inf_idx=}" )
-        print( f"{inf_timer=}" )
+        #print( f"DEBUG: {inf_idx=}" )
+        #print( f"DEBUG: {inf_timer=}" )
 
     def plot(self, save=False, results_path=None):
         pass
