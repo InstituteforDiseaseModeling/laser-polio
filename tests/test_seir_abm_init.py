@@ -8,7 +8,7 @@ def setup_sim():
     """Initialize SEIR sim for testing."""
     pars = PropertySet(dict(
         start_date  = lp.date('2020-01-01'),  # Start date of the simulation
-        timesteps   = 10, # Number of timesteps to run the simulation
+        dur   = 10, # Number of timesteps to run the simulation
         n_ppl       = np.array([1000, 500]),  # Two nodes with populations
         cbr         = np.array([30, 25]),  # Birth rate per 1000/year
     ))
