@@ -15,14 +15,14 @@ class CompartmentalSEIR:
         self.pars = pars       
         self.nodes = np.arange(len(pars.n_ppl))
         self.t = 0
-        self.dates = sc.daterange(self.pars['start_date'], days=self.pars.timesteps)
+        self.dates = sc.daterange(self.pars['start_date'], days=self.pars.dur)
         
         # Initialize node-level state variables
         self.results = LaserFrame(capacity=1)
-        self.results.add_array_property("S", shape=(pars.timesteps, len(self.nodes)), dtype=np.float32)
-        self.results.add_array_property("E", shape=(pars.timesteps, len(self.nodes)), dtype=np.float32)
-        self.results.add_array_property("I", shape=(pars.timesteps, len(self.nodes)), dtype=np.float32)
-        self.results.add_array_property("R", shape=(pars.timesteps, len(self.nodes)), dtype=np.float32)
+        self.results.add_array_property("S", shape=(pars.dur, len(self.nodes)), dtype=np.float32)
+        self.results.add_array_property("E", shape=(pars.dur, len(self.nodes)), dtype=np.float32)
+        self.results.add_array_property("I", shape=(pars.dur, len(self.nodes)), dtype=np.float32)
+        self.results.add_array_property("R", shape=(pars.dur, len(self.nodes)), dtype=np.float32)
         
         # Initialize populations
         self.results.S[0, :] = pars.n_ppl
@@ -42,7 +42,7 @@ class CompartmentalSEIR:
         self.components.append(component)
 
     def run(self):
-        for tick in range(1, self.pars.timesteps):
+        for tick in range(1, self.pars.dur):
             for component in self.components:
                 component.step(tick)
             self.t += 1
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     pars = PropertySet(dict(
         # Time 
         start_date      = sc.date('2025-01-01'),  # Start date of the simulation
-        timesteps       = 180,  # Number of timesteps
+        dur             = 180,  # Number of timesteps
 
         # Population
         n_ppl           = np.array([30000, 10000, 15000, 20000, 25000]),

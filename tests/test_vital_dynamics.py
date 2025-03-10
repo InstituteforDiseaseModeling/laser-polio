@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from functools import partial
 import laser_polio as lp
 from laser_core.propertyset import PropertySet
 
@@ -8,13 +9,14 @@ def setup_sim(step_size=1):
     """Initialize a small test simulation with birth & death tracking."""
     pars = PropertySet(dict(
         start_date          = lp.date('2020-01-01'),  # Start date of the simulation
-        timesteps           = 30, # Number of timesteps to run the simulation
+        dur           = 30, # Number of dur to run the simulation
         n_ppl               = np.array([1000, 500]),  # Two nodes with populations
         cbr                 = np.array([30, 25]),  # Birth rate per 1000/year
         age_pyramid_path    = 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
     ))
     sim = lp.SEIR_ABM(pars)
-    sim.add_component(lp.VitalDynamics_ABM(sim, step_size=step_size))
+    steppy_vd = partial( lp.VitalDynamics_ABM, step_size=step_size )
+    sim.components = [steppy_vd] 
     return sim
 
 # Test Initialization
@@ -38,7 +40,7 @@ def test_births_generated():
 
     dobs = sim.people.date_of_birth[:sim.people.count]  # Extract date_of_birth; only consider active individuals
     dobs = dobs[dobs >= 0]  # Remove negatives (pop initialized before sim)
-    expected_births = np.bincount(dobs, minlength=sim.pars.timesteps) # Tally births per day
+    expected_births = np.bincount(dobs, minlength=sim.pars.dur) # Tally births per day
     observed_births = np.sum(sim.results.births, axis=1)  # Sum across nodes per timestep
     assert np.array_equal(expected_births, observed_births), 'Births did not occur on the expected days'
     print('Births:', sim.results.births)
@@ -53,7 +55,7 @@ def test_deaths_occur_step_size_1():
     assert np.all(sim.people.disease_state[:5] == -1), 'First 5 were not marked dead with disease_state'
 
     dods = sim.people.date_of_death[:sim.people.count]  # Extract date_of_death; only consider active individuals
-    expected_deaths = np.bincount(dods)[:sim.pars.timesteps]  # Tally deaths per day
+    expected_deaths = np.bincount(dods)[:sim.pars.dur]  # Tally deaths per day
     observed_deaths = np.sum(sim.results.deaths, axis=1)  # Sum across nodes per timestep
     assert np.array_equal(expected_deaths, observed_deaths), 'Deaths did not occur on the expected days'
 
@@ -71,11 +73,11 @@ def test_deaths_occur_step_size_7():
     assert np.all(sim.people.disease_state[:5] == -1), 'First 5 were not marked dead with disease_state'
 
     # Check that deaths occurred on the correct dates and were correctly aggregated into weekly bins
-    bin_edges = np.arange(0, sim.pars.timesteps + 1, 7)  # Define bin edges
+    bin_edges = np.arange(0, sim.pars.dur + 1, 7)  # Define bin edges
     dods = sim.people.date_of_death[:sim.people.count]  # Extract date_of_death for active individuals
-    expected_deaths = np.bincount(dods, minlength=sim.pars.timesteps)[:sim.pars.timesteps]  # Daily expected deaths
+    expected_deaths = np.bincount(dods, minlength=sim.pars.dur)[:sim.pars.dur]  # Daily expected deaths
     observed_deaths = np.sum(sim.results.deaths, axis=1)  # Daily observed deaths
-    death_bins = np.digitize(np.arange(sim.pars.timesteps), bin_edges, right=True)  # Digitize days into bins
+    death_bins = np.digitize(np.arange(sim.pars.dur), bin_edges, right=True)  # Digitize days into bins
     expected_deaths_binned = np.bincount(death_bins, weights=expected_deaths)[:len(bin_edges)-1]  # Aggregate deaths per bin
     observed_deaths_binned = np.bincount(death_bins, weights=observed_deaths)[:len(bin_edges)-1]  # Aggregate deaths per bin
     assert np.array_equal(expected_deaths_binned, observed_deaths_binned), 'Deaths did not occur on the expected days'  
@@ -90,20 +92,21 @@ def test_age_progression():
     initial_ages = sim.t - sim.people.date_of_birth[:np.sum(sim.pars.n_ppl)]  # Only focus on active individuals. Unborn agents don't age until born
     sim.run()
     end_ages = sim.t - sim.people.date_of_birth[:np.sum(sim.pars.n_ppl)]
-    assert np.all(end_ages == initial_ages + sim.pars.timesteps)
+    assert np.all(end_ages == initial_ages + sim.pars.dur)
 
 # Test Edge Case: Zero Birth Rate
 def test_zero_birth_rate():
     """Ensure that setting birth rate to zero prevents population growth."""
     pars = PropertySet(dict(
         start_date          = lp.date('2020-01-01'),  # Start date of the simulation
-        timesteps           = 30, # Number of timesteps to run the simulation
+        dur           = 30, # Number of dur to run the simulation
         n_ppl               = np.array([1000, 500]),  # Two nodes with populations
         cbr                 = np.array([0]),  # Birth rate per 1000/year
         age_pyramid_path    = 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
     ))
     sim = lp.SEIR_ABM(pars)
-    sim.add_component(lp.VitalDynamics_ABM(sim, step_size=1))
+    steppy_vd = partial( lp.VitalDynamics_ABM, step_size=1 )
+    sim.components = [steppy_vd] 
     initial_population = sim.people.count
     sim.run()
     assert sim.people.count == initial_population  # No new births

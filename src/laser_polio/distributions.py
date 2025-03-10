@@ -7,15 +7,15 @@ __all__ = dist_list
 
 
 class Distribution:
-    def __init__(self, dist_type, **params):
+    def __init__(self, dist_type, **pars):
         """
         Initializes the distribution.
 
         :param dist_type: Type of distribution (e.g., "poisson", "uniform", "gamma", etc.).
-        :param params: Parameters specific to the chosen distribution.
+        :param pars: Parameters specific to the chosen distribution.
         """
         self.dist_type = dist_type
-        self.params = params
+        self.pars = pars
 
         # Validate the distribution type
         supported_distributions = {'constant', 'exponential', 'gamma', 'lognormal', 'normal', 'poisson', 'uniform',}
@@ -32,17 +32,17 @@ class Distribution:
         if self.dist_type == "constant":
             return np.full(size, self.pars.get('value', 1))
         elif self.dist_type == "exponential":
-            return np.random.exponential(self.params.get("scale", 1.0), size)
+            return np.random.exponential(self.pars.get("scale", 1.0), size)
         elif self.dist_type == "gamma":
-            return np.random.gamma(self.params.get("shape", 2.0), self.params.get("scale", 1.0), size)
+            return np.random.gamma(self.pars.get("shape", 2.0), self.pars.get("scale", 1.0), size)
         elif self.dist_type == "lognormal":
-            return np.random.lognormal(self.params.get("mean", 1.0), self.params.get("sigma", 0.5), size)
+            return np.random.lognormal(self.pars.get("mean", 1.0), self.pars.get("sigma", 0.5), size)
         elif self.dist_type == "normal":
-            return np.random.normal(self.params.get("mean", 0.0), self.params.get("std", 1.0), size)
+            return np.random.normal(self.pars.get("mean", 0.0), self.pars.get("std", 1.0), size)
         elif self.dist_type == "poisson":
-            return np.random.poisson(self.params.get("lam", 5), size)
+            return np.random.poisson(self.pars.get("lam", 5), size)
         elif self.dist_type == "uniform":
-            return np.random.randint(self.params.get("min", 2), self.params.get("max", 10), size)
+            return np.random.randint(self.pars.get("min", 2), self.pars.get("max", 10), size)
         else:
             raise ValueError(f"Unsupported distribution type: {self.dist_type}")
 
@@ -56,7 +56,7 @@ class Distribution:
         return self.sample(size)
 
     def __repr__(self):
-        return f"Distribution(type={self.dist_type}, params={self.params})"
+        return f"Distribution(type={self.dist_type}, pars={self.pars})"
 
 
 # Define helper functions for common distributions

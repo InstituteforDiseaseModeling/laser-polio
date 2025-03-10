@@ -4,6 +4,15 @@
     - Transmission_abm
     - RI_abm
     - SIA_abm
+- Add 1 to the durs b/c we're shortchanging them due to order of operations???
+- Starsim order of operations (https://github.com/starsimhub/starsim/blob/main/starsim/loop.py)
+    1. Start_step (multipliers like seasonality, rel_sus/RR_sus, rel_trans)
+    2. Demographics
+    3. State changes
+    4. Interventions
+    5. Transmission
+    6. Log results
+- Add default pars, then replace if user specifies pars
 - Set a random number seed
 - Use KM's gravity model scaling approach
 - Check the RI & SIA figures - they're plotting strange results

@@ -11,7 +11,7 @@ params = PropertySet(dict(
     population_size = 1000,
     init_prev = 0.01,
     infection_rate = 0.3,
-    timesteps = 100
+    dur = 100
 ))
 
 # def test_timers():
