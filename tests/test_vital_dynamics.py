@@ -116,7 +116,7 @@ def test_zero_birth_rate():
             "start_date": lp.date("2020-01-01"),  # Start date of the simulation
             "dur": 30,  # Number of dur to run the simulation
             "n_ppl": np.array([1000, 500]),  # Two nodes with populations
-            "cbr": np.array([0]),  # Birth rate per 1000/year
+            "cbr": np.array([0, 0]),  # Birth rate per 1000/year
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
         }
     )

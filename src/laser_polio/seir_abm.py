@@ -46,7 +46,7 @@ class SEIR_ABM:
         # Initialize the population
         pars.n_ppl = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
         if (pars.cbr is not None) & (len(pars.cbr) == 1):
-            capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, pars.cbr))
+            capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, pars.cbr[0]))
         elif (pars.cbr is not None) & (len(pars.cbr) > 1):
             capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, np.mean(pars.cbr)))
         else:
@@ -261,10 +261,16 @@ class DiseaseState_ABM:
         def do_init_imm():
             print(f"Before immune initialization, we have {sim.people.count} active agents.")
             # Initialize immunity
-            if len(pars.init_immun) == 1:
+            if isinstance(pars.init_immun, float):
                 # Initialize across total population
                 num_recovered = int(sum(pars.n_ppl) * pars.init_immun)
-                np.random.choice(sum(pars.n_ppl), size=num_recovered, replace=False)
+                recovered_indices = np.random.choice(sum(pars.n_ppl), size=num_recovered, replace=False)
+                sim.people.disease_state[recovered_indices] = 3
+            elif isinstance(pars.init_immun, list) and len(pars.init_immun) == 1:
+                # Initialize across total population
+                num_recovered = int(sum(pars.n_ppl) * pars.init_immun[0])
+                recovered_indices = np.random.choice(sum(pars.n_ppl), size=num_recovered, replace=False)
+                sim.people.disease_state[recovered_indices] = 3
             else:
                 # Initialize by node
                 # Extract age bins dynamically from column names

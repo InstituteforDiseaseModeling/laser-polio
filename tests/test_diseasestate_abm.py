@@ -71,6 +71,7 @@ def test_progression_manual_seeding():
         }
     )
     sim = lp.SEIR_ABM(pars)
+    sim.components = [lp.DiseaseState_ABM]
     assert np.all(sim.people.exposure_timer[: pars["n_ppl"].sum()] == 1), "The exposure timer was not initialized correctly"
     assert np.all(sim.people.infection_timer[: pars["n_ppl"].sum()] == 1), "The infection timer was not initialized correctly"
     sim.people.disease_state[: sim.pars.n_ppl.sum()] = 1  # Set all to Exposed
