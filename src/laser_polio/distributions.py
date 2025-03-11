@@ -1,7 +1,15 @@
 import numpy as np
 
 # Add common distributions so they can be imported directly; assigned to a variable since used in help messages
-dist_list = ['constant', 'exponential', 'gamma', 'lognormal', 'normal', 'poisson', 'uniform', ]
+dist_list = [
+    "constant",
+    "exponential",
+    "gamma",
+    "lognormal",
+    "normal",
+    "poisson",
+    "uniform",
+]
 __all__ = list(dist_list)
 
 
@@ -17,7 +25,15 @@ class Distribution:
         self.pars = pars
 
         # Validate the distribution type
-        supported_distributions = {'constant', 'exponential', 'gamma', 'lognormal', 'normal', 'poisson', 'uniform',}
+        supported_distributions = {
+            "constant",
+            "exponential",
+            "gamma",
+            "lognormal",
+            "normal",
+            "poisson",
+            "uniform",
+        }
         if dist_type not in supported_distributions:
             raise ValueError(f"Unsupported distribution: {dist_type}. Supported: {supported_distributions}")
 
@@ -29,7 +45,7 @@ class Distribution:
         :return: A NumPy array of sampled values.
         """
         if self.dist_type == "constant":
-            return np.full(size, self.pars.get('value', 1))
+            return np.full(size, self.pars.get("value", 1))
         elif self.dist_type == "exponential":
             return np.random.exponential(self.pars.get("scale", 1.0), size)
         elif self.dist_type == "gamma":
@@ -62,21 +78,26 @@ class Distribution:
 def constant(value):
     return Distribution("constant", value=value)
 
+
 def exponential(scale):
     return Distribution("exponential", scale=scale)
+
 
 def gamma(shape, scale):
     return Distribution("gamma", shape=shape, scale=scale)
 
+
 def lognormal(mean, sigma):
     return Distribution("lognormal", mean=mean, sigma=sigma)
+
 
 def normal(mean, std):
     return Distribution("normal", mean=mean, std=std)
 
+
 def poisson(lam):
     return Distribution("poisson", lam=lam)
 
+
 def uniform(min, max):
     return Distribution("uniform", min=min, max=max)
-

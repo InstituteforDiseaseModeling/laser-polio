@@ -5,39 +5,39 @@ import numpy as np
 import pandas as pd
 from alive_progress import alive_bar
 
-pd.set_option('display.max_columns', None)
+pd.set_option("display.max_columns", None)
+
 
 def calculate_distance_matrix(gdf):
-        """Calculates a distance matrix between polygon centroids in kilometers."""
+    """Calculates a distance matrix between polygon centroids in kilometers."""
 
-        # Extract the centroids of the shapes
-        gdf = gdf.to_crs('EPSG:3395') # Convert to projected CRS for accurate distance calculation (Azimuthal Equidistant projection)
-        gdf["centroid"] = gdf.geometry.centroid
+    # Extract the centroids of the shapes
+    gdf = gdf.to_crs("EPSG:3395")  # Convert to projected CRS for accurate distance calculation (Azimuthal Equidistant projection)
+    gdf["centroid"] = gdf.geometry.centroid
 
-        # Get centroids
-        centroids = gdf.geometry.centroid
+    # Get centroids
+    centroids = gdf.geometry.centroid
 
-        # Create an empty distance matrix
-        num_polygons = len(gdf)
-        distance_matrix = np.zeros((num_polygons, num_polygons))
+    # Create an empty distance matrix
+    num_polygons = len(gdf)
+    distance_matrix = np.zeros((num_polygons, num_polygons))
 
-        # Calculate distances
-        n_steps = num_polygons * num_polygons
-        with alive_bar(n_steps, title='Progress:') as bar:
-            for i in range(num_polygons):
-                for j in range(num_polygons):
-                    distance_matrix[i, j] = centroids[i].distance(centroids[j]) / 1000  # Convert to km
-                    bar()  # Update the progress bar
+    # Calculate distances
+    n_steps = num_polygons * num_polygons
+    with alive_bar(n_steps, title="Progress:") as bar:
+        for i in range(num_polygons):
+            for j in range(num_polygons):
+                distance_matrix[i, j] = centroids[i].distance(centroids[j]) / 1000  # Convert to km
+                bar()  # Update the progress bar
 
-        distance_matrix = np.round(distance_matrix)  # Round to nearest km
+    distance_matrix = np.round(distance_matrix)  # Round to nearest km
 
-        return distance_matrix
+    return distance_matrix
 
 
-if(__name__ == "__main__"):
-
+if __name__ == "__main__":
     # Load the shapes2.geojson file
-    file_path = 'data/shp_africa_adm2.geojson'
+    file_path = "data/shp_africa_adm2.geojson"
     try:
         shapes = gpd.read_file(file_path)
     except Exception as e:
@@ -53,7 +53,7 @@ if(__name__ == "__main__"):
     # shapes = gpd.read_file('data/shp_africa_adm2.geojson')
 
     # Filter shapes to unique dot_names
-    shapes = shapes.drop_duplicates(subset='dot_name')
+    shapes = shapes.drop_duplicates(subset="dot_name")
     # Reset the index
     shapes.reset_index(drop=True, inplace=True)
 
@@ -61,7 +61,7 @@ if(__name__ == "__main__"):
     distance_matrix = calculate_distance_matrix(shapes)
 
     # Create a DataFrame with country names as row and column labels
-    dot_names = shapes['dot_name']
+    dot_names = shapes["dot_name"]
     distance_df = pd.DataFrame(distance_matrix, index=dot_names, columns=dot_names)
     distance_df.head()
     df_backup = distance_df.copy()
@@ -74,6 +74,6 @@ if(__name__ == "__main__"):
         print("No duplicate column names found.")
 
     # Save the distance matrix
-    distance_df.to_hdf('data/distance_matrix_africa_adm2.h5', key='dist_matrix', mode='w', complevel=9, complib='blosc')
+    distance_df.to_hdf("data/distance_matrix_africa_adm2.h5", key="dist_matrix", mode="w", complevel=9, complib="blosc")
 
-    print('Done.')
+    print("Done.")

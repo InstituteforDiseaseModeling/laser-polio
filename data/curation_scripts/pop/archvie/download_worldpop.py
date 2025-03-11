@@ -4,15 +4,15 @@ import os
 import geopandas as gpd
 from wpgpDownload.utils.convenience_functions import download_country_covariates as dl
 
-shapefile_path = 'data/curation_scripts/shapes/africa_polis_adm0.shp'
+shapefile_path = "data/curation_scripts/shapes/africa_polis_adm0.shp"
 gdf = gpd.read_file(shapefile_path)
 print(gdf.columns)
 # List each of the unique ISO3 codes in the shapefile
-isos = gdf['is_3_cd'].unique()
+isos = gdf["is_3_cd"].unique()
 
 
 # Download the WorldPop population rasters for each of the unique ISO3 codes
-output_dir = 'data/curation_scripts/pop/worldpop_rasters'
+output_dir = "data/curation_scripts/pop/worldpop_rasters"
 os.makedirs(output_dir, exist_ok=True)
 successful_downloads = 0
 failed_downloads = 0
@@ -22,7 +22,7 @@ for iso in isos:
     output_file = os.path.join(output_dir, f"{iso}_ppp_2020.tif")
     if not os.path.exists(output_file):
         try:
-            dl(ISO=iso, out_folder='data/curation_scripts/pop/worldpop_rasters', prod_name='ppp_2020')
+            dl(ISO=iso, out_folder="data/curation_scripts/pop/worldpop_rasters", prod_name="ppp_2020")
             successful_downloads += 1
         except Exception as e:
             print(f"Failed to download data for {iso}: {e}")

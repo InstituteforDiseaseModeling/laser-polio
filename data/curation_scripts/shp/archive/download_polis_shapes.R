@@ -7,34 +7,34 @@ library(sf)
 library(janitor)
 
 # URL for WHO polio shapefiles: https://services.arcgis.com/5T5nSi527N4F7luB/arcgis/rest/services/POLIO_ADMINISTRATIVE_BOUNDARIES/FeatureServer/
-# layers: 
-# 0 = disputed borders 
-# 1 = Disputed areas 
-# 2 = ADM4 
-# 3 = ADM3 
-# 4 = ADM2 
-# 5 = ADM1 
-# 6 = ADM0 
-# Add these to the end of the URL 
+# layers:
+# 0 = disputed borders
+# 1 = Disputed areas
+# 2 = ADM4
+# 3 = ADM3
+# 4 = ADM2
+# 5 = ADM1
+# 6 = ADM0
+# Add these to the end of the URL
 
 
 # Admin level 0
-furl0 <- "https://services.arcgis.com/5T5nSi527N4F7luB/arcgis/rest/services/POLIO_ADMINISTRATIVE_BOUNDARIES/FeatureServer/6" 
+furl0 <- "https://services.arcgis.com/5T5nSi527N4F7luB/arcgis/rest/services/POLIO_ADMINISTRATIVE_BOUNDARIES/FeatureServer/6"
 fl0 = arc_open(furl0)  # Open connection
 emro_africa_countries <- c('EG', 'LY', 'SD', 'TN', 'MA', 'SO', 'DJ')  # List of African EMRO countries
 emro_filter <- paste0("ISO_2_CODE IN ('", paste(emro_africa_countries, collapse = "', '"), "')")  # Convert the list into an SQL-friendly format
 where_clause <- paste0("WHO_REGION = 'AFRO' OR ", emro_filter) # Construct the WHERE clause to include AFRO region plus selected EMRO countries
-shp0 <- arc_select(fl0, where = where_clause)  # Download the feature layer 
+shp0 <- arc_select(fl0, where = where_clause)  # Download the feature layer
 shp0 <- clean_names(shp0)  # Clean names
 shp0 <- shp0[as.Date(shp0$enddate)>=Sys.Date(),] # Filter to current regions
 
 # Admin level 2
-furl2 <- "https://services.arcgis.com/5T5nSi527N4F7luB/arcgis/rest/services/POLIO_ADMINISTRATIVE_BOUNDARIES/FeatureServer/4" 
+furl2 <- "https://services.arcgis.com/5T5nSi527N4F7luB/arcgis/rest/services/POLIO_ADMINISTRATIVE_BOUNDARIES/FeatureServer/4"
 fl2 = arc_open(furl2)  # Open connection
 emro_africa_countries <- c('EG', 'LY', 'SD', 'TN', 'MA', 'SO', 'DJ')  # List of African EMRO countries
 emro_filter <- paste0("ISO_2_CODE IN ('", paste(emro_africa_countries, collapse = "', '"), "')")  # Convert the list into an SQL-friendly format
 where_clause <- paste0("WHO_REGION = 'AFRO' OR ", emro_filter) # Construct the WHERE clause to include AFRO region plus selected EMRO countries
-shp2 <- arc_select(fl2, where = where_clause)  # Download the freature layer 
+shp2 <- arc_select(fl2, where = where_clause)  # Download the freature layer
 shp2 <- clean_names(shp2)  # Clean names
 shp2 <- shp2[as.Date(shp2$enddate)>=Sys.Date(),] # Filter to current regions
 head(shp2)

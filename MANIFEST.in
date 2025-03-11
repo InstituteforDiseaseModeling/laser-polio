@@ -22,6 +22,7 @@ include README.rst
 recursive-include examples *
 
 exclude TODO.md
+exclude .vscode/settings.json
 recursive-exclude data *
 recursive-exclude scripts *
 

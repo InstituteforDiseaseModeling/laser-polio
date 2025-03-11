@@ -1,4 +1,3 @@
-
 import numba as nb
 import numpy as np
 import scipy.stats as stats
@@ -30,10 +29,9 @@ def compute_beta_ind_sums(node_ids, daily_infectivity, disease_state, num_nodes)
 
     return beta_sums
 
+
 @nb.njit(parallel=True)
-def compute_infections_nb(
-    disease_state, node_id, acq_risk_multiplier, beta_per_node
-):
+def compute_infections_nb(disease_state, node_id, acq_risk_multiplier, beta_per_node):
     """
     Return an array "exposure_sums" where exposure_sums[node] is the sum of
     probabilities for susceptible individuals in that node.
@@ -63,6 +61,7 @@ def compute_infections_nb(
 
     return exposure_sums
 
+
 @nb.njit(parallel=True)
 def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
     """
@@ -74,7 +73,7 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
     """
     num_nodes = len(new_infections)
     # Precompute which individuals are susceptible
-    is_sus = (disease_state == 0)
+    is_sus = disease_state == 0
     n_people = len(node_ids)
 
     for node in nb.prange(num_nodes):
@@ -92,15 +91,15 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
             continue
 
         sus_indices = np.empty(count, dtype=np.int64)
-        sus_probs   = np.empty(count, dtype=np.float32)
+        sus_probs = np.empty(count, dtype=np.float32)
 
         idx = 0
-        previous = 0.0 # build CDF simultaneously
+        previous = 0.0  # build CDF simultaneously
         for i in range(n_people):
             if node_ids[i] == node and is_sus[i]:
                 sus_indices[idx] = i
-                sus_probs[idx]   = previous + exposure_probs[i]
-                previous         = sus_probs[idx]
+                sus_probs[idx] = previous + exposure_probs[i]
+                previous = sus_probs[idx]
                 idx += 1
 
         # 2) Build a CDF in-place in sus_probs
@@ -131,6 +130,7 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
             # Infect the chosen individual
             disease_state[sus_indices[left]] = 1
 
+
 @nb.njit((nb.int32[:], nb.int32[:], nb.int32[:], nb.int32), nogil=True, cache=True)
 def count_SEIRP(node_id, disease_state, paralyzed, n_nodes):
     """
@@ -144,7 +144,7 @@ def count_SEIRP(node_id, disease_state, paralyzed, n_nodes):
     Returns: S, E, I, R, P arrays, each length n_nodes
     """
 
-    alive = disease_state >= 0 # Only count those who are alive
+    alive = disease_state >= 0  # Only count those who are alive
     S = np.zeros(n_nodes, dtype=np.int64)
     E = np.zeros(n_nodes, dtype=np.int64)
     I = np.zeros(n_nodes, dtype=np.int64)
@@ -157,13 +157,13 @@ def count_SEIRP(node_id, disease_state, paralyzed, n_nodes):
             nd = node_id[i]
             ds = disease_state[i]
 
-            if ds == 0:   # Susceptible
+            if ds == 0:  # Susceptible
                 S[nd] += 1
-            elif ds == 1: # Exposed
+            elif ds == 1:  # Exposed
                 E[nd] += 1
-            elif ds == 2: # Infected
+            elif ds == 2:  # Infected
                 I[nd] += 1
-            elif ds == 3: # Recovered
+            elif ds == 3:  # Recovered
                 R[nd] += 1
 
             # Check paralyzed
@@ -187,15 +187,19 @@ class Transmission_ABM:
 
         # Pre-compute individual risk of acquisition and infectivity with correlated sampling
         # Step 0: Add properties to people
-        self.people.add_scalar_property("acq_risk_multiplier", dtype=np.float32, default=1.0)  # Individual-level acquisition risk multiplier (multiplied by base probability for an agent becoming infected)
-        self.people.add_scalar_property("daily_infectivity", dtype=np.float32, default=1.0)  # Individual daily infectivity (e.g., number of infections generated per day in a fully susceptible population; mean = R0/dur_inf = 14/24)
+        self.people.add_scalar_property(
+            "acq_risk_multiplier", dtype=np.float32, default=1.0
+        )  # Individual-level acquisition risk multiplier (multiplied by base probability for an agent becoming infected)
+        self.people.add_scalar_property(
+            "daily_infectivity", dtype=np.float32, default=1.0
+        )  # Individual daily infectivity (e.g., number of infections generated per day in a fully susceptible population; mean = R0/dur_inf = 14/24)
         # Step 1: Define parameters for Lognormal & convert to log-space parameters
         mean_lognormal = 1
         variance_lognormal = self.pars.risk_mult_var
         mu_ln = np.log(mean_lognormal**2 / np.sqrt(variance_lognormal + mean_lognormal**2))
         sigma_ln = np.sqrt(np.log(variance_lognormal / mean_lognormal**2 + 1))
         # Step 2: Define parameters for Gamma
-        mean_gamma = 14/24
+        mean_gamma = 14 / 24
         shape_gamma = 1  # makes this equivalent to an exponential distribution
         scale_gamma = mean_gamma / shape_gamma
         # Step 3: Generate correlated normal samples
@@ -209,8 +213,8 @@ class Transmission_ABM:
         # Step 4: Transform normal variables into target distributions
         acq_risk_multiplier = np.exp(mu_ln + sigma_ln * z_corr[:, 0])  # Lognormal transformation
         daily_infectivity = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)  # Gamma transformation
-        self.people.acq_risk_multiplier[:self.people.true_capacity] = acq_risk_multiplier
-        self.people.daily_infectivity[:self.people.true_capacity] = daily_infectivity
+        self.people.acq_risk_multiplier[: self.people.true_capacity] = acq_risk_multiplier
+        self.people.daily_infectivity[: self.people.true_capacity] = daily_infectivity
 
         # Compute the infection migration network
         sim.results.add_vector_property("network", length=len(sim.nodes), dtype=np.float32)
@@ -229,35 +233,31 @@ class Transmission_ABM:
         self.calc_ni_time = 0
         self.do_ni_time = 0
 
-
     def step(self):
         # 1) Sum up the total amount of infectivity shed by all infectious agents within a node.
         # This is the daily number of infections that these individuals would be expected to generate
         # in a fully susceptible population sans spatial and seasonal factors.
-        #check_time = time.perf_counter()
-        disease_state = self.people.disease_state[:self.people.count]
-        node_ids = self.people.node_id[:self.people.count]
-        infectivity = self.people.daily_infectivity[:self.people.count]
-        risk = self.people.acq_risk_multiplier[:self.people.count]
+        # check_time = time.perf_counter()
+        disease_state = self.people.disease_state[: self.people.count]
+        node_ids = self.people.node_id[: self.people.count]
+        infectivity = self.people.daily_infectivity[: self.people.count]
+        risk = self.people.acq_risk_multiplier[: self.people.count]
 
         def default_beta():
             is_infected = disease_state == 2
-            beta_ind_sums = np.bincount(node_ids[is_infected],
-                                        weights=infectivity[is_infected],
-                                        minlength=len(self.nodes))
+            beta_ind_sums = np.bincount(node_ids[is_infected], weights=infectivity[is_infected], minlength=len(self.nodes))
             return beta_ind_sums
+
         def fast_beta():
-            beta_ind_sums = compute_beta_ind_sums(node_ids,
-                                  infectivity,
-                                  disease_state,
-                                  len(self.nodes))
+            beta_ind_sums = compute_beta_ind_sums(node_ids, infectivity, disease_state, len(self.nodes))
             return beta_ind_sums
+
         node_beta_sums = fast_beta()
 
-        #new_check_time = time.perf_counter()
-        #elapsed = new_check_time - check_time
-        #self.beta_sum_time += elapsed
-        #check_time = new_check_time
+        # new_check_time = time.perf_counter()
+        # elapsed = new_check_time - check_time
+        # self.beta_sum_time += elapsed
+        # check_time = new_check_time
 
         # 2) Spatially redistribute infectivity among nodes
         transfer = (node_beta_sums * self.network).astype(np.float64)  # Don't round here, we'll handle fractional infections later
@@ -265,44 +265,44 @@ class Transmission_ABM:
         # Ensure net contagion remains positive after movement
         node_beta_sums += transfer.sum(axis=1) - transfer.sum(axis=0)
         node_beta_sums = np.maximum(node_beta_sums, 0)  # Prevent negative contagion
-        #new_check_time = time.perf_counter()
-        #elapsed = new_check_time - check_time
-        #self.spatial_beta_time += elapsed
-        #check_time = new_check_time
+        # new_check_time = time.perf_counter()
+        # elapsed = new_check_time - check_time
+        # self.spatial_beta_time += elapsed
+        # check_time = new_check_time
 
         # 3) Apply seasonal & geographic modifiers
         beta_seasonality = lp.get_seasonality(self.sim)
         beta_spatial = self.pars.beta_spatial  # TODO: This currently uses a placeholder. Update it with IHME underweight data & make the
         beta = node_beta_sums * beta_seasonality * beta_spatial  # Total node infection rate
-        #new_check_time = time.perf_counter()
-        #elapsed = new_check_time - check_time
-        #self.seasonal_beta_time += elapsed
-        #check_time = new_check_time
+        # new_check_time = time.perf_counter()
+        # elapsed = new_check_time - check_time
+        # self.seasonal_beta_time += elapsed
+        # check_time = new_check_time
 
         # 4) Calculate base probability for each agent to become exposed
         # Surely the alive count is available from report (sum)?
-        alive_counts = self.sim.results.S[self.sim.t] + self.sim.results.E[self.sim.t] + self.sim.results.I[self.sim.t] + self.sim.results.R[self.sim.t]
+        alive_counts = (
+            self.sim.results.S[self.sim.t]
+            + self.sim.results.E[self.sim.t]
+            + self.sim.results.I[self.sim.t]
+            + self.sim.results.R[self.sim.t]
+        )
         per_agent_infection_rate = beta / np.clip(alive_counts, 1, None)
         base_prob_infection = 1 - np.exp(-per_agent_infection_rate)
-        #new_check_time = time.perf_counter()
-        #elapsed = new_check_time - check_time
-        #self.probs_time += elapsed
-        #check_time = new_check_time
+        # new_check_time = time.perf_counter()
+        # elapsed = new_check_time - check_time
+        # self.probs_time += elapsed
+        # check_time = new_check_time
 
         # 5) Calculate infections
         is_sus = disease_state == 0  # Filter to susceptibles
-        exposure_sums = compute_infections_nb(
-            disease_state,
-            node_ids,
-            risk,
-            base_prob_infection
-        )
+        exposure_sums = compute_infections_nb(disease_state, node_ids, risk, base_prob_infection)
         new_infections = np.random.poisson(exposure_sums).astype(np.int32)
-        #new_check_time = time.perf_counter()
-        #elapsed = new_check_time - check_time
-        #self.calc_ni_time += elapsed
-        #check_time = new_check_time
-        #print( f"{n_expected_exposures=}" )
+        # new_check_time = time.perf_counter()
+        # elapsed = new_check_time - check_time
+        # self.calc_ni_time += elapsed
+        # check_time = new_check_time
+        # print( f"{n_expected_exposures=}" )
 
         # 6) Draw n_expected_exposures for each node according to their exposure_probs
         # v1
@@ -313,17 +313,19 @@ class Transmission_ABM:
                     node_sus_indices = np.where((node_ids == node) & is_sus)[0]
                     node_exposure_probs = risk[node_sus_indices]
                     if len(node_sus_indices) > 0:
-                        new_exposed_inds = np.random.choice(node_sus_indices, size=n_to_draw, p=node_exposure_probs/node_exposure_probs.sum(), replace=True)
+                        new_exposed_inds = np.random.choice(
+                            node_sus_indices, size=n_to_draw, p=node_exposure_probs / node_exposure_probs.sum(), replace=True
+                        )
                         new_exposed_inds = np.unique(new_exposed_inds)  # Ensure unique individuals
                         # Mark them as exposed
                         disease_state[new_exposed_inds] = 1
 
-        fast_infect( node_ids, risk, disease_state, new_infections )
-        #faster_infect( self.nodes, node_ids, is_sus, risk, new_infections, disease_state )
-        #new_check_time = time.perf_counter()
-        #elapsed = new_check_time - check_time
-        #self.do_ni_time += elapsed
-        #check_time = new_check_time
+        fast_infect(node_ids, risk, disease_state, new_infections)
+        # faster_infect( self.nodes, node_ids, is_sus, risk, new_infections, disease_state )
+        # new_check_time = time.perf_counter()
+        # elapsed = new_check_time - check_time
+        # self.do_ni_time += elapsed
+        # check_time = new_check_time
 
         # # v2
         # if n_expected_exposures.sum() > 0:
@@ -334,7 +336,7 @@ class Transmission_ABM:
         #     self.people.exposure_timer[new_exposed_indices] = self.pars.dur_exp(len(new_exposed_indices))
 
     def log(self, t):
-       # Get the counts for each node in one pass
+        # Get the counts for each node in one pass
         S_counts, E_counts, I_counts, R_counts, P_counts = count_SEIRP(
             self.people.node_id,
             self.people.disease_state,
@@ -343,14 +345,14 @@ class Transmission_ABM:
         )
 
         # Store them in results
-        self.results.S[t, :]         = S_counts
-        self.results.E[t, :]         = E_counts
-        self.results.I[t, :]         = I_counts
+        self.results.S[t, :] = S_counts
+        self.results.E[t, :] = E_counts
+        self.results.I[t, :] = I_counts
         # Note that we add to existing non-zero EULA values for R
-        self.results.R[t, :]         += R_counts
+        self.results.R[t, :] += R_counts
         self.results.paralyzed[t, :] = P_counts
 
-    def plot(self, save=False, results_path="" ):
+    def plot(self, save=False, results_path=""):
         """
         print( f"{self.beta_sum_time=}" )
         print( f"{self.spatial_beta_time=}" )
@@ -359,4 +361,3 @@ class Transmission_ABM:
         print( f"{self.calc_ni_time=}" )
         print( f"{self.do_ni_time=}" )
         """
-

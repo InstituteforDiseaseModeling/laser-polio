@@ -13,10 +13,10 @@ The shepefiles (geojson.zip) are based on POLIS shapefiles. These were pulled fr
 	# Add a remote
 	dvc remote add -d -f --local polio-remote azure://data
 	dvc remote modify    --local polio-remote connection_string "...paste conn string from a file..."
-	
+
 	# Confirm it was added
 	dvc remote list --local
-	
+
 	# Pull data
 	dvc pull
 	```

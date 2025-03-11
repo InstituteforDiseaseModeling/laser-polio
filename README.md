@@ -7,8 +7,8 @@ This is a spatial polio transmission model built on the LASER framework.
 |**tests**|[![GitHub Actions Build Status](https://github.com/InstituteforDiseaseModeling/laser-polio/actions/workflows/github-actions.yml/badge.svg)](https://github.com/InstituteforDiseaseModeling/laser-polio/actions) [![Code Coverage](https://codecov.io/gh/InstituteforDiseaseModeling/laser-polio/branch/main/graphs/badge.svg?branch=main)](https://app.codecov.io/github/InstituteforDiseaseModeling/laser-polio)|
 |**package**|[![PyPI Package Latest Release](https://img.shields.io/pypi/v/laser-polio.svg)](https://pypi.org/project/laser-polio) [![PyPI Wheel](https://img.shields.io/pypi/wheel/laser-polio.svg)](https://pypi.org/project/laser-polio) [![Supported Versions](https://img.shields.io/pypi/pyversions/laser-polio.svg)](https://pypi.org/project/laser-polio) [![Supported Implementations](https://img.shields.io/pypi/implementation/laser-polio.svg)](https://pypi.org/project/laser-polio) [![Commits since latest release](https://img.shields.io/github/commits-since/InstituteforDiseaseModeling/laser-polio/v0.1.0.svg)](https://github.com/InstituteforDiseaseModeling/laser-polio/compare/v0.1.0...main)|
 
-## Installation 
-The recommended approach is to use uv to setup your venv and install the package. 
+## Installation
+The recommended approach is to use uv to setup your venv and install the package.
 
 Install uv & setup your venv:
 ```
@@ -30,8 +30,8 @@ All core model code is located in the `src\laser_polio` subfolder. The majority 
 The contents of the other folders is as follows:
 - The data folder contains curated files needed for modeling along with the raw versions of the data and curation scripts.
 - The docs folder contains information about model design and architecture.
-- The scripts folder contains code for running and calibrating the model, profiling, and demos. 
-- The tests folder contains code for testing model functionality and benchmarking. 
+- The scripts folder contains code for running and calibrating the model, profiling, and demos.
+- The tests folder contains code for testing model functionality and benchmarking.
 
 ## Tests
 Tests can be run `python -m pytest tests/`

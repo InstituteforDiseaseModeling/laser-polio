@@ -11,47 +11,42 @@ import laser_polio as lp
 
 
 def make_sim(n_ppl=100e3, n_nodes=1, dur=365):
-
-    pop             = n_ppl / n_nodes * np.ones(n_nodes)
-    dist_matrix     = np.ones((n_nodes, n_nodes))
-    init_prev       = np.zeros(n_nodes) + 0.01
-    beta_spatial    = np.ones(n_nodes)
-    cbr             = np.ones(n_nodes) * 30
-    vx_prob_ri      = np.ones(n_nodes) * 0.1
+    pop = n_ppl / n_nodes * np.ones(n_nodes)
+    dist_matrix = np.ones((n_nodes, n_nodes))
+    init_prev = np.zeros(n_nodes) + 0.01
+    beta_spatial = np.ones(n_nodes)
+    cbr = np.ones(n_nodes) * 30
+    vx_prob_ri = np.ones(n_nodes) * 0.1
 
     # Set parameters
-    pars = PropertySet({
-
-        # Time
-        'start_date': sc.date('2025-01-01'),  # Start date of the simulation
-        'dur': dur,  # Number of timesteps
-
-        # Population
-        'n_ppl': pop, # np.array([30000, 10000, 15000, 20000, 25000]),
-        'distances': dist_matrix, # Distance in km
-
-        # Disease
-        'init_prev': init_prev,  # Initial prevalence per node (1% infected)
-        'beta_global': 0.3,  # Global infection rate
-        'beta_spatial': beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
-        'seasonal_factor': 0.125,  # Seasonal variation in transmission
-        'seasonal_phase': 180,  # Phase of seasonal variation
-        'p_paralysis': 1 / 20,  # Probability of paralysis
-
-        # Migration
-        'gravity_k': 1,  # Gravity scaling constant
-        'gravity_a': 1,  # Origin population exponent
-        'gravity_b': 1,  # Destination population exponent
-        'gravity_c': 2.0,  # Distance exponent
-        'migration_frac': 0.01, # Fraction of population that migrates
-
-        # Demographics & vital dynamics
-        'age_pyramid_path': 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
-        'cbr': cbr, # np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year
-
-        # Interventions
-        'vx_prob_ri': vx_prob_ri,  # Probability of routine vaccination
-    })
+    pars = PropertySet(
+        {
+            # Time
+            "start_date": sc.date("2025-01-01"),  # Start date of the simulation
+            "dur": dur,  # Number of timesteps
+            # Population
+            "n_ppl": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
+            "distances": dist_matrix,  # Distance in km
+            # Disease
+            "init_prev": init_prev,  # Initial prevalence per node (1% infected)
+            "beta_global": 0.3,  # Global infection rate
+            "beta_spatial": beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
+            "seasonal_factor": 0.125,  # Seasonal variation in transmission
+            "seasonal_phase": 180,  # Phase of seasonal variation
+            "p_paralysis": 1 / 20,  # Probability of paralysis
+            # Migration
+            "gravity_k": 1,  # Gravity scaling constant
+            "gravity_a": 1,  # Origin population exponent
+            "gravity_b": 1,  # Destination population exponent
+            "gravity_c": 2.0,  # Distance exponent
+            "migration_frac": 0.01,  # Fraction of population that migrates
+            # Demographics & vital dynamics
+            "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
+            "cbr": cbr,  # np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year
+            # Interventions
+            "vx_prob_ri": vx_prob_ri,  # Probability of routine vaccination
+        }
+    )
 
     # Initialize the sim
     sim = lp.SEIR_ABM(pars)
@@ -65,9 +60,7 @@ def make_sim(n_ppl=100e3, n_nodes=1, dur=365):
     sim.run()
 
 
-
-if __name__ == '__main__':
-
+if __name__ == "__main__":
     # # Run profiler
     # T = sc.timer()
     # cpr = sc.cprofile()
@@ -80,7 +73,6 @@ if __name__ == '__main__':
     # df=cpr.to_df()
     # filename = f'scripts/profiling/Profile for SEIR with pop{int(n_ppl/1000)}k {n_nodes} nodes and dur of {dur} with speedups.csv'
     # df.to_csv(filename, index=False)
-
 
     # Track sim run times
     n_ppl_values = [1e5, 1e6, 1e7]
@@ -118,17 +110,15 @@ if __name__ == '__main__':
 
     # Plot the results
     plt.figure(figsize=(10, 6))
-    sns.lineplot(data=results_df, x='n_ppl', y='time', hue='n_nodes', marker='o', palette='bright')
-    plt.xscale('log')
-    plt.xlabel('Number of people (n_ppl)')
-    plt.ylabel('Time (minutes)')
-    plt.title('Model run times as of 2024-02-06')
-    plt.legend(title='n_nodes')
+    sns.lineplot(data=results_df, x="n_ppl", y="time", hue="n_nodes", marker="o", palette="bright")
+    plt.xscale("log")
+    plt.xlabel("Number of people (n_ppl)")
+    plt.ylabel("Time (minutes)")
+    plt.title("Model run times as of 2024-02-06")
+    plt.legend(title="n_nodes")
     plt.grid(True, which="both", ls="--")
     plt.tight_layout()
     plt.savefig("scripts/profiling/model_run_times_plot_with_speedups_20250206.png")
     plt.show()
 
-    print('Done.')
-
-
+    print("Done.")

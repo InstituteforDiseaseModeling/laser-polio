@@ -3,8 +3,8 @@ import numpy as np
 
 # Given parameters
 R0 = 14.0  # Basic reproduction number
-c = 10     # Avg. contacts per day
-D = 5      # Avg. infectious period (days)
+c = 10  # Avg. contacts per day
+D = 5  # Avg. infectious period (days)
 ind_variance = 4.0  # Variance in individual risk
 corr = 0.8  # Correlation between acquisition and transmission risk
 

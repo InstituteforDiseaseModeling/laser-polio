@@ -13,31 +13,31 @@ Image.MAX_IMAGE_PIXELS = None
 
 
 # Load the polis_adm2_africa.shp file
-shapefile_path = 'data/curation_scripts/shapes/polis/polis_adm2_africa.shp'
+shapefile_path = "data/curation_scripts/shapes/polis/polis_adm2_africa.shp"
 gdf = gpd.read_file(shapefile_path)
 
 # Extract all of the unique ISO codes
-isos = gdf['is_3_cd'].unique()
+isos = gdf["is_3_cd"].unique()
 
 # Clip the WorldPop raster with the shapefile for each ISO code
 n_successes = 0
 n_fails = 0
 failed_isos = []
 for iso in isos:
-    print(f'Processing raster for {iso}')
-    shape_file = Path(f'data/curation_scripts/shapes/polis/polis_adm2_{iso}.shp')
-    raster_file = Path(f'data/curation_scripts/pop/worldpop_rasters/{iso}_ppp_2020.tif')
+    print(f"Processing raster for {iso}")
+    shape_file = Path(f"data/curation_scripts/shapes/polis/polis_adm2_{iso}.shp")
+    raster_file = Path(f"data/curation_scripts/pop/worldpop_rasters/{iso}_ppp_2020.tif")
     output_file = f"data/curation_scripts/pop/worldpop_rasters/pop_adm2_{iso}.csv"
     if not Path(output_file).exists:
         try:
             # Clipping raster with shapes (only pop values)
-            pop_dict = raster_clip(raster_file, shape_file, include_latlon=True, shape_attr='dot_name', quiet=True)
+            pop_dict = raster_clip(raster_file, shape_file, include_latlon=True, shape_attr="dot_name", quiet=True)
             n_successes += 1
 
             # Save the popdict as a csv
-            pop_df = pd.DataFrame.from_dict(pop_dict, orient='index')
+            pop_df = pd.DataFrame.from_dict(pop_dict, orient="index")
             pop_df.reset_index(inplace=True)
-            pop_df.rename(columns={'index': 'dot_name'}, inplace=True)
+            pop_df.rename(columns={"index": "dot_name"}, inplace=True)
             pop_df.to_csv(output_file, index=False)
 
         except Exception as e:
@@ -60,7 +60,6 @@ if failed_isos:
 print("Done.")
 
 
-
 # iso = 'BEN'
 
 # # Using example DRC shapefile and raster
@@ -72,9 +71,6 @@ print("Done.")
 # utils.save_json(popdict, json_path=f"data/curation_scripts/pop/worldpop_rasters/pop_adm2_{iso}.json", sort_keys=True)
 
 
-
-
-
 # from math import log10
 # y = [e['lat'] for e in popdict.values()]
 # x = [e['lon'] for e in popdict.values()]
@@ -82,16 +78,6 @@ print("Done.")
 # fig, ax = plot_shapes(shape_file, linewidth=0.2, alpha=1.0, edgecolor='k', facecolor='None')
 # ax.scatter(x,y,s=c, alpha=0.3)
 # ax.set_box_aspect(1)
-
-
-
-
-
-
-
-
-
-
 
 
 # # Directory containing the individual shapefiles and WorldPop raster TIFFs
@@ -123,4 +109,3 @@ print("Done.")
 
 #     # Perform any additional processing here
 #     # ...
-

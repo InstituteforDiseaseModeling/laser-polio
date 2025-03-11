@@ -5,69 +5,79 @@ from zoneinfo import ZoneInfo  # Python 3.9+
 import numpy as np
 import pandas as pd
 
-__all__ = ['clean_strings', 'create_cumulative_deaths', 'date', 'daterange', 'find_matching_dot_names', 'get_distance_matrix', 'get_seasonality', 'get_tot_pop_and_cbr', 'get_woy', 'process_sia_schedule_polio']
-
+__all__ = [
+    "clean_strings",
+    "create_cumulative_deaths",
+    "date",
+    "daterange",
+    "find_matching_dot_names",
+    "get_distance_matrix",
+    "get_seasonality",
+    "get_tot_pop_and_cbr",
+    "get_woy",
+    "process_sia_schedule_polio",
+]
 
 
 def clean_strings(revval):
-    ''' Clean up a string by removing diacritics, converting to upper case, and replacing spaces and other non-letter character with underscores.'''
+    """Clean up a string by removing diacritics, converting to upper case, and replacing spaces and other non-letter character with underscores."""
 
     # Upper case
     revval = revval.upper()
 
     # Diacritics
-    revval = revval.replace('Â', 'A')
-    revval = revval.replace('Á', 'A')
-    revval = revval.replace('Ç', 'C')
-    revval = revval.replace('Ê', 'E')
-    revval = revval.replace('É', 'E')
-    revval = revval.replace('È', 'E')
-    revval = revval.replace('Ï', 'I')
-    revval = revval.replace('Ã¯', 'I')
-    revval = revval.replace('Í', 'I')
-    revval = revval.replace('Ñ', 'NY')
-    revval = revval.replace('Ô', 'O')
-    revval = revval.replace('Ó', 'O')
-    revval = revval.replace('Ü', 'U')
-    revval = revval.replace('Û', 'U')
-    revval = revval.replace('Ú', 'U')
+    revval = revval.replace("Â", "A")
+    revval = revval.replace("Á", "A")
+    revval = revval.replace("Ç", "C")
+    revval = revval.replace("Ê", "E")
+    revval = revval.replace("É", "E")
+    revval = revval.replace("È", "E")
+    revval = revval.replace("Ï", "I")
+    revval = revval.replace("Ã¯", "I")
+    revval = revval.replace("Í", "I")
+    revval = revval.replace("Ñ", "NY")
+    revval = revval.replace("Ô", "O")
+    revval = revval.replace("Ó", "O")
+    revval = revval.replace("Ü", "U")
+    revval = revval.replace("Û", "U")
+    revval = revval.replace("Ú", "U")
 
     # Alias characters to underscore
-    revval = revval.replace(' ', '_')
-    revval = revval.replace('-', '_')
-    revval = revval.replace('/', '_')
-    revval = revval.replace(',', '_')
-    revval = revval.replace('\\', '_')
+    revval = revval.replace(" ", "_")
+    revval = revval.replace("-", "_")
+    revval = revval.replace("/", "_")
+    revval = revval.replace(",", "_")
+    revval = revval.replace("\\", "_")
 
     # Remove ASCII characters
-    revval = revval.replace('\'',   '')
-    revval = revval.replace('"',    '')
-    revval = revval.replace('’',    '')
-    revval = revval.replace('.',    '')
-    revval = revval.replace('(',    '')
-    revval = revval.replace(')',    '')
-    revval = revval.replace('\x00', '')
+    revval = revval.replace("'", "")
+    revval = revval.replace('"', "")
+    revval = revval.replace("’", "")
+    revval = revval.replace(".", "")
+    revval = revval.replace("(", "")
+    revval = revval.replace(")", "")
+    revval = revval.replace("\x00", "")
 
     # Remove non-ASCII characters
-    revval = revval.encode('ascii', 'replace')
+    revval = revval.encode("ascii", "replace")
     revval = revval.decode()
-    revval = revval.replace('?', '')
+    revval = revval.replace("?", "")
 
     # Condence and strip underscore characters
-    while (revval.count('__')):
-        revval = revval.replace('__', '_')
-    revval = revval.strip('_')
+    while revval.count("__"):
+        revval = revval.replace("__", "_")
+    revval = revval.strip("_")
 
     return revval
 
 
 def date(start_date_str):
     if isinstance(start_date_str, pd.Series):
-        return start_date_str.apply(lambda x: dt.datetime.strptime(x, '%Y-%m-%d').replace(tzinfo=ZoneInfo("America/Los_Angeles")).date())
+        return start_date_str.apply(lambda x: dt.datetime.strptime(x, "%Y-%m-%d").replace(tzinfo=ZoneInfo("America/Los_Angeles")).date())
     elif isinstance(start_date_str, dt.date):
         return start_date_str
     else:
-        return dt.datetime.strptime(start_date_str, '%Y-%m-%d').replace(tzinfo=ZoneInfo("America/Los_Angeles")).date()
+        return dt.datetime.strptime(start_date_str, "%Y-%m-%d").replace(tzinfo=ZoneInfo("America/Los_Angeles")).date()
 
 
 def daterange(start_date, days):
@@ -82,7 +92,7 @@ def daterange(start_date, days):
         np.ndarray: An array of dates from the start date to the end date.
     """
     if isinstance(start_date, str):
-        start_date = dt.datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=ZoneInfo("America/Los_Angeles")).date()
+        start_date = dt.datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=ZoneInfo("America/Los_Angeles")).date()
 
     date_range = np.array([start_date + dt.timedelta(days=i) for i in range(days)])
     return date_range
@@ -124,24 +134,26 @@ def find_matching_dot_names(patterns, ref_file):
     df = pd.read_csv(ref_file)
 
     # Ensure the 'dot_names' column exists
-    if 'dot_name' not in df.columns:
+    if "dot_name" not in df.columns:
         raise ValueError("The CSV file must contain a 'dot_name' column")
 
     # Convert input patterns to uppercase
     patterns = [pattern.upper() for pattern in patterns]
 
     # Filter rows where 'dot_names' contain any of the country names
-    matched_regions = df[df['dot_name'].str.contains('|'.join(patterns), case=False, na=False)]
-    matched_dot_names = np.unique(matched_regions['dot_name'].tolist())  # Find unique dot_names & sort
+    matched_regions = df[df["dot_name"].str.contains("|".join(patterns), case=False, na=False)]
+    matched_dot_names = np.unique(matched_regions["dot_name"].tolist())  # Find unique dot_names & sort
 
     # Extract hierarchical levels
-    regions = {name.split(':')[0] for name in matched_dot_names}
-    adm0 = {':'.join(name.split(':')[:2]) for name in matched_dot_names if len(name.split(':')) > 1}
-    adm1 = {':'.join(name.split(':')[:3]) for name in matched_dot_names if len(name.split(':')) > 2}
+    regions = {name.split(":")[0] for name in matched_dot_names}
+    adm0 = {":".join(name.split(":")[:2]) for name in matched_dot_names if len(name.split(":")) > 1}
+    adm1 = {":".join(name.split(":")[:3]) for name in matched_dot_names if len(name.split(":")) > 2}
     adm2 = set(matched_dot_names)
 
     # Print summary
-    print(f"The input pattern(s) matched dot_names for {len(regions)} region(s), {len(adm0)} admin0, {len(adm1)} admin1, {len(adm2)} admin2 ")
+    print(
+        f"The input pattern(s) matched dot_names for {len(regions)} region(s), {len(adm0)} admin0, {len(adm1)} admin1, {len(adm2)} admin2 "
+    )
 
     return matched_dot_names
 
@@ -162,10 +174,10 @@ def get_distance_matrix(distance_matrix_path, name_filter):
     file_extension = os.path.splitext(distance_matrix_path)[1]
 
     # Load the distance matrix based on the file type
-    if file_extension == '.csv':
+    if file_extension == ".csv":
         dist_df = pd.read_csv(distance_matrix_path, index_col=0)
-    elif file_extension == '.h5':
-        dist_df = pd.read_hdf(distance_matrix_path, key='dist_matrix')
+    elif file_extension == ".h5":
+        dist_df = pd.read_hdf(distance_matrix_path, key="dist_matrix")
     else:
         raise ValueError("Unsupported file type. Please provide a CSV or HDF5 file.")
 
@@ -196,13 +208,13 @@ def get_tot_pop_and_cbr(file_path, regions=None, isos=None, year=None):
     # Filter the data by regions or isos
     if regions is not None:
         df_filtered = df[df["region"].isin(regions)]
-        assert len(df_filtered['region'].unique()) == len(regions)
+        assert len(df_filtered["region"].unique()) == len(regions)
     elif isos is not None:
         df_filtered = df[df["iso"].isin(isos)]
-        assert len(df_filtered['iso'].unique()) == len(isos)
+        assert len(df_filtered["iso"].unique()) == len(isos)
 
     # Filter the data to the specified year
-    df_filtered = df_filtered[df_filtered['year'] == year]
+    df_filtered = df_filtered[df_filtered["year"] == year]
 
     # Return the tot_pop and cbr columns
     pop = (df_filtered["tot_pop"].to_numpy() * 1000).astype(int)  # Round to the nearest integer
@@ -242,7 +254,7 @@ def process_sia_schedule(csv_path, start_date):
             "date": row["sim_t"],  # Simulation timestep
             "nodes": row["nodes"],  # Targeted nodes
             "age_range": (row["age_min"], row["age_max"]),  # Age range in days
-            "coverage": row["coverage"]  # Coverage rate (0-1)
+            "coverage": row["coverage"],  # Coverage rate (0-1)
         }
         for _, row in df.iterrows()
     ]
@@ -265,27 +277,27 @@ def process_sia_schedule_polio(df, region_names, sim_start_date):
     """
 
     # Filter dataset to include only matching adm2_name values
-    df_filtered = df[df['dot_name'].isin(region_names)].copy()
+    df_filtered = df[df["dot_name"].isin(region_names)].copy()
 
     # Process age data
-    df_filtered['age_range'] = df_filtered.apply(lambda row: (row['age_min'], row['age_max']), axis=1) # Age range in days
+    df_filtered["age_range"] = df_filtered.apply(lambda row: (row["age_min"], row["age_max"]), axis=1)  # Age range in days
 
     # Create a dictionary mapping dot_name to index in region_names
     dot_name_to_index = {name: idx for idx, name in enumerate(region_names)}
 
     # Map dot_name to index values
-    df_filtered['node_index'] = df_filtered['dot_name'].apply(lambda x: dot_name_to_index.get(x, -1))
+    df_filtered["node_index"] = df_filtered["dot_name"].apply(lambda x: dot_name_to_index.get(x, -1))
 
     # Summarize data by date, grouping node indices
-    summary = df_filtered.groupby(['date', 'age_range'])['node_index'].apply(list).reset_index()
-    summary.rename(columns={'node_index': 'nodes'}, inplace=True)
+    summary = df_filtered.groupby(["date", "age_range"])["node_index"].apply(list).reset_index()
+    summary.rename(columns={"node_index": "nodes"}, inplace=True)
 
     # Filter for start dates on or after the simulation beginning date
-    summary['date'] = date(summary['date'])
-    summary = summary[summary['date'] >= sim_start_date]
+    summary["date"] = date(summary["date"])
+    summary = summary[summary["date"] >= sim_start_date]
 
     # Convert to dictionary format
-    result = summary.to_dict(orient='records')
+    result = summary.to_dict(orient="records")
 
     return result
 
@@ -297,7 +309,7 @@ def get_woy(sim):
         date = time
     else:
         days = int((time - int(time)) * 365.25)
-        base_date = pd.to_datetime(f'{int(time)}-01-01')
+        base_date = pd.to_datetime(f"{int(time)}-01-01")
         datetime = base_date + pd.DateOffset(days=days)
         date = date(datetime)
 
@@ -307,7 +319,7 @@ def get_woy(sim):
 
 def get_seasonality(sim):
     woy = get_woy(sim)
-    return (1 + sim.pars['seasonal_factor'] * np.cos((2 * np.pi * woy / 52) + sim.pars['seasonal_phase']))
+    return 1 + sim.pars["seasonal_factor"] * np.cos((2 * np.pi * woy / 52) + sim.pars["seasonal_phase"])
 
 
 def create_cumulative_deaths(total_population, max_age_years):

@@ -17,7 +17,7 @@ class CompartmentalSEIR:
         self.pars = pars
         self.nodes = np.arange(len(pars.n_ppl))
         self.t = 0
-        self.dates = sc.daterange(self.pars['start_date'], days=self.pars.dur)
+        self.dates = sc.daterange(self.pars["start_date"], days=self.pars.dur)
 
         # Initialize node-level state variables
         self.results = LaserFrame(capacity=1)
@@ -98,10 +98,10 @@ class SEIRTransitions:
         sigma = self.pars.sigma  # Incubation rate (E -> I)
         gamma = self.pars.gamma  # Recovery rate (I -> R)
 
-        S = self.results.S[t-1, :]
-        E = self.results.E[t-1, :]
-        I = self.results.I[t-1, :]
-        R = self.results.R[t-1, :]
+        S = self.results.S[t - 1, :]
+        E = self.results.E[t - 1, :]
+        I = self.results.I[t - 1, :]
+        R = self.results.R[t - 1, :]
         N = S + E + I + R  # Total population per node
 
         # Compute the effective force of infection (FOI) using the contact matrix
@@ -137,13 +137,13 @@ class SEIRVitalDynamics:
         death_rate = self.pars.death_rate
 
         # Compute births
-        births = birth_rate * (self.results.S[t-1, :] + self.results.E[t-1, :] + self.results.I[t-1, :] + self.results.R[t-1, :])
+        births = birth_rate * (self.results.S[t - 1, :] + self.results.E[t - 1, :] + self.results.I[t - 1, :] + self.results.R[t - 1, :])
 
         # Compute deaths in each compartment
-        deaths_S = death_rate * self.results.S[t-1, :]
-        deaths_E = death_rate * self.results.E[t-1, :]
-        deaths_I = death_rate * self.results.I[t-1, :]
-        deaths_R = death_rate * self.results.R[t-1, :]
+        deaths_S = death_rate * self.results.S[t - 1, :]
+        deaths_E = death_rate * self.results.E[t - 1, :]
+        deaths_I = death_rate * self.results.I[t - 1, :]
+        deaths_R = death_rate * self.results.R[t - 1, :]
 
         # Apply births and deaths
         self.results.S[t, :] += births - deaths_S
@@ -168,7 +168,7 @@ class RoutineVaccination:
         Vaccinate a fraction of newborns.
         """
         vx_prob = self.pars.vx_prob_ri  # Routine immunization probability
-        births = self.pars.cbr / (365 * 1000) * np.sum(self.results.S[t-1, :])  # Estimated newborns
+        births = self.pars.cbr / (365 * 1000) * np.sum(self.results.S[t - 1, :])  # Estimated newborns
 
         # Vaccinate newborns
         vaccinated = vx_prob * births
@@ -178,48 +178,46 @@ class RoutineVaccination:
 
 # Example usage
 if __name__ == "__main__":
-    pars = PropertySet({
-        # Time
-        'start_date': sc.date('2025-01-01'),  # Start date of the simulation
-        'dur': 180,  # Number of timesteps
-
-        # Population
-        'n_ppl': np.array([30000, 10000, 15000, 20000, 25000]),
-
-        # Disease
-        'init_prev': np.array([0, 0.01, 0, 0, 0]),  # Initial prevalence per node (1% infected)
-        'beta_global': 0.3,  # Global infection rate
-        'seasonal_factor': 0.125,  # Seasonal variation in transmission
-        'seasonal_phase': 180,  # Phase of seasonal variation
-        'sigma': 1/5,  # Incubation period ~5 days
-        'gamma': 1/10,  # Recovery period ~10 days
-        'p_paralysis': 1 / 20,  # Probability of paralysis
-
-
-        # Migration
-        'beta_dist': np.array([
-            [0.8,  0.05, 0.05, 0.05, 0.05],
-            [0.05, 2.0,  0.05, 0.05, 0.05],
-            [0.05, 0.05, 0.9,  0.05, 0.05],
-            [0.05, 0.05, 0.05, 1.5,  0.05],
-            [0.05, 0.05, 0.05, 0.05, 0.5],
-        ]),
-        # distances       = [[0, 20, 10, 30, 50],
-        #                    []], # Distance in km
-        # gravity_k       = 1,  # Gravity scaling constant
-        # gravity_a       = 1,  # Origin population exponent
-        # gravity_b       = 1,  # Destination population exponent
-        # gravity_c       = 2.0,  # Distance exponent
-        # migration_frac  = 0.01, # Fraction of population that migrates
-
-        # Demographics & vital dynamics
-        # age_pyramid_path= 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
-        'cbr': np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year
-        'death_rate': 0.0001,  # Per capita daily death rate
-
-        # Interventions
-        'vx_prob_ri': np.array([0.1, 0.5, 0.01, 0, 0.2]),  # Probability of routine vaccination
-    })
+    pars = PropertySet(
+        {
+            # Time
+            "start_date": sc.date("2025-01-01"),  # Start date of the simulation
+            "dur": 180,  # Number of timesteps
+            # Population
+            "n_ppl": np.array([30000, 10000, 15000, 20000, 25000]),
+            # Disease
+            "init_prev": np.array([0, 0.01, 0, 0, 0]),  # Initial prevalence per node (1% infected)
+            "beta_global": 0.3,  # Global infection rate
+            "seasonal_factor": 0.125,  # Seasonal variation in transmission
+            "seasonal_phase": 180,  # Phase of seasonal variation
+            "sigma": 1 / 5,  # Incubation period ~5 days
+            "gamma": 1 / 10,  # Recovery period ~10 days
+            "p_paralysis": 1 / 20,  # Probability of paralysis
+            # Migration
+            "beta_dist": np.array(
+                [
+                    [0.8, 0.05, 0.05, 0.05, 0.05],
+                    [0.05, 2.0, 0.05, 0.05, 0.05],
+                    [0.05, 0.05, 0.9, 0.05, 0.05],
+                    [0.05, 0.05, 0.05, 1.5, 0.05],
+                    [0.05, 0.05, 0.05, 0.05, 0.5],
+                ]
+            ),
+            # distances       = [[0, 20, 10, 30, 50],
+            #                    []], # Distance in km
+            # gravity_k       = 1,  # Gravity scaling constant
+            # gravity_a       = 1,  # Origin population exponent
+            # gravity_b       = 1,  # Destination population exponent
+            # gravity_c       = 2.0,  # Distance exponent
+            # migration_frac  = 0.01, # Fraction of population that migrates
+            # Demographics & vital dynamics
+            # age_pyramid_path= 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
+            "cbr": np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year
+            "death_rate": 0.0001,  # Per capita daily death rate
+            # Interventions
+            "vx_prob_ri": np.array([0.1, 0.5, 0.01, 0, 0.2]),  # Probability of routine vaccination
+        }
+    )
 
     sim = CompartmentalSEIR(pars)
     sim.add_component(SEIRTransitions(sim))
