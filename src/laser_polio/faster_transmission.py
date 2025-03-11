@@ -1,12 +1,12 @@
-import numpy as np
+
 import numba as nb
-import matplotlib.pyplot as plt
+import numpy as np
 import scipy.stats as stats
-import ctypes
-import numpy.ctypeslib as npct
-import time
+from laser_core.migration import gravity
+from laser_core.migration import row_normalizer
+
 import laser_polio as lp
-from laser_core.migration import gravity, row_normalizer
+
 
 @nb.njit(parallel=True)
 def compute_beta_ind_sums(node_ids, daily_infectivity, disease_state, num_nodes):
@@ -69,7 +69,7 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
     A Numba-accelerated version of faster_infect.
     Parallelizes over nodes, computing a CDF for each node's susceptible population.
     Selects 'n_to_draw' indices via binary search of random values, and marks them infected.
-    
+
     NOTE: This version does NOT enforce uniqueness of selected indices within the same node.
     """
     num_nodes = len(new_infections)
@@ -135,12 +135,12 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
 def count_SEIRP(node_id, disease_state, paralyzed, n_nodes):
     """
     Go through each person exactly once and increment counters for their node.
-    
+
     node_id:        array of node IDs for each individual
     disease_state:  array storing each person's disease state (-1=dead/inactive, 0=S, 1=E, 2=I, 3=R)
     paralyzed:      array (0 or 1) if the person is paralyzed
     n_nodes:        total number of nodes
-    
+
     Returns: S, E, I, R, P arrays, each length n_nodes
     """
 
@@ -197,13 +197,13 @@ class Transmission_ABM:
         # Step 2: Define parameters for Gamma
         mean_gamma = 14/24
         shape_gamma = 1  # makes this equivalent to an exponential distribution
-        scale_gamma = mean_gamma / shape_gamma 
+        scale_gamma = mean_gamma / shape_gamma
         # Step 3: Generate correlated normal samples
-        rho = 0.8  # Desired correlation      
+        rho = 0.8  # Desired correlation
         cov_matrix = np.array([[1, rho], [rho, 1]])  # Create covariance matrix
         L = np.linalg.cholesky(cov_matrix)  # Cholesky decomposition
         # Generate standard normal samples
-        n_samples = self.people.true_capacity 
+        n_samples = self.people.true_capacity
         z = np.random.normal(size=(n_samples, 2))
         z_corr = z @ L.T  # Apply Cholesky to introduce correlation
         # Step 4: Transform normal variables into target distributions
@@ -231,8 +231,8 @@ class Transmission_ABM:
 
 
     def step(self):
-        # 1) Sum up the total amount of infectivity shed by all infectious agents within a node. 
-        # This is the daily number of infections that these individuals would be expected to generate 
+        # 1) Sum up the total amount of infectivity shed by all infectious agents within a node.
+        # This is the daily number of infections that these individuals would be expected to generate
         # in a fully susceptible population sans spatial and seasonal factors.
         #check_time = time.perf_counter()
         disease_state = self.people.disease_state[:self.people.count]
@@ -258,9 +258,10 @@ class Transmission_ABM:
         #elapsed = new_check_time - check_time
         #self.beta_sum_time += elapsed
         #check_time = new_check_time
-        
+
         # 2) Spatially redistribute infectivity among nodes
         transfer = (node_beta_sums * self.network).astype(np.float64)  # Don't round here, we'll handle fractional infections later
+        transfer *= 10
         # Ensure net contagion remains positive after movement
         node_beta_sums += transfer.sum(axis=1) - transfer.sum(axis=0)
         node_beta_sums = np.maximum(node_beta_sums, 0)  # Prevent negative contagion
@@ -271,17 +272,17 @@ class Transmission_ABM:
 
         # 3) Apply seasonal & geographic modifiers
         beta_seasonality = lp.get_seasonality(self.sim)
-        beta_spatial = self.pars.beta_spatial  # TODO: This currently uses a placeholder. Update it with IHME underweight data & make the 
+        beta_spatial = self.pars.beta_spatial  # TODO: This currently uses a placeholder. Update it with IHME underweight data & make the
         beta = node_beta_sums * beta_seasonality * beta_spatial  # Total node infection rate
         #new_check_time = time.perf_counter()
         #elapsed = new_check_time - check_time
         #self.seasonal_beta_time += elapsed
         #check_time = new_check_time
 
-        # 4) Calculate base probability for each agent to become exposed    
+        # 4) Calculate base probability for each agent to become exposed
         # Surely the alive count is available from report (sum)?
         alive_counts = self.sim.results.S[self.sim.t] + self.sim.results.E[self.sim.t] + self.sim.results.I[self.sim.t] + self.sim.results.R[self.sim.t]
-        per_agent_infection_rate = beta / np.clip(alive_counts, 1, None) 
+        per_agent_infection_rate = beta / np.clip(alive_counts, 1, None)
         base_prob_infection = 1 - np.exp(-per_agent_infection_rate)
         #new_check_time = time.perf_counter()
         #elapsed = new_check_time - check_time

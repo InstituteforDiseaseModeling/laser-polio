@@ -108,6 +108,14 @@ ignore = [
     "S603", # flake8-bandit subprocess-without-shell-equals-true
     "S607", # flake8-bandit start-process-with-partial-path
     "E501", # pycodestyle line-too-long
+    "E741", # sometimes I want to use I as a variable even if it looks like a 1 to some people
+    "PTH103", # I have neither desire nor need to think about paths as objects
+    "PTH110", # I have no desire to think about paths as objects
+    "PTH118", # I have no desire to think about paths as objects
+    "PTH119", # I have no desire to think about paths as objects
+    "PTH122", # I have neither desire nor need to think about paths as objects
+    "PTH123", # I have neither desire nor need to think about paths as objects
+    "DTZ002" # I want to be able to just call a today() function.
 ]
 select = [
     "B", # flake8-bugbear

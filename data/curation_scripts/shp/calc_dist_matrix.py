@@ -1,15 +1,11 @@
 # Load the shapes2.geojson file and extract the centroids of the shapes.
-
+import fiona
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-pd.set_option('display.max_columns', None)
-import fiona
-from unidecode import unidecode
-import re
-from laser_polio.utils import clean_strings
 from alive_progress import alive_bar
 
+pd.set_option('display.max_columns', None)
 
 def calculate_distance_matrix(gdf):
         """Calculates a distance matrix between polygon centroids in kilometers."""
@@ -36,7 +32,7 @@ def calculate_distance_matrix(gdf):
         distance_matrix = np.round(distance_matrix)  # Round to nearest km
 
         return distance_matrix
-    
+
 
 if(__name__ == "__main__"):
 

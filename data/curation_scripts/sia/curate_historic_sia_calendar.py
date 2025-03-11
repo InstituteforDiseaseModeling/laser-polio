@@ -1,8 +1,9 @@
-import pandas as pd
-pd.set_option('display.max_columns', None)
 import geopandas as gpd
+import pandas as pd
+
 from laser_polio.utils import clean_strings
 
+pd.set_option('display.max_columns', None)
 # Load the SIA calendar
 df = pd.read_csv('data/curation_scripts/sia/sia_district_rows.csv', index_col=0)
 
@@ -44,7 +45,7 @@ df = df.reset_index(drop=True)
 print(df.head())
 
 # Save the full curated dataframe
-# Output: 
+# Output:
 # date,dot_name,age_min,age_max
 # 2025-02-01,AFRO:NIGERIA:SOKOTO:BINJI,0,1825
 # 2025-02-01,AFRO:NIGERIA:SOKOTO:BODINGA,0,1825

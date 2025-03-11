@@ -42,14 +42,12 @@
 
 
 
-import geopandas as gpd
 import os
-import numpy as np
-import pandas as pd
-from unidecode import unidecode
-import re
-from laser_polio.utils import clean_strings
+
+import geopandas as gpd
 from alive_progress import alive_bar
+
+from laser_polio.utils import clean_strings
 
 # Paths
 input_dir = "data/curation_scripts/shapes/polis"  # Folder where input shapefiles are stored

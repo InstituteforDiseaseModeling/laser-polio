@@ -1,23 +1,27 @@
-import numpy as np
-import numba as nb
+import time
+from pathlib import Path
+
 #import sciris as sc
 import matplotlib.pyplot as plt
-from laser_core.laserframe import LaserFrame
-from laser_core.migration import gravity, row_normalizer
-from laser_core.utils import calc_capacity
-import datetime as dt
+import numba as nb
+import numpy as np
 import pandas as pd
-from pathlib import Path
 import scipy.stats as stats
 from alive_progress import alive_bar
-import time
-from tqdm import tqdm
-import laser_polio as lp
-from laser_core.demographics.pyramid import load_pyramid_csv, AliasedDistribution
 from laser_core.demographics.kmestimator import KaplanMeierEstimator
+from laser_core.demographics.pyramid import AliasedDistribution
+from laser_core.demographics.pyramid import load_pyramid_csv
+from laser_core.laserframe import LaserFrame
+from laser_core.migration import gravity
+from laser_core.migration import row_normalizer
+from laser_core.utils import calc_capacity
+from tqdm import tqdm
+
+import laser_polio as lp
+
 from .faster_transmission import Transmission_ABM
 
-__all__ = ['SEIR_ABM', 'DiseaseState_ABM', 'Transmission_ABM', 'VitalDynamics_ABM', 'RI_ABM', 'SIA_ABM']
+__all__ = ['RI_ABM', 'SEIR_ABM', 'SIA_ABM', 'DiseaseState_ABM', 'Transmission_ABM', 'VitalDynamics_ABM']
 
 # SEIR Model
 class SEIR_ABM:
@@ -28,7 +32,7 @@ class SEIR_ABM:
     '''
 
     def __init__(self, pars):
-        self.pars = pars       
+        self.pars = pars
         pars = self.pars
 
         # Setup time
@@ -43,7 +47,7 @@ class SEIR_ABM:
         elif (pars.cbr is not None) & (len(pars.cbr) > 1):
             capacity = int(1.1*calc_capacity(np.sum(pars.n_ppl), self.nt, np.mean(pars.cbr)))
         else:
-            capacity = int(np.sum(pars.n_ppl))      
+            capacity = int(np.sum(pars.n_ppl))
         self.people = LaserFrame(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
         # We initialize disease_state here since it's required for most other components (which facilitates testing)
         self.people.add_scalar_property("disease_state", dtype=np.int32, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
@@ -116,7 +120,7 @@ class SEIR_ABM:
     def log_results(self, t):
         for component in self.instances:
             component.log(t)
-    
+
     def plot(self, save=False, results_path=None):
         if save:
             plt.ioff()  # Turn off interactive mode
@@ -164,12 +168,12 @@ class SEIR_ABM:
 def count_SEIRP(node_id, disease_state, paralyzed, n_nodes):
     """
     Go through each person exactly once and increment counters for their node.
-    
+
     node_id:        array of node IDs for each individual
     disease_state:  array storing each person's disease state (-1=dead/inactive, 0=S, 1=E, 2=I, 3=R)
     paralyzed:      array (0 or 1) if the person is paralyzed
     n_nodes:        total number of nodes
-    
+
     Returns: S, E, I, R, P arrays, each length n_nodes
     """
 
@@ -252,10 +256,10 @@ class DiseaseState_ABM:
         def do_init_imm():
             print( f"Before immune initialization, we have {sim.people.count} active agents." )
             # Initialize immunity
-            if len(pars.init_immun) == 1: 
+            if len(pars.init_immun) == 1:
                 # Initialize across total population
                 num_recovered = int(sum(pars.n_ppl) * pars.init_immun)
-                recovered_indices = np.random.choice(sum(pars.n_ppl), size=num_recovered, replace=False)
+                np.random.choice(sum(pars.n_ppl), size=num_recovered, replace=False)
             else:
                 # Initialize by node
                 # Extract age bins dynamically from column names
@@ -263,7 +267,7 @@ class DiseaseState_ABM:
                 for col in pars.init_immun.columns:
                     if col.startswith('immunity_'):
                         _, min_age, max_age = col.split('_')
-                        min_age_days, max_age_days = int(min_age) * 30.43, (int(max_age) + 1) * 30.43  # We add one here b/c the max is exclusive. See filtering logic below for who is considered eligible. 
+                        min_age_days, max_age_days = int(min_age) * 30.43, (int(max_age) + 1) * 30.43  # We add one here b/c the max is exclusive. See filtering logic below for who is considered eligible.
                         age_bins[col] = (min_age_days, max_age_days)
                         # Assign recovered status based on immunity data
 
@@ -295,14 +299,14 @@ class DiseaseState_ABM:
                 def get_node_counts_pre_squash( filter_mask ):
                     # Count up R by node before we squash
                     # Ensure everything is properly sliced up to active_count
-                    node_ids = sim.people.node_id[:active_count]  
+                    node_ids = sim.people.node_id[:active_count]
                     # Get a mask for elements outside the filter (i.e., those with disease_state >= 3 or inactive)
                     outside_filter_mask = ~filter_mask  # Invert the mask
                     # Get the node IDs corresponding to those outside the filter
                     outside_nodes = node_ids[outside_filter_mask]  # Now should match in length
                     # Use np.bincount to count occurrences efficiently
                     max_node_id = sim.people.node_id.max()  # Get max node_id to define the bin range
-                    node_counts = np.bincount(outside_nodes, minlength=max_node_id + 1) 
+                    node_counts = np.bincount(outside_nodes, minlength=max_node_id + 1)
                     return node_counts
 
                 def prepop_eula( node_counts, life_expectancies ):
@@ -311,8 +315,8 @@ class DiseaseState_ABM:
                     node_count = self.results.R.shape[1]  # Number of nodes
 
                     # Compute mean date_of_birth per node
-                    node_dob_sums = np.bincount(self.people.node_id[:self.people.count], 
-                                                weights=self.people.date_of_birth[:self.people.count], 
+                    node_dob_sums = np.bincount(self.people.node_id[:self.people.count],
+                                                weights=self.people.date_of_birth[:self.people.count],
                                                 minlength=node_count)
 
                     mean_dob = np.where(node_counts > 0, node_dob_sums / node_counts, 0)  # Avoid div by zero
@@ -393,7 +397,7 @@ class DiseaseState_ABM:
                 #viz()
 
         do_init_imm()
-            
+
         # Seed infections - (potentially overwrites immunity, e.g., if an individual is drawn as both immune (during immunity initialization above) and infected (below), they will be infected)
         if isinstance(pars.init_prev, float):
             num_infected = int(sum(pars.n_ppl) * pars.init_prev)
@@ -404,8 +408,6 @@ class DiseaseState_ABM:
         else:
             # Seed infections by node
             infected_indices = []
-            #for node, prev in enumerate(pars.init_prev):
-            # This is a bottleneck when running at scale
             node_ids = self.people.node_id[:self.people.count]
             disease_states = self.people.disease_state[:self.people.count]
             for node, prev in tqdm(enumerate(pars.init_prev), total=len(pars.init_prev), desc="Seeding infections in nodes"):
@@ -490,36 +492,36 @@ class DiseaseState_ABM:
 
     def plot_infected_map(self, save=False, results_path=None, n_panels=6):
         timepoints = np.linspace(0, self.pars.dur, n_panels, dtype=int)
-        
+
         rows, cols = 2, int(np.ceil(n_panels / 2))
         fig, axs = plt.subplots(rows, cols, figsize=(cols * 6, rows * 6), sharex=True, sharey=True)
         axs = axs.ravel()  # Flatten in case of non-square grid
 
         lats, lons = self.pars.centroids["CENTER_LAT"], self.pars.centroids["CENTER_LON"]
-        
+
         # Get global min and max for consistent color scale
         infection_min = np.min(self.results.I)
         infection_max = np.max(self.results.I)
-        
+
         for i, ax in enumerate(axs[:n_panels]):  # Ensure we don't go out of bounds
             t = timepoints[i]
             infection_counts = self.results.I[t, :]
 
-            scatter = ax.scatter(lons, lats, c=infection_counts, cmap="Reds", edgecolors=None, alpha=0.9, 
+            scatter = ax.scatter(lons, lats, c=infection_counts, cmap="Reds", edgecolors=None, alpha=0.9,
                                 vmin=infection_min, vmax=infection_max)
             ax.set_title(f"Timepoint {t}")
-            
+
             # Show labels only on the leftmost and bottom plots
             if i % cols == 0:
                 ax.set_ylabel("Latitude")
             else:
                 ax.set_yticklabels([])
-            
+
             if i >= n_panels - cols:
                 ax.set_xlabel("Longitude")
             else:
                 ax.set_xticklabels([])
-        
+
         # Add a single colorbar for all plots
         if 'scatter' in locals():  # Ensure scatter was created successfully
             cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])  # Position colorbar next to subplots
@@ -539,12 +541,12 @@ class DiseaseState_ABM:
 # def assign_exposures(node_ids, exposure_probs, expected_exposures):
 #     """
 #     Assign exposures to susceptible individuals using a vectorized multinomial sampling approach.
-    
+
 #     Parameters:
 #     - node_ids: Array of node IDs for susceptible individuals
 #     - exposure_probs: Normalized infection probabilities per susceptible individual
 #     - expected_exposures: Expected number of infections per node from Poisson sampling
-    
+
 #     Returns:
 #     - Array of indices of newly exposed individuals
 #     """
@@ -593,13 +595,13 @@ class Transmission_ABM_Slow:
         # Step 2: Define parameters for Gamma
         mean_gamma = 14/24
         shape_gamma = 1  # makes this equivalent to an exponential distribution
-        scale_gamma = mean_gamma / shape_gamma 
+        scale_gamma = mean_gamma / shape_gamma
         # Step 3: Generate correlated normal samples
-        rho = 0.8  # Desired correlation      
+        rho = 0.8  # Desired correlation
         cov_matrix = np.array([[1, rho], [rho, 1]])  # Create covariance matrix
         L = np.linalg.cholesky(cov_matrix)  # Cholesky decomposition
         # Generate standard normal samples
-        n_samples = self.people.true_capacity 
+        n_samples = self.people.true_capacity
         z = np.random.normal(size=(n_samples, 2))
         z_corr = z @ L.T  # Apply Cholesky to introduce correlation
         # Step 4: Transform normal variables into target distributions
@@ -617,16 +619,16 @@ class Transmission_ABM_Slow:
         self.network = gravity(init_pops, dist_matrix, k, a, b, c)
         self.network /= np.power(init_pops.sum(), c)  # Normalize
         self.network = row_normalizer(self.network, self.pars.max_migr_frac)
-        
+
     def step(self):
-        # 1) Sum up the total amount of infectivity shed by all infectious agents within a node. 
-        # This is the daily number of infections that these individuals would be expected to generate 
+        # 1) Sum up the total amount of infectivity shed by all infectious agents within a node.
+        # This is the daily number of infections that these individuals would be expected to generate
         # in a fully susceptible population sans spatial and seasonal factors.
         is_infected = self.people.disease_state == 2
-        node_beta_sums = np.bincount(self.people.node_id[is_infected], 
-                                    weights=self.people.daily_infectivity[is_infected], 
+        node_beta_sums = np.bincount(self.people.node_id[is_infected],
+                                    weights=self.people.daily_infectivity[is_infected],
                                     minlength=len(self.nodes)).astype(np.float64)
-        
+
         # 2) Spatially redistribute infectivity among nodes
         transfer = (node_beta_sums * self.network).astype(np.float64)  # Don't round here, we'll handle fractional infections later
         # Ensure net contagion remains positive after movement
@@ -638,18 +640,18 @@ class Transmission_ABM_Slow:
         beta_spatial = self.beta_spatial
         beta = node_beta_sums * beta_seasonality * beta_spatial  # Total node infection rate
 
-        # 4) Calculate base probability for each agent to become exposed    
-        is_alive = self.people.disease_state >= 0  
+        # 4) Calculate base probability for each agent to become exposed
+        is_alive = self.people.disease_state >= 0
         alive_counts = np.bincount(self.people.node_id[is_alive], minlength=len(self.nodes))  # Count number of alive agents in each node
-        per_agent_infection_rate = beta / np.clip(alive_counts, 1, None) 
+        per_agent_infection_rate = beta / np.clip(alive_counts, 1, None)
         base_prob_infection = 1 - np.exp(-per_agent_infection_rate)
 
         # 5) Calculate infections
-        is_sus = self.people.disease_state == 0  # Filter to susceptibles     
+        is_sus = self.people.disease_state == 0  # Filter to susceptibles
         exposure_probs = base_prob_infection[self.people.node_id] * self.people.acq_risk_multiplier  # Multiply by individual risk multiplier
         node_ids_sus = self.people.node_id[is_sus]
-        exposure_prob_sums = np.bincount(node_ids_sus, 
-                                    weights=exposure_probs[is_sus], 
+        exposure_prob_sums = np.bincount(node_ids_sus,
+                                    weights=exposure_probs[is_sus],
                                     minlength=len(self.nodes))
         n_expected_exposures = np.random.poisson(exposure_prob_sums)
         #print( f"{n_expected_exposures=}" )
@@ -711,29 +713,29 @@ class Transmission_ABM_Slow:
 
     # def select_exposure_indices(self, indices, exposure_probs, expected_new_exposures):
     #     """
-    #     Efficiently selects individuals for exposure using the inverse transform method using a geometric distribution, 
-    #     which allows you to efficiently sample a fixed number of individuals without iterating over the entire population. 
+    #     Efficiently selects individuals for exposure using the inverse transform method using a geometric distribution,
+    #     which allows you to efficiently sample a fixed number of individuals without iterating over the entire population.
     #     This approach is based on skipping over agents efficiently rather than evaluating each agents probability one by one.
 
     #     Instead of looping over all agents and sampling individually, we:
     #       1. Sort the agents by their exposure probability (optional, but improves efficiency).
     #       2. Use a geometric-like trick to jump directly to the next exposed agent.
     #       3. Mathematically determine skips using the inverse CDF of the exponential distribution.
-        
+
     #     Parameters:
     #     - indices: indices of the agents to consider for exposure
     #     - exposure_probs: exposure probabilities for each agent
     #     - expected_new_exposures: int -> Number of exposures to generate
-        
+
     #     Returns:
     #     - exposed_indices: List of selected agent indices
     #     """
-        
+
     #     # Sort individuals by infection probability (optional but can improve performance)
     #     sorted_indices = np.argsort(-exposure_probs)  # Sort descending
     #     sorted_probs = exposure_probs[sorted_indices]
     #     sorted_agents = indices[sorted_indices]  # Get sorted agent IDs
-        
+
     #     # Efficient selection using geometric-like skips
     #     exposed_indices = []
     #     u = np.random.uniform(0, 1, expected_new_exposures)  # Generate uniform random values
@@ -771,9 +773,9 @@ class VitalDynamics_ABM:
             sim.people.add_scalar_property("date_of_birth", dtype=np.int32, default=-1)
             pyramid = load_pyramid_csv(pars.age_pyramid_path)
             MINCOL = 0
-            MAXCOL = 1 
+            MAXCOL = 1
             MCOL = 2
-            FCOL = 3          
+            FCOL = 3
             sampler = AliasedDistribution(pyramid[:, MCOL] + pyramid[:, FCOL]) # using the male population in this example
             samples = sampler.sample(len(sim.people))
             bin_min_age_days = pyramid[:, MINCOL] * 365          # minimum age for bin, in days (include this value)
@@ -792,7 +794,7 @@ class VitalDynamics_ABM:
             sim.people.add_scalar_property("date_of_death", dtype=np.int32, default=0)
 
             cumulative_deaths = lp.create_cumulative_deaths(np.sum(pars.n_ppl), max_age_years=100)
-            sim.death_estimator = KaplanMeierEstimator(cumulative_deaths)          
+            sim.death_estimator = KaplanMeierEstimator(cumulative_deaths)
             lifespans = sim.death_estimator.predict_age_at_death(ages, max_year=100)
             dods = lifespans - ages # we could check that dods is non-negative to be safe
             sim.people.date_of_death[:np.sum(pars.n_ppl)] = dods
@@ -810,7 +812,6 @@ class VitalDynamics_ABM:
         if t % self.step_size != 0:
             return
 
-        pars = self.sim.pars
 
         # 1) Vectorized mask of all alive people
         alive = (self.people.disease_state >= 0)
@@ -870,7 +871,7 @@ class VitalDynamics_ABM:
         self.plot_vital_dynamics(save=save, results_path=results_path)
 
     def plot_age_pyramid(self, save=False, results_path=None):
-        
+
         # Expected age distribution
         pars = self.sim.pars
         exp_ages = pd.read_csv(pars.age_pyramid_path)
@@ -880,7 +881,7 @@ class VitalDynamics_ABM:
         # Observed age distribution
         obs_ages = ((self.people.date_of_birth * -1) + self.sim.t) / 365
         pyramid = load_pyramid_csv(pars.age_pyramid_path)
-        bins = pyramid[:, 0] 
+        bins = pyramid[:, 0]
         # Add 105+ bin
         bins = np.append(bins, 105)
         age_bins = pd.cut(obs_ages, bins=bins, right=False)
@@ -966,7 +967,7 @@ class RI_ABM:
         self.sim = sim
         self.people = sim.people
         self.nodes = sim.nodes
-        self.pars = sim.pars       
+        self.pars = sim.pars
         self.people.add_scalar_property("ri_timer", dtype=np.int32, default=-1)
         sim.results.add_array_property("ri_vaccinated", shape=(sim.nt, len(sim.nodes)), dtype=np.int32)  # Track number of people vaccinated by RI
         sim.results.add_array_property("ri_protected", shape=(sim.nt, len(sim.nodes)), dtype=np.int32)  # Track number of people who enter Recovered state due to RI

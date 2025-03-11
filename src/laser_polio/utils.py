@@ -1,9 +1,11 @@
 import datetime as dt
-import pandas as pd
-import numpy as np
 import os
+from zoneinfo import ZoneInfo  # Python 3.9+
 
-__all__ = ['clean_strings', 'date', 'daterange', 'find_matching_dot_names', 'get_distance_matrix', 'get_tot_pop_and_cbr', 'get_woy', 'get_seasonality', 'create_cumulative_deaths', 'process_sia_schedule_polio']
+import numpy as np
+import pandas as pd
+
+__all__ = ['clean_strings', 'create_cumulative_deaths', 'date', 'daterange', 'find_matching_dot_names', 'get_distance_matrix', 'get_seasonality', 'get_tot_pop_and_cbr', 'get_woy', 'process_sia_schedule_polio']
 
 
 
@@ -61,12 +63,12 @@ def clean_strings(revval):
 
 def date(start_date_str):
     if isinstance(start_date_str, pd.Series):
-        return start_date_str.apply(lambda x: dt.datetime.strptime(x, '%Y-%m-%d').date())
+        return start_date_str.apply(lambda x: dt.datetime.strptime(x, '%Y-%m-%d').replace(tzinfo=ZoneInfo("America/Los_Angeles")).date())
     elif isinstance(start_date_str, dt.date):
         return start_date_str
     else:
-        return dt.datetime.strptime(start_date_str, '%Y-%m-%d').date()
-    
+        return dt.datetime.strptime(start_date_str, '%Y-%m-%d').replace(tzinfo=ZoneInfo("America/Los_Angeles")).date()
+
 
 def daterange(start_date, days):
     """
@@ -80,8 +82,8 @@ def daterange(start_date, days):
         np.ndarray: An array of dates from the start date to the end date.
     """
     if isinstance(start_date, str):
-        start_date = dt.datetime.strptime(start_date, '%Y-%m-%d').date()
-    
+        start_date = dt.datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=ZoneInfo("America/Los_Angeles")).date()
+
     date_range = np.array([start_date + dt.timedelta(days=i) for i in range(days)])
     return date_range
 
@@ -106,7 +108,7 @@ def ensure_list(obj):
 
 def find_matching_dot_names(patterns, ref_file):
     """
-    Finds and returns dot_names from a CSV file that contain the input string patterns. 
+    Finds and returns dot_names from a CSV file that contain the input string patterns.
     For example, if the input string is 'ZAMFARA', the function will return all dot_names
     that contain 'ZAMFARA' in the 'dot_names' column of the CSV file (e.g., 'AFRO:NIGERIA:ZAMFARA:ANKA').
 
@@ -117,30 +119,30 @@ def find_matching_dot_names(patterns, ref_file):
     Returns:
     list of str: A list of matched region names.
     """
-    
+
     # Load the CSV file
     df = pd.read_csv(ref_file)
-    
+
     # Ensure the 'dot_names' column exists
     if 'dot_name' not in df.columns:
         raise ValueError("The CSV file must contain a 'dot_name' column")
-    
+
     # Convert input patterns to uppercase
     patterns = [pattern.upper() for pattern in patterns]
-    
+
     # Filter rows where 'dot_names' contain any of the country names
     matched_regions = df[df['dot_name'].str.contains('|'.join(patterns), case=False, na=False)]
     matched_dot_names = np.unique(matched_regions['dot_name'].tolist())  # Find unique dot_names & sort
-    
+
     # Extract hierarchical levels
     regions = {name.split(':')[0] for name in matched_dot_names}
     adm0 = {':'.join(name.split(':')[:2]) for name in matched_dot_names if len(name.split(':')) > 1}
     adm1 = {':'.join(name.split(':')[:3]) for name in matched_dot_names if len(name.split(':')) > 2}
     adm2 = set(matched_dot_names)
-    
+
     # Print summary
     print(f"The input pattern(s) matched dot_names for {len(regions)} region(s), {len(adm0)} admin0, {len(adm1)} admin1, {len(adm2)} admin2 ")
-    
+
     return matched_dot_names
 
 
@@ -190,7 +192,7 @@ def get_tot_pop_and_cbr(file_path, regions=None, isos=None, year=None):
     """
     # Import the unwpp.csv
     df = pd.read_csv(file_path)
-    
+
     # Filter the data by regions or isos
     if regions is not None:
         df_filtered = df[df["region"].isin(regions)]
@@ -198,10 +200,10 @@ def get_tot_pop_and_cbr(file_path, regions=None, isos=None, year=None):
     elif isos is not None:
         df_filtered = df[df["iso"].isin(isos)]
         assert len(df_filtered['iso'].unique()) == len(isos)
-    
+
     # Filter the data to the specified year
     df_filtered = df_filtered[df_filtered['year'] == year]
-    
+
     # Return the tot_pop and cbr columns
     pop = (df_filtered["tot_pop"].to_numpy() * 1000).astype(int)  # Round to the nearest integer
     cbr = df_filtered["cbr"].to_numpy()
@@ -250,7 +252,7 @@ def process_sia_schedule(csv_path, start_date):
 
 def process_sia_schedule_polio(df, region_names, sim_start_date):
     """
-    Processes an SIA schedule into a dictionary readable by the sim. 
+    Processes an SIA schedule into a dictionary readable by the sim.
      The output file contains a list of the unique SIA dates and corresponding region_name indices included in that campaign.
 
     Parameters:

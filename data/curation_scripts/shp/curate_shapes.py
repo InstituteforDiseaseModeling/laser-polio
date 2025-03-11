@@ -1,9 +1,10 @@
+import os
+import zipfile
+from datetime import datetime
+
 import geopandas as gpd
 import pandas as pd
-import numpy as np
-import zipfile
-import os
-from datetime import datetime, date
+
 from laser_polio.utils import clean_strings
 
 # Path to the zipped folder containing GeoJSON files
@@ -18,7 +19,7 @@ os.makedirs(extract_dir, exist_ok=True)
 
 # Extract the GeoJSON files from the zip archive
 extracted_geojson_files = [os.path.join(extract_dir, f) for f in os.listdir(extract_dir) if f.endswith('.geojson')]  # Check if the files have already been unzipped and saved
-if not extracted_geojson_files: 
+if not extracted_geojson_files:
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         # List all files in the zip archive
         all_files = zip_ref.namelist()
@@ -56,8 +57,17 @@ for shapefile, columns_to_clean, adm_level in shapefiles:
 
     # Ensure that all shapes are current (i.e., ENDDATE > today)
     # Preprocess ENDDATE to replace large dates with an acceptable date
-    acceptable_date_str = '2100/12/31 00:00:00+00'
-    gdf['ENDDATE'] = gdf['ENDDATE'].apply(lambda x: acceptable_date_str if '9999' in x else x)
+    # Function to apply to each entry
+    def replace_invalid_date(x):
+        # Define a proper datetime object
+        acceptable_date = pd.Timestamp('2100-12-31', tz='UTC')
+        if '9999' in str(x):
+            return acceptable_date
+        return x
+
+    # Apply the function to the 'ENDDATE' column
+    gdf['ENDDATE'] = gdf['ENDDATE'].astype(str).apply(replace_invalid_date)
+
     # Convert ENDDATE to datetime.date
     gdf['ENDDATEv2'] = pd.to_datetime(gdf['ENDDATE'], errors='coerce').dt.date
     today = datetime.today().date()
@@ -69,7 +79,7 @@ for shapefile, columns_to_clean, adm_level in shapefiles:
     filtered_gdf = gdf[(gdf['WHO_REGION'] == 'AFRO') | (gdf['ISO_2_CODE'].isin(emro_africa_countries))]
 
     # Filter to the columns we need
-    columns_to_keep = columns_to_clean + ['ISO_2_CODE', 'ISO_3_CODE', 'dot_name', 'GUID', 'STARTDATE', 'ENDDATEv2', 'CENTER_LON', 'CENTER_LAT', 'geometry']
+    columns_to_keep = [*columns_to_clean, 'ISO_2_CODE', 'ISO_3_CODE', 'dot_name', 'GUID', 'STARTDATE', 'ENDDATEv2', 'CENTER_LON', 'CENTER_LAT', 'geometry']
     filtered_gdf = filtered_gdf[columns_to_keep]
     filtered_gdf['STARTDATE'] = pd.to_datetime(filtered_gdf['STARTDATE'], errors='coerce').dt.date
     filtered_gdf = filtered_gdf.rename(columns={'ENDDATEv2': 'ENDDATE'})  # rename enddatev2 to enddate
@@ -112,7 +122,7 @@ print('Done.')
 
 
 # import matplotlib.pyplot as plt
-# import random 
+# import random
 
 # # Load the admin2 shapes
 # shp = gpd.read_file('data/shp_africa_adm2.geojson')

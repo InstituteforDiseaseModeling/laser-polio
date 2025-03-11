@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 
 # Define the file path (adjust as needed)
 h5_file_path = "data/init_immunity_0.5coverage_january.h5"  # Change for other coverages

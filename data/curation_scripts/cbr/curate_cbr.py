@@ -1,5 +1,5 @@
-import pandas as pd
 import geopandas as gpd
+import pandas as pd
 
 # Load the WPP data with CBRs
 cbr = pd.read_csv('data/curation_scripts/cbr/WPP2024_Demographic_Indicators_Medium.csv.gz')  # From: https://population.un.org/wpp/downloads?folder=Standard%20Projections&group=CSV%20format

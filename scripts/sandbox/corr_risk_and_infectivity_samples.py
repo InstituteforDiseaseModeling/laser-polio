@@ -1,6 +1,6 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats as stats
-import matplotlib.pyplot as plt
 
 # A demo of how to generate correlated samples from two distributions
 # Based on Kurt's description in the EMOD_NGA_Model_Overview_2025_02_12.pdf

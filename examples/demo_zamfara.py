@@ -1,9 +1,8 @@
+import numpy as np
 from laser_core.propertyset import PropertySet
+
 # from laser_polio.utils import *
 import laser_polio as lp
-import pandas as pd
-import numpy as np
-
 
 ###################################
 ######### USER PARAMETERS #########
@@ -33,42 +32,42 @@ vx_prob_ri = np.random.uniform(0, 0.5, len(pop))  # TODO: Replace with actual da
 sia_eff = np.random.uniform(0.5, 0.9, len(pop))  # TODO: Replace with actual data
 
 # Set parameters
-pars = PropertySet(dict(
+pars = PropertySet({
 
-    # Time 
-    start_date      = start_date,  # Start date of the simulation
-    dur             = n_days,  # Number of timesteps
+    # Time
+    'start_date': start_date,  # Start date of the simulation
+    'dur': n_days,  # Number of timesteps
 
-    # Population 
-    n_ppl           = pop, # np.array([30000, 10000, 15000, 20000, 25000]),  
-    age_pyramid_path= 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
-    cbr             = cbr, # np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year    
+    # Population
+    'n_ppl': pop, # np.array([30000, 10000, 15000, 20000, 25000]),
+    'age_pyramid_path': 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
+    'cbr': cbr, # np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year
 
     # Disease
-    init_prev       = init_prev,  # Initial prevalence per node (1% infected)
-    r0              = 14,  # Basic reproduction number
-    risk_mult_var   = 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
-    corr_risk_inf   = 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
-    beta_spatial    = beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
-    seasonal_factor = 0.125,  # Seasonal variation in transmission
-    seasonal_phase  = 180,  # Phase of seasonal variation
-    p_paralysis     = 1 / 20,  # Probability of paralysis
-    dur_exp         = lp.normal(mean=3, std=1),  # Duration of the exposed state
-    dur_inf         = lp.gamma(shape=4.51, scale=5.32),  # Duration of the infectious state
+    'init_prev': init_prev,  # Initial prevalence per node (1% infected)
+    'r0': 14,  # Basic reproduction number
+    'risk_mult_var': 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
+    'corr_risk_inf': 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
+    'beta_spatial': beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
+    'seasonal_factor': 0.125,  # Seasonal variation in transmission
+    'seasonal_phase': 180,  # Phase of seasonal variation
+    'p_paralysis': 1 / 20,  # Probability of paralysis
+    'dur_exp': lp.normal(mean=3, std=1),  # Duration of the exposed state
+    'dur_inf': lp.gamma(shape=4.51, scale=5.32),  # Duration of the infectious state
 
     # Migration
-    distances       = dist_matrix, # Distance in km between nodes
-    gravity_k       = 0.5,  # Gravity scaling constant
-    gravity_a       = 1,  # Origin population exponent
-    gravity_b       = 1,  # Destination population exponent
-    gravity_c       = 2.0,  # Distance exponent
-    max_migr_frac   = 0.01, # Fraction of population that migrates
+    'distances': dist_matrix, # Distance in km between nodes
+    'gravity_k': 0.5,  # Gravity scaling constant
+    'gravity_a': 1,  # Origin population exponent
+    'gravity_b': 1,  # Destination population exponent
+    'gravity_c': 2.0,  # Distance exponent
+    'max_migr_frac': 0.01, # Fraction of population that migrates
 
     # Interventions
-    vx_prob_ri      = vx_prob_ri,  # Probability of routine vaccination
-    sia_schedule    = sia_schedule,  # Schedule of SIAs
-    sia_eff         = sia_eff,  # Effectiveness of SIAs
-))
+    'vx_prob_ri': vx_prob_ri,  # Probability of routine vaccination
+    'sia_schedule': sia_schedule,  # Schedule of SIAs
+    'sia_eff': sia_eff,  # Effectiveness of SIAs
+})
 
 # Initialize the sim
 sim = lp.SEIR_ABM(pars)

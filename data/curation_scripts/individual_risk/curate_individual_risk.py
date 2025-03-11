@@ -1,15 +1,15 @@
 
+import os
+
 import geopandas as gpd
 import numpy as np
-import os
-from pathlib import Path
-import rastertools
-from rastertools import raster_clip, utils
-from rastertools.shape import plot_shapes
-print(f"rastertools version v{rastertools.__version__}")
-from PIL import Image
-import csv
 import pandas as pd
+import rastertools
+from PIL import Image
+from rastertools import raster_clip
+
+print(f"rastertools version v{rastertools.__version__}")
+
 # Increase the MAX_IMAGE_PIXELS limit to handle large images
 Image.MAX_IMAGE_PIXELS = None
 
@@ -31,11 +31,11 @@ def mean_summary_func(v: np.ndarray) -> float:
     return float(np.mean(v))
 
 # Clip the raster with the shapefile for each dot_name
-result = raster_clip(raster_file=raster_path, 
-                      shape_stem=shp_path, 
-                      shape_attr='dot_name', 
+result = raster_clip(raster_file=raster_path,
+                      shape_stem=shp_path,
+                      shape_attr='dot_name',
                       summary_func=mean_summary_func,
-                      include_latlon=True, 
+                      include_latlon=True,
                       quiet=True)
 
 ### Curate the df

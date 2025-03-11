@@ -1,8 +1,9 @@
-import pandas as pd
-pd.set_option('display.max_columns', None)
 import geopandas as gpd
+import pandas as pd
+
 from laser_polio.utils import clean_strings
-from alive_progress import alive_bar
+
+pd.set_option('display.max_columns', None)
 
 '''
 This script is used to curate the population data from the polio-immunity-mapping project.

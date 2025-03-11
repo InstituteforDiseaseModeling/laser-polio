@@ -1,10 +1,10 @@
+
 import pandas as pd
-import json
 
 '''
-This code curates the routine immunization (RI) data for Africa. The data is from the DPT district summaries curated dataset 
+This code curates the routine immunization (RI) data for Africa. The data is from the DPT district summaries curated dataset
 from the polio-immunity-mapping repo. The immunity_ri_nOPV2 value represents the expected proportion of childrent to be immune
-to type 2 poliovirus from routine administration of nOPV2. This combines 1, 2, and 3 doses of DPT vaccine with an efficacy estimated 
+to type 2 poliovirus from routine administration of nOPV2. This combines 1, 2, and 3 doses of DPT vaccine with an efficacy estimated
 nOPV2 trials in Gambia & Bangladesh. See the nOPV2_does_efficacy_notes_20250107.pdf for more details.
 '''
 

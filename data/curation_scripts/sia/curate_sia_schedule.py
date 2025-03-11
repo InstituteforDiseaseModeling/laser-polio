@@ -1,4 +1,5 @@
 import pandas as pd
+
 from laser_polio.utils import clean_strings
 
 df = pd.read_csv('data/curation_scripts/vx/scenario_sia_1_2024-10-28.csv', index_col=0)

@@ -1,10 +1,11 @@
-from laser_core.propertyset import PropertySet
-import laser_polio as lp
-import pandas as pd
 import numpy as np
+import pandas as pd
+from laser_core.propertyset import PropertySet
+
+import laser_polio as lp
 
 '''
-This script contains a demo simulation of polio transmission in Nigeria. 
+This script contains a demo simulation of polio transmission in Nigeria.
 
 The model uses the same data and setup as the EMOD model, except in the following instances:
 - The model assumes everyone >15y is immune
@@ -84,45 +85,45 @@ assert len(dot_names) == len(dist_matrix) == len(init_immun) == len(centroids) =
 print('Data successfully loaded. Initializing simulation...')
 
 # Set parameters
-pars = PropertySet(dict(
+pars = PropertySet({
 
-    # Time 
-    start_date      = start_date,  # Start date of the simulation
-    dur             = n_days,  # Number of timesteps
+    # Time
+    'start_date': start_date,  # Start date of the simulation
+    'dur': n_days,  # Number of timesteps
 
-    # Population 
-    n_ppl           = pop, # np.array([30000, 10000, 15000, 20000, 25000]),  
-    age_pyramid_path= 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
-    cbr             = cbr, # np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year    
+    # Population
+    'n_ppl': pop, # np.array([30000, 10000, 15000, 20000, 25000]),
+    'age_pyramid_path': 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
+    'cbr': cbr, # np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year
 
     # Disease
-    init_immun      = init_immun,  # Initial immunity per node
-    init_prev       = init_prevs,  # Initial prevalence per node (1% infected)
-    r0              = 14,  # Basic reproduction number
-    risk_mult_var   = 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
-    corr_risk_inf   = 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
-    beta_spatial    = beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
-    seasonal_factor = 0.125,  # Seasonal variation in transmission
-    seasonal_phase  = 180,  # Phase of seasonal variation
-    p_paralysis     = 1 / 2000,  # Probability of paralysis
-    dur_exp         = lp.normal(mean=3, std=1),  # Duration of the exposed state
-    dur_inf         = lp.gamma(shape=4.51, scale=5.32),  # Duration of the infectious state
+    'init_immun': init_immun,  # Initial immunity per node
+    'init_prev': init_prevs,  # Initial prevalence per node (1% infected)
+    'r0': 14,  # Basic reproduction number
+    'risk_mult_var': 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
+    'corr_risk_inf': 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
+    'beta_spatial': beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
+    'seasonal_factor': 0.125,  # Seasonal variation in transmission
+    'seasonal_phase': 180,  # Phase of seasonal variation
+    'p_paralysis': 1 / 2000,  # Probability of paralysis
+    'dur_exp': lp.normal(mean=3, std=1),  # Duration of the exposed state
+    'dur_inf': lp.gamma(shape=4.51, scale=5.32),  # Duration of the infectious state
 
     # Migration
-    distances       = dist_matrix, # Distance in km between nodes
-    gravity_k       = 0.5,  # Gravity scaling constant
-    gravity_a       = 1,  # Origin population exponent
-    gravity_b       = 1,  # Destination population exponent
-    gravity_c       = 2.0,  # Distance exponent
-    max_migr_frac   = 0.01, # Fraction of population that migrates
-    centroids       = centroids,  # Centroids of the nodes
+    'distances': dist_matrix, # Distance in km between nodes
+    'gravity_k': 0.5,  # Gravity scaling constant
+    'gravity_a': 1,  # Origin population exponent
+    'gravity_b': 1,  # Destination population exponent
+    'gravity_c': 2.0,  # Distance exponent
+    'max_migr_frac': 0.01, # Fraction of population that migrates
+    'centroids': centroids,  # Centroids of the nodes
 
     # Interventions
-    vx_prob_ri      = ri,  # Probability of routine vaccination
-    sia_schedule    = sia_schedule,  # Schedule of SIAs
-    sia_eff         = sia,  # Effectiveness of SIAs
-    life_expectancies = np.ones(len(dot_names))*65 # placeholder, should probably derive from age pyramid
-))
+    'vx_prob_ri': ri,  # Probability of routine vaccination
+    'sia_schedule': sia_schedule,  # Schedule of SIAs
+    'sia_eff': sia,  # Effectiveness of SIAs
+    'life_expectancies': np.ones(len(dot_names))*65 # placeholder, should probably derive from age pyramid
+})
 
 # Initialize the sim
 sim = lp.SEIR_ABM(pars)

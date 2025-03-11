@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 
 # Given parameters
@@ -24,14 +25,10 @@ acq_risk, trans_risk = np.exp(log_risks[:, 0]), np.exp(log_risks[:, 1])
 beta_individuals = beta_0 * acq_risk * trans_risk
 
 # Plot acq_risk vs trans_risk
-import matplotlib.pyplot as plt
+
 plt.figure(figsize=(10, 6))
 plt.scatter(acq_risk, trans_risk, alpha=0.5)
 plt.show()
-
-
-
-
 
 # Check if population-level mean beta produces desired R0
 effective_R0 = np.mean(beta_individuals) * c * D

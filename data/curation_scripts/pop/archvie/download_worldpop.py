@@ -1,10 +1,9 @@
-from wpgpDownload.utils.wpcsv import ISO_LIST
-from wpgpDownload.utils.convenience_functions import download_country_covariates as dl
 import os
-
 
 # List each of the unique iso3 codes in the africa_polis_adm0.shp file
 import geopandas as gpd
+from wpgpDownload.utils.convenience_functions import download_country_covariates as dl
+
 shapefile_path = 'data/curation_scripts/shapes/africa_polis_adm0.shp'
 gdf = gpd.read_file(shapefile_path)
 print(gdf.columns)

@@ -1,12 +1,12 @@
 # Load the shapes2.geojson file and extract the centroids of the shapes.
 
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from unidecode import unidecode
-import re
-from laser_polio.utils import clean_strings
 from alive_progress import alive_bar
+
+from laser_polio.utils import clean_strings
 
 
 def calculate_distance_matrix(gdf):
@@ -34,7 +34,7 @@ def calculate_distance_matrix(gdf):
         distance_matrix = np.round(distance_matrix)  # Round to nearest km
 
         return distance_matrix
-    
+
 
 if(__name__ == "__main__"):
 

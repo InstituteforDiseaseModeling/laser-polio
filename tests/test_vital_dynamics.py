@@ -1,22 +1,24 @@
-import numpy as np
-import pytest
 from functools import partial
-import laser_polio as lp
+
+import numpy as np
 from laser_core.propertyset import PropertySet
+
+import laser_polio as lp
+
 
 # @pytest.fixture
 def setup_sim(step_size=1):
     """Initialize a small test simulation with birth & death tracking."""
-    pars = PropertySet(dict(
-        start_date          = lp.date('2020-01-01'),  # Start date of the simulation
-        dur           = 30, # Number of dur to run the simulation
-        n_ppl               = np.array([1000, 500]),  # Two nodes with populations
-        cbr                 = np.array([30, 25]),  # Birth rate per 1000/year
-        age_pyramid_path    = 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
-    ))
+    pars = PropertySet({
+        'start_date': lp.date('2020-01-01'),  # Start date of the simulation
+        'dur': 30, # Number of dur to run the simulation
+        'n_ppl': np.array([1000, 500]),  # Two nodes with populations
+        'cbr': np.array([30, 25]),  # Birth rate per 1000/year
+        'age_pyramid_path': 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
+    })
     sim = lp.SEIR_ABM(pars)
     steppy_vd = partial( lp.VitalDynamics_ABM, step_size=step_size )
-    sim.components = [steppy_vd] 
+    sim.components = [steppy_vd]
     return sim
 
 # Test Initialization
@@ -80,8 +82,8 @@ def test_deaths_occur_step_size_7():
     death_bins = np.digitize(np.arange(sim.pars.dur), bin_edges, right=True)  # Digitize days into bins
     expected_deaths_binned = np.bincount(death_bins, weights=expected_deaths)[:len(bin_edges)-1]  # Aggregate deaths per bin
     observed_deaths_binned = np.bincount(death_bins, weights=observed_deaths)[:len(bin_edges)-1]  # Aggregate deaths per bin
-    assert np.array_equal(expected_deaths_binned, observed_deaths_binned), 'Deaths did not occur on the expected days'  
-    
+    assert np.array_equal(expected_deaths_binned, observed_deaths_binned), 'Deaths did not occur on the expected days'
+
     unique_values, counts = np.unique(sim.people.disease_state[:np.sum(sim.pars.n_ppl)], return_counts=True)
     assert counts[0] == np.sum(sim.results.deaths), 'Total number of dead agents does not match deaths logged'
 
@@ -97,16 +99,16 @@ def test_age_progression():
 # Test Edge Case: Zero Birth Rate
 def test_zero_birth_rate():
     """Ensure that setting birth rate to zero prevents population growth."""
-    pars = PropertySet(dict(
-        start_date          = lp.date('2020-01-01'),  # Start date of the simulation
-        dur           = 30, # Number of dur to run the simulation
-        n_ppl               = np.array([1000, 500]),  # Two nodes with populations
-        cbr                 = np.array([0]),  # Birth rate per 1000/year
-        age_pyramid_path    = 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
-    ))
+    pars = PropertySet({
+        'start_date': lp.date('2020-01-01'),  # Start date of the simulation
+        'dur': 30, # Number of dur to run the simulation
+        'n_ppl': np.array([1000, 500]),  # Two nodes with populations
+        'cbr': np.array([0]),  # Birth rate per 1000/year
+        'age_pyramid_path': 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
+    })
     sim = lp.SEIR_ABM(pars)
     steppy_vd = partial( lp.VitalDynamics_ABM, step_size=1 )
-    sim.components = [steppy_vd] 
+    sim.components = [steppy_vd]
     initial_population = sim.people.count
     sim.run()
     assert sim.people.count == initial_population  # No new births

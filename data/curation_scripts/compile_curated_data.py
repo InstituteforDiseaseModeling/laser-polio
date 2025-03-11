@@ -1,11 +1,10 @@
-import pandas as pd
-pd.set_option('display.max_columns', None)
 import geopandas as gpd
-import os
-import numpy as np
+import pandas as pd
+
+pd.set_option('display.max_columns', None)
 
 def check_duplicates(df, subset):
-    df_name = [name for name in globals() if globals()[name] is df][0]  # Get variable name
+    df_name = next(name for name in globals() if globals()[name] is df)  # Get variable name
     if df.duplicated(subset=subset).sum() > 0:
         print(f'There are duplicates in the {df_name} dataset.')
         # Print the rows with duplicates

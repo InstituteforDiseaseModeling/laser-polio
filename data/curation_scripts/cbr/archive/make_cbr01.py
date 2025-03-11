@@ -71,10 +71,10 @@ def make_cbr_dict():
 
     with open('NGA_NAMES_LEV02.csv') as fid01:
         nga_names = [val.strip().split(':') for val in fid01.readlines()]
-    nga_lev01 = list(set([':'.join(val[:-1]) for val in nga_names]))
-    nga_lev02 = list(set([':'.join(val) for val in nga_names]))
+    nga_lev01 = list({':'.join(val[:-1]) for val in nga_names})
+    list({':'.join(val) for val in nga_names})
 
-    res_dict = dict()
+    res_dict = {}
     ref_val = dict_adm00['Data'][0]['Value']
 
     for reg_dict in dict_adm01['Data']:
@@ -84,7 +84,7 @@ def make_cbr_dict():
             continue
         dotname = 'AFRO:NIGERIA:' + reprule(reg_name[2:])
         if (dotname not in nga_lev01):
-            1/0
+            raise ValueError( f"{dotname} not in {nga_lev01}" ) # 1/0
         res_dict[dotname] = reg_val/ref_val
 
     with open('cbr_NGA.json', 'w') as fid01:

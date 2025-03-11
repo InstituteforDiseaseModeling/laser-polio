@@ -1,7 +1,7 @@
-import pandas as pd
-import janitor 
-from unidecode import unidecode
 import re
+
+import pandas as pd
+from unidecode import unidecode
 
 # DATA SOURCE: https://population.un.org/wpp/downloads?folder=Standard%20Projections&group=Most%20used
 
@@ -10,7 +10,7 @@ file_path = "data/curation_scripts/WPP2024_GEN_F01_DEMOGRAPHIC_INDICATORS_COMPAC
 
 # Load the file while skipping the first 15 rows and using the 16th row as headers
 df = pd.read_excel(file_path, skiprows=16)
-df = df.clean_names()  
+df = df.clean_names()
 
 # Display the column names to identify available options
 print("Columns available:", df.columns.tolist())

@@ -1,6 +1,7 @@
-import pandas as pd
-pd.set_option('display.max_columns', None)
 import geopandas as gpd
+import pandas as pd
+
+pd.set_option('display.max_columns', None)
 
 ### Import data
 age_path = 'data/curation_scripts/age/WPP2024_POP_F02_1_POPULATION_5-YEAR_AGE_GROUPS_BOTH_SEXES.xlsx'

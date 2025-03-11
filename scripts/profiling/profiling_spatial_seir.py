@@ -1,11 +1,14 @@
-from laser_core.propertyset import PropertySet
-import laser_polio as lp
-from laser_polio.utils import get_tot_pop_and_cbr
-import pandas as pd
-import numpy as np
 import time
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import sc
 import seaborn as sns
+from laser_core.propertyset import PropertySet
+
+import laser_polio as lp
+
 
 def make_sim(n_ppl=100e3, n_nodes=1, dur=365):
 
@@ -17,38 +20,38 @@ def make_sim(n_ppl=100e3, n_nodes=1, dur=365):
     vx_prob_ri      = np.ones(n_nodes) * 0.1
 
     # Set parameters
-    pars = PropertySet(dict(
+    pars = PropertySet({
 
-        # Time 
-        start_date      = sc.date('2025-01-01'),  # Start date of the simulation
-        dur             = dur,  # Number of timesteps
+        # Time
+        'start_date': sc.date('2025-01-01'),  # Start date of the simulation
+        'dur': dur,  # Number of timesteps
 
         # Population
-        n_ppl           = pop, # np.array([30000, 10000, 15000, 20000, 25000]),  
-        distances       = dist_matrix, # Distance in km
+        'n_ppl': pop, # np.array([30000, 10000, 15000, 20000, 25000]),
+        'distances': dist_matrix, # Distance in km
 
         # Disease
-        init_prev       = init_prev,  # Initial prevalence per node (1% infected)
-        beta_global     = 0.3,  # Global infection rate
-        beta_spatial    = beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
-        seasonal_factor = 0.125,  # Seasonal variation in transmission
-        seasonal_phase  = 180,  # Phase of seasonal variation
-        p_paralysis     = 1 / 20,  # Probability of paralysis
+        'init_prev': init_prev,  # Initial prevalence per node (1% infected)
+        'beta_global': 0.3,  # Global infection rate
+        'beta_spatial': beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
+        'seasonal_factor': 0.125,  # Seasonal variation in transmission
+        'seasonal_phase': 180,  # Phase of seasonal variation
+        'p_paralysis': 1 / 20,  # Probability of paralysis
 
         # Migration
-        gravity_k       = 1,  # Gravity scaling constant
-        gravity_a       = 1,  # Origin population exponent
-        gravity_b       = 1,  # Destination population exponent
-        gravity_c       = 2.0,  # Distance exponent
-        migration_frac  = 0.01, # Fraction of population that migrates
+        'gravity_k': 1,  # Gravity scaling constant
+        'gravity_a': 1,  # Origin population exponent
+        'gravity_b': 1,  # Destination population exponent
+        'gravity_c': 2.0,  # Distance exponent
+        'migration_frac': 0.01, # Fraction of population that migrates
 
         # Demographics & vital dynamics
-        age_pyramid_path= 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
-        cbr             = cbr, # np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year    
+        'age_pyramid_path': 'data/Nigeria_age_pyramid_2024.csv',  # From https://www.populationpyramid.net/nigeria/2024/
+        'cbr': cbr, # np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year
 
         # Interventions
-        vx_prob_ri      = vx_prob_ri,  # Probability of routine vaccination
-    ))
+        'vx_prob_ri': vx_prob_ri,  # Probability of routine vaccination
+    })
 
     # Initialize the sim
     sim = lp.SEIR_ABM(pars)
@@ -79,7 +82,7 @@ if __name__ == '__main__':
     # df.to_csv(filename, index=False)
 
 
-    # Track sim run times 
+    # Track sim run times
     n_ppl_values = [1e5, 1e6, 1e7]
     n_nodes_values = [1, 10, 100]
     results = []
@@ -96,8 +99,8 @@ if __name__ == '__main__':
     results_df.to_csv("data/simulation_times.csv", index=False)
 
     # # Version from 2025-02-04
-    # results = dict(n_ppl=[1e5, 1e5, 1e5, 1e6, 1e6, 1e6, 1e7, 1e7,], 
-    #                n_nodes=[1, 10, 100, 1, 10, 100, 1, 10, ], 
+    # results = dict(n_ppl=[1e5, 1e5, 1e5, 1e6, 1e6, 1e6, 1e7, 1e7,],
+    #                n_nodes=[1, 10, 100, 1, 10, 100, 1, 10, ],
     #                time=[18.6, 142.3, 1105, 107, 1185, 13395, 928, 9916, ])
     # results['time'] = [t / 60 for t in results['time']]  # Convert time to minutes
     # results_df = pd.DataFrame(results)
@@ -105,8 +108,8 @@ if __name__ == '__main__':
     # results_df.to_csv("data/simulation_times_20250204.csv", index=False)
 
     # # Version from 2025-02-06
-    # results = dict(n_ppl=[1e5, 1e5, 1e5, 1e6, 1e6, 1e6, 1e7, 1e7, 1e7], 
-    #                n_nodes=[1, 10, 100, 1, 10, 100, 1, 10, 100], 
+    # results = dict(n_ppl=[1e5, 1e5, 1e5, 1e6, 1e6, 1e6, 1e7, 1e7, 1e7],
+    #                n_nodes=[1, 10, 100, 1, 10, 100, 1, 10, 100],
     #                time=[2.4, 3.8, 12.3, 16.8, 37.9, 233.0, 142.7, 363.0, 2935.0])
     # results['time'] = [t / 60 for t in results['time']]  # Convert time to minutes
     # results_df = pd.DataFrame(results)

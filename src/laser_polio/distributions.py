@@ -1,9 +1,8 @@
 import numpy as np
 
-
 # Add common distributions so they can be imported directly; assigned to a variable since used in help messages
 dist_list = ['constant', 'exponential', 'gamma', 'lognormal', 'normal', 'poisson', 'uniform', ]
-__all__ = dist_list
+__all__ = list(dist_list)
 
 
 class Distribution:
