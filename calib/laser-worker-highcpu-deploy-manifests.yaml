@@ -1,0 +1,59 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: worker
+spec:
+  ttlSecondsAfterFinished: 120
+  parallelism: 2
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-study
+          # image: idm-docker-staging.packages.idmod.org/laser/laser_calib:latest
+          image: idm-docker-staging.packages.idmod.org/laser/laser-polio:latest
+          imagePullPolicy: Always
+          command:
+          - /bin/sh
+          - -c
+          - -e
+          - -x
+          - |
+            until [ `sh check_study.sh ${STUDY_NAME}` -eq 0 ];
+            do echo "waiting for study"; sleep 2; done;
+          envFrom:
+            - secretRef:
+                name: mysql-secrets
+      containers:
+        - name: worker
+          # image: idm-docker-staging.packages.idmod.org/laser/laser_calib:latest
+          image: idm-docker-staging.packages.idmod.org/laser/laser-polio:latest
+          imagePullPolicy: Always
+          command:
+            - python3
+            - worker.py
+            - "--study-name"
+            - "${STUDY_NAME}"
+            - "--num-trials"
+            - "${NUM_TRIALS}"
+          envFrom:
+            - secretRef:
+                name: mysql-secrets
+          resources:
+            requests:
+              cpu: "3"
+            limits:
+              cpu: "3"
+          env:
+          - name: NUMBA_NUM_THREADS
+            value: "3"
+      imagePullSecrets:
+        - name: idmodregcred3
+      tolerations:
+        - key: "nodepool"
+          operator: "Equal"
+          value: "highcpu"
+          effect: "NoSchedule"
+      nodeSelector:
+        nodepool: highcpu
