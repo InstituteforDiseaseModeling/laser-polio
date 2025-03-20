@@ -1,43 +1,71 @@
 import json
+import os
 import subprocess
 import sys
 import time
-import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.signal import find_peaks
 
 laser_script = Path("laser.py").resolve(strict=True)
 
-def evaluate_something( filename ):
+
+def process_data(filename):
     """
     Load simulation results from a CSV file and calculate interesting stats based on the I column.
     """
     df = pd.read_csv(filename)
-    
+
     # Calculate statistics for the I column
-    max_I = df['I'].max()
-    min_I = df['I'].min()
-    mean_I = df['I'].mean()
-    median_I = df['I'].median()
-    total_infected = df['I'].sum()
-    peak_infection_time = df.loc[df['I'].idxmax(), 'Time']
-    
-    print(f"Max I: {max_I}")
-    print(f"Min I: {min_I}")
-    print(f"Mean I: {mean_I}")
-    print(f"Median I: {median_I}")
-    print(f"Total Infected: {total_infected}")
+    tot_infected = df["I"].sum()
+    peak_infection_time = df.loc[df["I"].idxmax(), "Time"]
+
+    data = {
+        "total_infected": tot_infected,
+        "peak_infection_time": peak_infection_time,
+    }
+
+    print(f"Total Infected: {tot_infected}")
     print(f"Peak Infection Time: {peak_infection_time}")
 
-    score = 0.01 - mean_I
-    return score
+    return data
+
+
+def compute_fit(actual, predicted, use_squared=False, normalize=False, weights=None):
+    """
+    Compute the fit between actual and predicted data.
+    """
+
+    fit = 0
+
+    if weights is None:
+        weights = {}
+
+    for skey in actual:
+        v1 = np.array(actual[skey], dtype=float)
+        v2 = np.array(predicted[skey], dtype=float)
+
+        gofs = abs(np.array(v1) - np.array(v2))
+        if normalize:
+            actual_max = abs(v1).max()
+            if actual_max > 0:
+                gofs /= actual_max
+        if use_squared:
+            gofs = gofs**2
+        if skey not in weights:
+            weights = {skey: 1}
+        losses = gofs * weights[skey]
+        mismatch = losses.sum()
+        fit += mismatch
+
+    return fit
+
 
 # Paths to input/output files
 PARAMS_FILE = "params.json"
 RESULTS_FILE = "simulation_results.csv"
+ACTUAL_DATA_FILE = "seir_counts_r0_200.csv"
 
 
 def objective(trial):
@@ -46,15 +74,13 @@ def objective(trial):
     Path(RESULTS_FILE).unlink(missing_ok=True)
 
     # Suggest values for calibration
-    #migration_rate = trial.suggest_float("migration_rate", 0.0001, 0.01)
+    # migration_rate = trial.suggest_float("migration_rate", 0.0001, 0.01)
     r_nought = trial.suggest_float("r0", 4, 20)
     # migration_rate = trial.suggest_float("migration_rate", 0.004, 0.004)
     # transmission_rate = trial.suggest_float("transmission_rate", 0.145, 0.145)
 
     # Set up parameters
-    params = {
-        "r0": r_nought
-    }
+    params = {"r0": r_nought}
 
     # Write parameters to JSON file
     with Path(PARAMS_FILE).open("w") as f:
@@ -78,13 +104,16 @@ def objective(trial):
             # subprocess.run(["python3", "laser.py"], check=True)
             subprocess.run(get_native_runstring(), check=True)
 
-            print( f"Waiting for output file {RESULTS_FILE}" )
+            print(f"Waiting for output file {RESULTS_FILE}")
             # Wait until RESULTS_FILE is written
             while not Path(RESULTS_FILE).exists():
-                print( os.listdir(".") )
+                print(os.listdir("."))
                 time.sleep(0.1)
 
-            score = evaluate_something(RESULTS_FILE)  # Evaluate results
+            actual = process_data(ACTUAL_DATA_FILE)
+            predicted = process_data(RESULTS_FILE)
+
+            score = compute_fit(actual, predicted)  # Evaluate results
             scores.append(score)
 
         # Return the average score
