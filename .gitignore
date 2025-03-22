@@ -20,6 +20,10 @@ uv.lock
 *.tif
 
 # Large files
+*shape0.gpkg
+*shape1.gpkg
+*shape2.gpkg
+*shape_combined_simplified.gpkg
 *distance_matrix_africa.csv
 *dpt_district_summaries.csv
 *geojson.zip

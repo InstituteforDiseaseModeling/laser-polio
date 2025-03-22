@@ -1,5 +1,4 @@
 # Priorities
-- Try loading gpkg data from Hil in Kurt_sharing\step01_shapes\shapes_alternative
 - Track down what happened to the priority ordering
     # Set the order in which components should be run during step()
     PRIORITY_ORDER = [
@@ -9,16 +8,15 @@
         "SIA_ABM",
         "Transmission_ABM"
     ]
+- Add vx efficacy by type
 - Rename variables to distinguish between exposure and infection
 - Testing
     - RI_abm
     - SIA_abm
     - Full models with real data
-- Add default pars, then replace if user specifies pars
 - Set a random number seed
 - Use KM's gravity model scaling approach
-- Tackle periodically failing tests:
-    - test_deaths_occur_step_size_1
+- Switch to gpkg files. Combine all the shapes from PIM & save as a single simplified gpkg file. 
 - Enable different RI rates over time
 - Check the RI & SIA figures - they're plotting strange results
 - Update the birth and death plot to summarize by country
