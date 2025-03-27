@@ -31,11 +31,10 @@ WORKDIR /app
 # Copy your script into the container
 RUN pip install --pre -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio
 RUN pip install optuna mysqlclient
-COPY CALIB/objective.py .
-COPY CALIB/worker.py .
-COPY CALIB/mysql_storage.py .
-COPY CALIB/demo_zamfara.py ./laser.py
-COPY CALIB/cluster/check_study.sh .
+COPY calib/objective.py .
+COPY calib/worker.py .
+COPY calib/demo_zamfara.py ./laser.py
+COPY calib/cloud/check_study.sh .
 RUN chmod a+x ./check_study.sh
 
 # Copy additional files into the data directory inside the container
@@ -47,7 +46,7 @@ COPY ./data/compiled_cbr_pop_ri_sia_underwt_africa.csv /app/data/
 COPY ./data/age_africa.csv /app/data/
 COPY ./data/sia_historic_schedule.csv /app/data/
 COPY ./data/shp_names_africa_adm2.csv /app/data/
-COPY ./CALIB/data/seir_counts_r0_200.csv /app/data/
+COPY ./calib/data/seir_counts_r0_200.csv /app/data/
 
 
 # Run the script when the container starts
