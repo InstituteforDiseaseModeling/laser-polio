@@ -1,10 +1,7 @@
-# kubernetes==32.0.1
-ray[default]==2.39    # shouldn't need this anymore but leave it just in case
 optuna==3.3.0
-mysqlclient==2.0.3
+mysqlclient
 wget
 screen
-laser-core
 tqdm
 scipy
 pymysql
