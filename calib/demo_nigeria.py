@@ -28,7 +28,7 @@ The model uses the same data and setup as the EMOD model, except in the followin
 regions = ["NIGERIA"]
 start_year = 2019
 n_days = 365
-pop_scale = 1 / 1000
+pop_scale = 1 / 10
 init_region = "PLATEAU"
 init_prev = 0.01
 results_path = "results/demo_nigeria"

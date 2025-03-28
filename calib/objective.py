@@ -65,7 +65,7 @@ def compute_fit(actual, predicted, use_squared=False, normalize=False, weights=N
 # Paths to input/output files
 PARAMS_FILE = "params.json"
 RESULTS_FILE = "simulation_results.csv"
-ACTUAL_DATA_FILE = "seir_counts_r0_200.csv"
+ACTUAL_DATA_FILE = "data/seir_counts_r0_200.csv"
 
 
 def objective(trial):
@@ -75,9 +75,12 @@ def objective(trial):
 
     # Suggest values for calibration
     # migration_rate = trial.suggest_float("migration_rate", 0.0001, 0.01)
-    r_nought = trial.suggest_float("r0", 4, 20)
+    r_nought = trial.suggest_float("r0", 4, 400)
     # migration_rate = trial.suggest_float("migration_rate", 0.004, 0.004)
     # transmission_rate = trial.suggest_float("transmission_rate", 0.145, 0.145)
+    print(f"DEBUG: r_nought selected as {r_nought}")
+    if r_nought < 4 or r_nought > 400:
+        raise ValueError("optuna selected bogus value for r0!")
 
     # Set up parameters
     params = {"r0": r_nought}
@@ -94,12 +97,13 @@ def objective(trial):
     def get_native_runstring():
         return [sys.executable, str(laser_script)]
 
+    NUM_REPLICATES_PER_TRIAL = 1
     print(f"Will be looking for {RESULTS_FILE}")
     # Run laser.py as a subprocess
     try:
         # Run the model 4 times and collect results
         scores = []
-        for _ in range(4):
+        for _ in range(NUM_REPLICATES_PER_TRIAL):
             # subprocess.run(get_docker_runstring(), check=True)
             # subprocess.run(["python3", "laser.py"], check=True)
             subprocess.run(get_native_runstring(), check=True)
@@ -110,7 +114,9 @@ def objective(trial):
                 print(os.listdir("."))
                 time.sleep(0.1)
 
+            print("Reference...")
             actual = process_data(ACTUAL_DATA_FILE)
+            print("Simulation...")
             predicted = process_data(RESULTS_FILE)
 
             score = compute_fit(actual, predicted)  # Evaluate results

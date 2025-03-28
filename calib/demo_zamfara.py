@@ -28,10 +28,9 @@ The model uses the same data and setup as the EMOD model, except in the followin
 regions = ["ZAMFARA"]
 start_year = 2019
 n_days = 365
-pop_scale = 1 / 10
+pop_scale = 1
 init_region = "ANKA"
 init_prev = 0.001
-r0 = 200
 results_path = "results/demo_zamfara"
 
 ######### END OF USER PARS ########
@@ -139,45 +138,6 @@ class ConfigurablePropertySet(PropertySet):
         print(f"Configuration saved to {filename}")
 
 
-class ConfigurablePropertySetPrev(PropertySet):
-    def __init__(self, default_params: dict):
-        """
-        Initialize a ConfigurablePropertySet with default parameters.
-
-        :param default_params: The dictionary containing the default parameters.
-        """
-        super().__init__(default_params)  # Pass default params to base class
-
-    def override(self, override_params: dict):
-        """
-        Override default parameters with values from override_params.
-
-        :param override_params: The dictionary containing override parameters (loaded from disk).
-        :raises ValueError: If override_params contains unknown keys.
-        """
-        unexpected_keys = set(override_params.keys()) - set(self.keys())
-        if unexpected_keys:
-            raise ValueError(f"Unexpected parameters in override set: {unexpected_keys}")
-
-        # Apply overrides to the PropertySet
-        for key, value in override_params.items():
-            self[key] = value  # Assuming PropertySet supports item assignment
-
-    def save(self, filename: str = "params.pkl"):
-        """
-        Save the current property set to a JSON file.
-
-        :param filename: Path to the output JSON file.
-        """
-        # with open(filename, "w") as f:
-        #    json.dump(self.to_dict(), f, indent=4)
-
-        with open("params_final.pkl", "wb") as f:
-            pickle.dump(self.to_dict(), f)
-
-        print(f"Configuration saved to {filename}")
-
-
 # Set parameters
 pars = ConfigurablePropertySet(
     {
@@ -191,7 +151,7 @@ pars = ConfigurablePropertySet(
         # Disease
         "init_immun": init_immun,  # Initial immunity per node
         "init_prev": init_prevs,  # Initial prevalence per node (1% infected)
-        "r0": r0,  # Basic reproduction number
+        "r0": 14,  # Basic reproduction number
         "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
         "corr_risk_inf": 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
         "beta_spatial": beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
@@ -255,7 +215,9 @@ def save_results_to_csv(results, filename="simulation_results.csv"):
 # Example usage
 save_results_to_csv(sim.results)
 
-# # Plot results
-# sim.plot(save=True, results_path=results_path)
+# Plot results
+sim.plot(save=True, results_path=results_path)
+
+# Let's just save sim.results as simulation_output.csv
 
 sc.printcyan("Done.")

@@ -1,22 +1,35 @@
 import os
 
+import click
 import optuna
-from objective import objective  # The objective function now runs inside the worker
+from objective import objective  # Ensure this is correctly defined elsewhere
 
-# Connect to the same storage as the controller
-# storage_url = get_storage_url()
 
-# Load the study
-# study = optuna.load_study(study_name="spatial_demo_calibr8n", storage=storage_url)
+@click.command()
+@click.option("--study-name", default="laser_polio_test", help="Name of the Optuna study to load or create.")
+@click.option("--num-trials", default=1, type=int, help="Number of trials for the optimization.")
+def run_worker(study_name, num_trials):
+    """Run an Optuna worker that performs optimization trials."""
 
-storage_url = os.getenv("STORAGE_URL", "mysql+pymysql://user:password@optuna-mysql/optuna_db")
-study_name = "spatial_demo_calib_mar14"
+    if os.getenv("STORAGE_URL"):
+        storage_url = os.getenv("STORAGE_URL")
+    else:
+        # Construct the storage URL from environment variables
+        # storage_url = "mysql+pymysql://{}:{}@optuna-mysql:3306/{}".format(
+        storage_url = "mysql://{}:{}@mysql:3306/{}".format(
+            os.getenv("MYSQL_USER", "root"), os.getenv("MYSQL_PASSWORD", ""), os.getenv("MYSQL_DB", "optuna_db")
+        )
 
-try:
-    study = optuna.load_study(study_name=study_name, storage=storage_url)
-except KeyError:
-    print(f"Study '{study_name}' not found. Creating a new study.")
-    study = optuna.create_study(study_name=study_name, storage=storage_url)
+    print(f"storage_url={storage_url}")
+    try:
+        study = optuna.load_study(study_name=study_name, storage=storage_url)
+    except Exception:
+        print(f"Study '{study_name}' not found. Creating a new study.")
+        study = optuna.create_study(study_name=study_name, storage=storage_url)
 
-# Run trials (each worker runs one or more trials)
-study.optimize(objective, n_trials=5)  # Adjust per worker
+    # Run the trials
+    study.optimize(objective, n_trials=num_trials)
+
+
+if __name__ == "__main__":
+    run_worker()
