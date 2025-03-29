@@ -29,7 +29,7 @@ init_prev = np.zeros(len(pop))  # TODO: Replace with estimates from regression m
 init_prev[0] = 0.01  # 1% infected in the first region
 beta_spatial = np.random.uniform(0.5, 2, len(pop))  # TODO: Replace with some sort of spatial transmission scalar
 vx_prob_ri = np.random.uniform(0, 0.5, len(pop))  # TODO: Replace with actual data
-sia_eff = np.random.uniform(0.5, 0.9, len(pop))  # TODO: Replace with actual data
+vx_prob_sia = np.random.uniform(0.5, 0.9, len(pop))  # TODO: Replace with actual data
 
 # Set parameters
 pars = PropertySet(
@@ -62,7 +62,7 @@ pars = PropertySet(
         # Interventions
         "vx_prob_ri": vx_prob_ri,  # Probability of routine vaccination
         "sia_schedule": sia_schedule,  # Schedule of SIAs
-        "sia_eff": sia_eff,  # Effectiveness of SIAs
+        "vx_prob_sia": vx_prob_sia,  # Effectiveness of SIAs
     }
 )
 

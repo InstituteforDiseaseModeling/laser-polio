@@ -1,4 +1,5 @@
 import time
+from copy import deepcopy
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -14,6 +15,7 @@ from laser_core.demographics.pyramid import load_pyramid_csv
 from laser_core.laserframe import LaserFrame
 from laser_core.migration import gravity
 from laser_core.migration import row_normalizer
+from laser_core.propertyset import PropertySet
 from laser_core.utils import calc_capacity
 from tqdm import tqdm
 
@@ -30,9 +32,13 @@ class SEIR_ABM:
     Disease state codes: 0=S, 1=E, 2=I, 3=R
     """
 
-    def __init__(self, pars, verbose=0.1):
+    def __init__(self, pars: PropertySet = None, verbose=0.1):
         sc.printcyan("Initializing simulation...")
-        self.pars = pars
+
+        # Load default parameters and optionally override with user-specified ones
+        self.pars = deepcopy(lp.default_pars)
+        if pars is not None:
+            self.pars += pars  # override default values
         pars = self.pars
         self.verbose = verbose
 
@@ -82,7 +88,7 @@ class SEIR_ABM:
     @components.setter
     def components(self, components: list) -> None:
         """
-        Sets up the components of the model and initializes instances and phases.
+        Sets up the components of the model in the order specified in pars.py and initializes instances and phases.
 
         This function takes a list of component types, creates an instance of each, and adds each callable component to the phase list.
         It also registers any components with an `on_birth` function with the `Births` component.
@@ -96,11 +102,20 @@ class SEIR_ABM:
             None
         """
 
-        self._components = components
-        self.instances = []  # instantiated instances of components
-        for component in components:
-            instance = component(self)
-            self.instances.append(instance)
+        # Get the default order from default pars
+        default_order = lp.default_run_order
+
+        # Sort the provided list of component classes based on their string names
+        def get_name(cls):
+            return cls.__name__
+
+        component_lookup = {cls.__name__: cls for cls in components}
+        ordered_subset = [component_lookup[name] for name in default_order if name in component_lookup]
+
+        # Store and instantiate
+        self._components = ordered_subset
+        self.instances = [cls(self) for cls in ordered_subset]
+        print(f"Initialized components: {self.instances}")
 
     def run(self):
         sc.printcyan("Initialization complete. Running simulation...")
@@ -220,11 +235,11 @@ class DiseaseState_ABM:
         sim.people.add_scalar_property("infection_timer", dtype=np.int32, default=0)
         sim.people.infection_timer[:] = self.pars.dur_inf(self.people.capacity)
 
-        sim.results.add_array_property("S", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
-        sim.results.add_array_property("E", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
-        sim.results.add_array_property("I", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
-        sim.results.add_array_property("R", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
-        sim.results.add_array_property("paralyzed", shape=(sim.nt, len(self.nodes)), dtype=np.float32)
+        sim.results.add_array_property("S", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
+        sim.results.add_array_property("E", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
+        sim.results.add_array_property("I", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
+        sim.results.add_array_property("R", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
+        sim.results.add_array_property("paralyzed", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
 
         def do_init_imm():
             print(f"Before immune initialization, we have {sim.people.count} active agents.")
@@ -314,7 +329,7 @@ class DiseaseState_ABM:
 
                     # Generate mortality-adjusted population over time
                     time_range = np.arange(T)[:, None]  # Create time indices
-                    self.results.R[:, :] += (node_counts * np.exp(-mortality_rates * time_range)).astype(np.float32)
+                    self.results.R[:, :] += (node_counts * np.exp(-mortality_rates * time_range)).astype(np.int32)
 
                 # Get our EULA populations
                 node_counts = get_node_counts_pre_squash(filter_mask, active_count_init)
@@ -776,7 +791,7 @@ class Transmission_ABM:
 
         # 2) Spatially redistribute infectivity among nodes
         transfer = (node_beta_sums * self.network).astype(np.float64)  # Don't round here, we'll handle fractional infections later
-        transfer *= 10
+        transfer *= 10  # TODO - what is this about???
         # Ensure net contagion remains positive after movement
         node_beta_sums += transfer.sum(axis=1) - transfer.sum(axis=0)
         node_beta_sums = np.maximum(node_beta_sums, 0)  # Prevent negative contagion
@@ -874,12 +889,12 @@ class Transmission_ABM:
 
 
 class VitalDynamics_ABM:
-    def __init__(self, sim, step_size=7):
+    def __init__(self, sim):
         self.sim = sim
         self.people = sim.people
         self.nodes = sim.nodes
         self.results = sim.results
-        self.step_size = step_size  # Number of days between vital dynamics steps
+        self.step_size = sim.pars.step_size_VitalDynamics_ABM  # Number of days between vital dynamics steps
 
         # Setup the age and vital rate components
         pars = sim.pars
@@ -1038,72 +1053,98 @@ class VitalDynamics_ABM:
 
 
 @nb.njit(parallel=True)
-def fast_vaccination(
-    node_id, disease_state, date_of_birth, ri_timer, sim_t, vx_prob_ri, results_ri_vaccinated, results_ri_protected, rand_vals, count
+def fast_ri(
+    step_size,
+    node_id,
+    disease_state,
+    ri_timer,
+    sim_t,
+    vx_prob_ri,
+    results_ri_vaccinated,
+    rand_vals,
+    count,
 ):
     """
     Optimized vaccination step with thread-local storage and parallel execution.
     """
-    if sim_t % 14 != 0:  # Run only every 14th timestep
+    if sim_t % step_size != 0:  # Run only every 14th timestep
         return
 
     num_people = count
     num_nodes = results_ri_vaccinated.shape[1]  # Assuming shape (timesteps, nodes)
+    num_threads = nb.get_num_threads()
 
-    # Thread-local storage for results
-    local_vaccinated = np.zeros(num_nodes, dtype=np.float32)
-    local_protected = np.zeros(num_nodes, dtype=np.int32)
+    # Allocate per-thread local arrays
+    local_vaccinated = np.zeros((num_threads, num_nodes), dtype=np.int32)
 
+    # for i in np.arange(num_people):
     for i in nb.prange(num_people):
+        thread_id = nb.get_thread_id()
         node = node_id[i]
         if disease_state[i] < 0:  # Skip dead or inactive agents
             continue
 
-        prob_ri = vx_prob_ri if isinstance(vx_prob_ri, float) else vx_prob_ri[node]
+        prob_vx = vx_prob_ri[node]
 
-        # if sim_t - 14 < date_of_birth[i] + 182 <= sim_t:
-        ri_timer[i] -= 14
-        if ri_timer[i] <= 0 and ri_timer[i] > -14:  # off-by-one?
-            if disease_state[i] == 0:  # Must be susceptible
-                if rand_vals[i] < prob_ri:  # Vaccination probability
+        # print(f"Agent {i} in disease state {disease_state[i]}")
+        # print("prob_vx=", prob_vx, "prob_take=", prob_take)
+
+        ri_timer[i] -= step_size
+        eligible = False
+        # If first vx, account for the fact that no components are run on day 0
+        if sim_t == step_size:
+            eligible = ri_timer[i] <= 0 and ri_timer[i] >= -step_size
+        elif sim_t > step_size:
+            eligible = ri_timer[i] <= 0 and ri_timer[i] > -step_size
+
+        if eligible:
+            if rand_vals[i] < prob_vx:  # Check probability of vaccination
+                local_vaccinated[thread_id, node] += 1  # Increment vaccinated count
+                if disease_state[i] == 0:  # If susceptible
+                    # We don't check for vx_eff here, since that is already accounted for in the prob_vx file
                     disease_state[i] = 3  # Move to Recovered state
-                    local_protected[node] += 1
 
-            local_vaccinated[node] += prob_ri  # Expected vaccinated count
-
-    # Merge results back
-    for j in nb.prange(num_nodes):
-        results_ri_vaccinated[sim_t, j] += int(local_vaccinated[j])
-        results_ri_protected[sim_t, j] += local_protected[j]
+    # Merge per-thread results
+    for thread_id in range(num_threads):
+        for j in range(num_nodes):
+            results_ri_vaccinated[sim_t, j] += local_vaccinated[thread_id, j]
 
 
 class RI_ABM:
     def __init__(self, sim):
         self.sim = sim
+        self.step_size = sim.pars.step_size_RI_ABM  # Number of days between RI steps
         self.people = sim.people
         self.nodes = sim.nodes
         self.pars = sim.pars
+        # Calc date of RI (assume single point in time between 1st and 3rd dose)
         self.people.add_scalar_property("ri_timer", dtype=np.int32, default=-1)
+        dob = self.people.date_of_birth
+        days_from_birth_to_ri = np.random.uniform(42, 98, len(self.people.ri_timer))  # Assume 6-14 weeks of age for vx
+        self.people.ri_timer = dob + days_from_birth_to_ri
         sim.results.add_array_property(
             "ri_vaccinated", shape=(sim.nt, len(sim.nodes)), dtype=np.int32
-        )  # Track number of people vaccinated by RI
-        sim.results.add_array_property(
-            "ri_protected", shape=(sim.nt, len(sim.nodes)), dtype=np.int32
-        )  # Track number of people who enter Recovered state due to RI
+        )  # Track number of people vaccinated & protected by RI
         self.results = sim.results
 
     def step(self):
+        vx_prob_ri = self.pars["vx_prob_ri"]  # Includes coverage & efficacy
+        num_nodes = len(self.sim.nodes)
+        # Promote to 1D arrays if needed
+        if np.isscalar(vx_prob_ri):
+            vx_prob_ri = np.full(num_nodes, vx_prob_ri, dtype=np.float64)
+
         # Suppose we have num_people individuals
-        rand_vals = np.random.rand(int(1e5))  # this could be done clevererly
-        fast_vaccination(
+        rand_vals = np.random.rand(self.people.count)  # this could be done clevererly
+
+        fast_ri(
+            self.step_size,
             self.people.node_id,
             self.people.disease_state,
-            self.people.date_of_birth,
             self.people.ri_timer,
             self.sim.t,
-            self.pars["vx_prob_ri"],
+            vx_prob_ri,
             self.results.ri_vaccinated,
-            self.results.ri_protected,
             rand_vals,
             self.people.count,
         )
@@ -1115,30 +1156,87 @@ class RI_ABM:
         self.plot_cum_ri_vx(save=save, results_path=results_path)
 
     def plot_cum_ri_vx(self, save=False, results_path=None):
-        cum_ri_vaccinated = np.cumsum(self.results.ri_vaccinated, axis=0)
-        cum_ri_protected = np.cumsum(self.results.ri_protected, axis=0)
-
-        fig, axs = plt.subplots(1, 2, figsize=(15, 6))
-
         # Plot cumulative RI vaccinated
-        axs[0].plot(cum_ri_vaccinated)
-        axs[0].set_title("Cumulative RI Vaccinated")
-        axs[0].set_xlabel("Time (Timesteps)")
-        axs[0].set_ylabel("Cumulative Vaccinated")
-        axs[0].grid()
-
-        # Plot cumulative RI protected
-        axs[1].plot(cum_ri_protected)
-        axs[1].set_title("Cumulative Population Protected by RI")
-        axs[1].set_xlabel("Time (Timesteps)")
-        axs[1].set_ylabel("Cumulative Protected")
-        axs[1].grid()
-
-        plt.tight_layout()
+        cum_ri_vaccinated = np.cumsum(self.results.ri_vaccinated, axis=0)
+        plt.figure(figsize=(10, 6))
+        plt.plot(cum_ri_vaccinated)
+        plt.title("Cumulative RI Vaccinated")
+        plt.xlabel("Time")
+        plt.ylabel("Cumulative Vaccinated")
+        plt.grid()
         if save:
             plt.savefig(results_path / "cum_ri_vx.png")
         if not save:
             plt.show()
+
+
+@nb.njit(parallel=True)
+def fast_sia(
+    node_ids,
+    disease_states,
+    dobs,
+    sim_t,
+    vx_prob,
+    vx_eff,
+    results_vaccinated,
+    results_protected,
+    rand_vals,
+    count,
+    nodes_to_vaccinate,
+    min_age,
+    max_age,
+):
+    """
+    Numbified supplemental immunization activity (SIA) vaccination step.
+
+    Parameters:
+        node_ids: Array of node IDs for each agent.
+        disease_states: Array of disease states for each agent.
+        dobs: Array of date of birth for each agent.
+        sim_t: Current simulation timestep.
+        vx_eff: Vaccine efficacy for this vaccine type (scalar).
+        vx_prob_sia: Array of coverage probabilities by node.
+        results_vaccinated: Output array for vaccinated counts (timesteps x nodes).
+        results_protected: Output array for protected counts (timesteps x nodes).
+        rand_vals: Random array of uniform [0,1] values, length >= count.
+        count: Number of active agents.
+        nodes_to_vaccinate: Array of nodes targeted by this campaign.
+        min_age, max_age: Integers, age range eligibility in days.
+    """
+    num_people = count
+    num_nodes = results_vaccinated.shape[1]
+    num_threads = nb.get_num_threads()
+
+    # Pre-allocate thread-local result arrays
+    local_vaccinated = np.zeros((num_threads, num_nodes), dtype=np.int32)
+    local_protected = np.zeros((num_threads, num_nodes), dtype=np.int32)
+
+    for i in nb.prange(num_people):
+        thread_id = nb.get_thread_id()
+        node = node_ids[i]
+
+        # Skip if agent is not alive, not in targeted node, or not in age range
+        if disease_states[i] < 0:
+            continue
+        if node not in nodes_to_vaccinate:
+            continue
+        age = sim_t - dobs[i]
+        if not (min_age <= age <= max_age):
+            continue
+
+        prob_vx = vx_prob[node]
+        r = rand_vals[i]
+
+        if r < prob_vx:  # Check probability of vaccination
+            local_vaccinated[thread_id, node] += 1  # Increment vaccinated count
+            if disease_states[i] == 0:  # If susceptible
+                if r < prob_vx * vx_eff:  # Check probability that vaccine takes/protects
+                    disease_states[i] = 3  # Move to Recovered state
+                    local_protected[thread_id, node] += 1  # Increment protected count
+
+    # Aggregate thread-local counts into global result arrays
+    results_vaccinated[sim_t] = local_vaccinated.sum(axis=0)
+    results_protected[sim_t] = local_protected.sum(axis=0)
 
 
 class SIA_ABM:
@@ -1153,6 +1251,7 @@ class SIA_ABM:
                 - 'nodes': List of nodes to target
                 - 'age_range': Tuple (min_age, max_age) in days
                 - 'coverage': Vaccine coverage rate (0 to 1)
+                - 'vaccinetype': The vaccine type which is used to determine efficacy
         """
         self.sim = sim
         self.people = sim.people
@@ -1161,10 +1260,14 @@ class SIA_ABM:
         self.results = sim.results
 
         # Add result tracking for SIA
-        self.results.add_array_property("sia_vx", shape=(sim.nt, len(sim.nodes)), dtype=np.int32)
+        self.results.add_array_property("sia_vaccinated", shape=(sim.nt, len(sim.nodes)), dtype=np.int32)
+        self.results.add_array_property("sia_protected", shape=(sim.nt, len(sim.nodes)), dtype=np.int32)
 
         # Store vaccination schedule
-        self.sia_schedule = sim.pars["sia_schedule"]
+        self.sia_schedule = sim.pars["sia_schedule"] if sim.pars["sia_schedule"] else []
+        # Convert all 'date' values in self.sia_schedule to datetime.date
+        for event in self.sia_schedule:
+            event["date"] = lp.date(event["date"])
 
     def step(self):
         t = self.sim.t  # Current timestep
@@ -1172,52 +1275,77 @@ class SIA_ABM:
         # Check if there is an SIA event today
         for event in self.sia_schedule:
             if event["date"] == self.sim.datevec[t]:
-                self.run_vaccination(event)
+                nodes_to_vaccinate = np.array(event["nodes"], dtype=np.int32)  # Convert to NumPy array
+                vx_prob_sia = np.array(self.pars["vx_prob_sia"], dtype=np.float32)  # Convert to NumPy array
+                vaccinetype = event["vaccinetype"]
+                vx_eff = self.pars["vx_efficacy"][vaccinetype]
+                min_age, max_age = event["age_range"]
 
-    def run_vaccination(self, event):
-        """
-        Execute vaccination for the given event.
+                # Suppose we have num_people individuals
+                rand_vals = np.random.rand(self.people.count)  # this could be done clevererly
 
-        Args:
-            event: Dictionary containing 'nodes', 'age_range', and 'coverage'.
-        """
-        min_age, max_age = event["age_range"]
-        nodes_to_vaccinate = event["nodes"]
+                fast_sia(
+                    self.people.node_id,
+                    self.people.disease_state,
+                    self.people.date_of_birth,
+                    self.sim.t,
+                    vx_prob_sia,
+                    vx_eff,
+                    self.results.sia_vaccinated,
+                    self.results.sia_protected,
+                    rand_vals,
+                    self.people.count,
+                    nodes_to_vaccinate,
+                    min_age,
+                    max_age,
+                )
 
-        node_ids = self.people.node_id[: self.people.count]
-        disease_states = self.people.disease_state[: self.people.count]
-        dobs = self.people.date_of_birth[: self.people.count]
+    # def run_vaccination(self, event):
+    #     """
+    #     Execute vaccination for the given event.
 
-        for node in nodes_to_vaccinate:
-            # Find eligible individuals: Alive, susceptible, in the age range
-            alive_in_node = (node_ids == node) & (disease_states >= 0)
-            age = self.sim.t - dobs
-            in_age_range = (age >= min_age) & (age <= max_age)
-            susceptible = disease_states == 0
-            eligible = alive_in_node & in_age_range & susceptible
+    #     Args:
+    #         event: Dictionary containing 'nodes', 'age_range', and 'coverage'.
+    #     """
+    #     min_age, max_age = event["age_range"]
+    #     nodes_to_vaccinate = event["nodes"]
+    #     vaccinetype = event["vaccinetype"]
+    #     vx_eff = self.pars["vx_efficacy"][vaccinetype]
 
-            # Apply vaccine coverage probability
-            sia_eff = self.pars["sia_eff"][node]
-            vaccinated = np.random.rand(np.sum(eligible)) < sia_eff
-            vaccinated_indices = np.where(eligible)[0][vaccinated]
+    #     node_ids = self.people.node_id[: self.people.count]
+    #     disease_states = self.people.disease_state[: self.people.count]
+    #     dobs = self.people.date_of_birth[: self.people.count]
 
-            # Move vaccinated individuals to the Recovered (R) state
-            disease_states[vaccinated_indices] = 3
+    #     for node in nodes_to_vaccinate:
+    #         # Find eligible individuals: Alive, susceptible, in the age range
+    #         alive_in_node = (node_ids == node) & (disease_states >= 0)
+    #         age = self.sim.t - dobs
+    #         in_age_range = (age >= min_age) & (age <= max_age)
+    #         susceptible = disease_states == 0
+    #         eligible = alive_in_node & in_age_range & susceptible
 
-            # Track the number vaccinated
-            # TODO: clarify that this is the number of people who enter Recovered state, not number vaccinated
-            self.results.sia_vx[self.sim.t, node] = vaccinated.sum()
+    #         # Apply vaccine coverage probability
+    #         prob_vx = self.pars["vx_prob_sia"][node]
+    #         rand_vals = np.random.rand(np.sum(eligible))
+    #         for i in len(eligible):
+    #             if rand_vals[i] < prob_vx:  # Check probability of vaccination
+    #                 self.sim.results.sia_vaccinated[self.sim.t, node] += 1  # Increment vaccinated count
+    #                 if disease_states[i] == 0:  # If susceptible
+    #                     if rand_vals[i] < vx_eff:  # Check probability that vaccine takes/protects
+    #                         # Move vaccinated individuals to the Recovered (R) state
+    #                         disease_states[i] = 3  # Move to Recovered state
+    #                         self.sim.results.n_protected_sia[self.sim.t, node] += 1  # Increment protected count
 
     def log(self, t):
         pass
 
     def plot(self, save=False, results_path=None):
-        self.plot_cum_sia_vx(save=save, results_path=results_path)
+        self.plot_cum_vx_sia(save=save, results_path=results_path)
 
-    def plot_cum_sia_vx(self, save=False, results_path=None):
-        cum_sia_vx = np.cumsum(self.results.sia_vx, axis=0)
+    def plot_cum_vx_sia(self, save=False, results_path=None):
+        cum_vx_sia = np.cumsum(self.results.sia_vaccinated, axis=0)
         plt.figure(figsize=(10, 6))
-        plt.plot(cum_sia_vx)
+        plt.plot(cum_vx_sia)
         plt.title("Supplemental Immunization Activity (SIA) Vaccination")
         plt.xlabel("Time (Timesteps)")
         plt.ylabel("Cumulative Vaccinated")

@@ -8,7 +8,7 @@ pd.set_option("display.max_columns", None)
 df = pd.read_csv("data/curation_scripts/sia/sia_district_rows.csv", index_col=0)
 
 # Load the adm0 shape to get the WHO region names
-shp = gpd.read_file("data/shp_africa_adm0.geojson")
+shp = gpd.read_file("data/shp_africa_low_res.gpkg", layer="adm0")
 shp_who = shp[["ADM0_NAME", "WHO_REGION"]]
 # Merge the cbr DataFrame with the shp GeoDataFrame on the ISO3_code column
 df = df.merge(shp_who, left_on="ADM0_NAME", right_on="ADM0_NAME", how="left")
@@ -39,7 +39,7 @@ df = df.rename(columns={"agemin_d": "age_min", "agemax_d": "age_max"})
 
 # Tidy up
 # Select only the date, dot_name, age_min, and age_max columns
-df = df[["date", "dot_name", "GUID", "age_min", "age_max"]]
+df = df[["date", "dot_name", "GUID", "age_min", "age_max", "vaccinetype"]]
 # Reset the index
 df = df.reset_index(drop=True)
 print(df.head())

@@ -289,7 +289,7 @@ def process_sia_schedule_polio(df, region_names, sim_start_date):
     df_filtered["node_index"] = df_filtered["dot_name"].apply(lambda x: dot_name_to_index.get(x, -1))
 
     # Summarize data by date, grouping node indices
-    summary = df_filtered.groupby(["date", "age_range"])["node_index"].apply(list).reset_index()
+    summary = df_filtered.groupby(["date", "age_range", "vaccinetype"])["node_index"].apply(list).reset_index()
     summary.rename(columns={"node_index": "nodes"}, inplace=True)
 
     # Filter for start dates on or after the simulation beginning date

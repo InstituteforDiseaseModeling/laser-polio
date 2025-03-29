@@ -1,9 +1,11 @@
 import os
-import pathlib
 import zipfile
 from datetime import datetime
+from pathlib import Path
 
+import fiona
 import geopandas as gpd
+import matplotlib.pyplot as plt
 import pandas as pd
 
 from laser_polio.utils import clean_strings
@@ -20,7 +22,7 @@ os.makedirs(extract_dir, exist_ok=True)
 
 # Extract the GeoJSON files from the zip archive
 extracted_geojson_files = [
-    os.path.join(extract_dir, f) for f in pathlib.Path.iterdir(extract_dir) if f.endswith(".geojson")
+    os.path.join(extract_dir, f.name) for f in Path(extract_dir).iterdir() if f.suffix == ".geojson"
 ]  # Check if the files have already been unzipped and saved
 if not extracted_geojson_files:
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
@@ -35,10 +37,8 @@ if not extracted_geojson_files:
             target_path = os.path.join(extract_dir, file_name)
             with zip_ref.open(geojson_file) as source, open(target_path, "wb") as target:
                 target.write(source.read())
-
-# List all GeoJSON files in the extracted directory
-extracted_geojson_files = [os.path.join(extract_dir, f) for f in pathlib.Path.iterdir(extract_dir) if f.endswith(".geojson")]
-
+    # List all GeoJSON files in the extracted directory
+    extracted_geojson_files = [os.path.join(extract_dir, f.name) for f in Path(extract_dir).iterdir() if f.suffix == ".geojson"]
 # Define the shapefiles and associated columns
 shapefiles = [
     ("countries.geojson", ["WHO_REGION", "ADM0_NAME"], "adm0"),
@@ -122,7 +122,7 @@ for shapefile, columns_to_clean, adm_level in shapefiles:
     # print(filtered_gdf[filtered_gdf['dot_name'].str.contains('BAMBADINCA')])
 
     # Save the curated shapefile as a GeoJSON file
-    output_geojson_path = f"data/shp_africa_{adm_level}.geojson"
+    output_geojson_path = f"data/curation_scripts/shp/shp_africa_{adm_level}.geojson"
     filtered_gdf.to_file(output_geojson_path, driver="GeoJSON")
 
     # Save the adm2 shape names
@@ -131,6 +131,75 @@ for shapefile, columns_to_clean, adm_level in shapefiles:
         shp_names.to_csv("data/shp_names_africa_adm2.csv", index=False)
 
     print(f"Curated shapefile saved as GeoJSON file: {output_geojson_path}")
+
+
+# ----- Now downsample those curated files & export them in geopackage format -----
+
+
+def plot_and_save(gdf, title, output_path):
+    fig, ax = plt.subplots(figsize=(10, 8))
+    gdf.plot(ax=ax, edgecolor="black", facecolor="lightblue", linewidth=0.2)
+    ax.set_title(title)
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Latitude")
+    plt.axis("equal")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=2000)
+    plt.close()
+    print(f"📍 Saved plot: {output_path}")
+
+
+def simplify_and_save(input_path, layer_name, output_path_gpkg, output_dir, tolerance=0.01):
+    print(f"\n📦 Processing: {input_path} → layer '{layer_name}'")
+
+    # Load
+    gdf = gpd.read_file(input_path)
+
+    # Plot original
+    plot_and_save(gdf, f"{layer_name.upper()} Original", output_dir / f"{layer_name}_original.png")
+
+    # Simplify
+    gdf_simplified = gdf.copy()
+    gdf_simplified["geometry"] = gdf.geometry.simplify(tolerance=tolerance, preserve_topology=True)
+
+    # Plot simplified
+    plot_and_save(gdf_simplified, f"{layer_name.upper()} Simplified", output_dir / f"{layer_name}_simplified.png")
+
+    # Ensure only one geometry column
+    gdf_simplified = gdf_simplified[
+        [col for col in gdf_simplified.columns if gdf_simplified[col].dtype.name != "geometry" or col == gdf_simplified.geometry.name]
+    ]
+    gdf_simplified.set_geometry("geometry", inplace=True)
+
+    # Save simplified layer to combined GPKG
+    gdf_simplified.to_file(output_path_gpkg, layer=layer_name, driver="GPKG")
+    print(f"✅ Saved layer '{layer_name}' to {output_path_gpkg}")
+
+
+# --------- Config ---------
+
+input_files = {
+    "adm0": "data/curation_scripts/shp/shp_africa_adm0.geojson",
+    "adm1": "data/curation_scripts/shp/shp_africa_adm1.geojson",
+    "adm2": "data/curation_scripts/shp/shp_africa_adm2.geojson",
+}
+output_gpkg = Path("data/shp_africa_low_res.gpkg")
+output_dir = Path("data/curation_scripts/shp/plots")
+tolerance = 0.01  # ≈ 1 km if CRS is WGS84
+
+# Create output directory
+output_dir.mkdir(parents=True, exist_ok=True)
+
+# Remove existing combined file to avoid layer conflicts
+output_gpkg.unlink(missing_ok=True)
+
+# Run simplification and plotting
+for layer_name, file_path in input_files.items():
+    simplify_and_save(file_path, layer_name, output_gpkg, output_dir, tolerance)
+
+# Show result
+print("\n🗂 Final layers in combined GPKG:")
+print(fiona.listlayers(output_gpkg))
 
 print("Done.")
 

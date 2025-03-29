@@ -83,7 +83,7 @@ We strongly recommend using ``uv`` to create and manage virtual environments, in
 
 To create a new environment run::
 
-    uv venv --python=3.9 .venv
+    uv venv --python=3.12 .venv
 
 To activate the environment on Linux or MacOS run::
 
