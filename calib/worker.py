@@ -1,14 +1,17 @@
 import os
+import yaml
 
 import click
 import optuna
-from objective import objective  # Ensure this is correctly defined elsewhere
+import objective
+#from objective import objective  # Ensure this is correctly defined elsewhere
 
 
 @click.command()
 @click.option("--study-name", default="laser_polio_test", help="Name of the Optuna study to load or create.")
 @click.option("--num-trials", default=1, type=int, help="Number of trials for the optimization.")
-def run_worker(study_name, num_trials):
+@click.option("--calib-pars", default="calib_pars.yaml", type=str, help="Config file with params to calibrate.")
+def run_worker(study_name, num_trials, calib_pars):
     """Run an Optuna worker that performs optimization trials."""
 
     if os.getenv("STORAGE_URL"):
@@ -27,9 +30,22 @@ def run_worker(study_name, num_trials):
         print(f"Study '{study_name}' not found. Creating a new study.")
         study = optuna.create_study(study_name=study_name, storage=storage_url)
 
-    # Run the trials
-    study.optimize(objective, n_trials=num_trials)
+    # Load calibration parameters from YAML
+    with open(calib_pars, "r") as f:
+        calib_pars_dict = yaml.safe_load(f)
 
+    objective.calib_pars = calib_pars_dict
+
+    # Set study-level metadata for reproducibility
+    metadata = calib_pars_dict.get("metadata", {})
+    for key, value in metadata.items():
+        study.set_user_attr(key, value)
+
+    # Store the parameter specification itself
+    study.set_user_attr("parameter_spec", calib_pars_dict.get("parameters", {}))
+
+    # Run the trials
+    study.optimize(objective.objective, n_trials=num_trials)
 
 if __name__ == "__main__":
     run_worker()
