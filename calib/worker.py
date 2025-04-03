@@ -11,7 +11,8 @@ import objective
 @click.option("--study-name", default="laser_polio_test", help="Name of the Optuna study to load or create.")
 @click.option("--num-trials", default=1, type=int, help="Number of trials for the optimization.")
 @click.option("--calib-pars", default="calib_pars.yaml", type=str, help="Config file with params to calibrate.")
-def run_worker(study_name, num_trials, calib_pars):
+@click.option("--config-pars", default="config.yaml", type=str, help="Config file with base params for model.")
+def run_worker(study_name, num_trials, calib_pars, config_pars):
     """Run an Optuna worker that performs optimization trials."""
 
     if os.getenv("STORAGE_URL"):
@@ -35,6 +36,12 @@ def run_worker(study_name, num_trials, calib_pars):
         calib_pars_dict = yaml.safe_load(f)
 
     objective.calib_pars = calib_pars_dict
+
+    # Load calibration parameters from YAML
+    with open(config_pars, "r") as f:
+        config_pars_dict = yaml.safe_load(f)
+
+    objective.config_pars = config_pars_dict
 
     # Set study-level metadata for reproducibility
     metadata = calib_pars_dict.get("metadata", {})

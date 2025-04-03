@@ -7,7 +7,9 @@ import numpy as np
 import pandas as pd
 import laser_polio as lp
 
-calib_pars = None
+import pdb
+
+#calib_pars = None
 
 # ------------------- USER PARAMETERS -------------------
 model_script = Path(lp.root / "calib/demo_zamfara.py").resolve(strict=True)
@@ -51,32 +53,20 @@ def objective(trial):
     """Optuna objective: run model with trial parameters and score result."""
     Path(RESULTS_FILE).unlink(missing_ok=True)
 
-    params = {}
+    params = config_pars["parameters"]
     for name, spec in calib_pars["parameters"].items():
-        method = spec.get("method", "suggest_float")
-        param_type = spec.get("type", "float")
 
-        # Map method name to the actual Optuna function
-        if method == "suggest_float":
-            params[name] = trial.suggest_float(
-                name,
-                spec["low"],
-                spec["high"],
-                log=spec.get("log", False),
-                step=spec.get("step", None),
-            )
-        elif method == "suggest_int":
-            params[name] = trial.suggest_int(
-                name,
-                spec["low"],
-                spec["high"],
-                step=spec.get("step", 1),
-                log=spec.get("log", False),
-            )
-        elif method == "suggest_categorical":
-            params[name] = trial.suggest_categorical(name, spec["choices"])
+        low = spec["low"]
+        high = spec["high"]
+
+        if isinstance(low, int) and isinstance(high, int):
+            # Infer integer parameter
+            params[name] = trial.suggest_int(name, low, high)
+        elif isinstance(low, float) or isinstance(high, float):
+            # Coerce both to float to avoid mixed-type issues
+            params[name] = trial.suggest_float(name, float(low), float(high))
         else:
-            raise ValueError(f"Unsupported suggestion method: {method}")
+            raise TypeError(f"Cannot infer parameter type for '{name}' with low={low}, high={high}")
 
     Path(PARAMS_FILE).parent.mkdir(parents=True, exist_ok=True)
     with open(PARAMS_FILE, "w") as f:

@@ -138,7 +138,9 @@ pars = PropertySet(
 
 with Path("params.json").open("r") as par:
     params = json.load(par)
-
+#import pdb
+#pdb.set_trace()
+#print( "NOT overriding built-in config with params.json" )
 pars += params
 
 # Initialize the sim

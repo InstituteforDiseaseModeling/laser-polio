@@ -1,11 +1,7 @@
 parameters:
   r0:
-    type: float         # 'float', 'int', or 'categorical'
-    method: suggest_float
     low: 4.0
     high: 400.0
-    log: false          # whether to use logarithmic scale (Optuna's log-uniform)
-    step: null          # optional step size for suggest_float
 
 # Optional metadata for reference or future processing
 metadata:
