@@ -1,19 +1,28 @@
 # Priorities
-- Try running calibration by myself - see the docs
-
-- Curate SIA data from Hil: Kurt_sharing\step04b_sia_randeffect\20241220_regression
 - Change terminology from SIA efficacy to SIA coverage spatial heterogeneity
-- Need to use the immunity_ri_nOPV2 column and use that as including efficacy
-- Remember to move RE processing out of sim and into data curation
+- ping Arie & hil about Reff REs in N Nigeria
+Objectives:
+Total cases
+Cases by year -> month
+Cases in N vs S Nigeria
+Levers: 
+R0
+R0 scalar for N Nigeria
+Gravity model coefficient (k)
+Seasonality pars
+Stretch: risk_mult_var or corr_risk_inf
 
-- Curate R0 file from Hil: Kurt_sharing\step04b_sia_randeffect\20241220_regression
-- Try scaling R0. E.g. per convo with HL & KF: R0_i = exp(m * (b_i - mean(b))/sd(b) + log R0), so the random effect b_i is standardized to mean zero and std dev = 1, then rescaled with m and centered. For example if you thought that R0 is usually centered at 10 but ranges from 5 to 20, then you would pick m to scale within those bounds.
+
+- Need to use the immunity_ri_nOPV2 column and use that as including efficacy
+- Add underwt fraction back in???
+- Move translation of r0_scalars to pre-calib
+- Remember to move RE processing out of sim and into data curation
 - Check transmission probability with real data. Why do we need R0 so high!?
 - Test full models with real data
 - Drop ABM term from components
 - Export pars as pkl
 - Rename variables to distinguish between exposure and infection
-- Enable vx transmission
+- Enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
 - Set a random number seed
 - Use KM's gravity model scaling approach
 - Update the birth and death plot to summarize by country.
@@ -21,6 +30,9 @@
 - Calibration
 - Save results & specify frequency
 - Reactive SIAs
+- Check out the optuna sampler options: https://optuna.readthedocs.io/en/stable/reference/samplers/index.html. What did Starsim use? 
+- Re-org the data folder to have timestamped files? Or time-stamped folders? 
+- Check that the SIA schedule dot_names are in my shapes
 
 # Refinement
 - Switch to radiation model (easier to explain cuz the numbers are %within vs %without)

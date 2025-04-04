@@ -9,15 +9,15 @@ df = pd.read_csv("data/curation_scripts/sia/sia_district_rows.csv", index_col=0)
 
 # Load the adm0 shape to get the WHO region names
 shp = gpd.read_file("data/shp_africa_low_res.gpkg", layer="adm0")
-shp_who = shp[["ADM0_NAME", "WHO_REGION"]]
+shp_who = shp[["adm0_name", "who_region"]]
 # Merge the cbr DataFrame with the shp GeoDataFrame on the ISO3_code column
-df = df.merge(shp_who, left_on="ADM0_NAME", right_on="ADM0_NAME", how="left")
+df = df.merge(shp_who, left_on="adm0_name", right_on="adm0_name", how="left")
 
-# Filter to only the rows with a WHO_REGION (the shape is filtered to only the African countries)
-df = df[df.WHO_REGION.notnull()]
+# Filter to only the rows with a who_region (the shape is filtered to only the African countries)
+df = df[df.who_region.notnull()]
 
 # Generate dot-separated 'dot_name'
-dot_name_cols = ["WHO_REGION", "ADM0_NAME", "ADM1_NAME", "ADM2_NAME"]
+dot_name_cols = ["who_region", "adm0_name", "adm1_name", "adm2_name"]
 df[dot_name_cols] = df[dot_name_cols].map(clean_strings)
 df["dot_name"] = df[dot_name_cols].agg(":".join, axis=1)
 # Manually update dot_name for duplicates

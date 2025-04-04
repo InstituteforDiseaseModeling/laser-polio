@@ -6,15 +6,15 @@ import laser_polio as lp
 # TODO: (ask AI)
 # Test no transmission when r0 = 0
 # Test double transmission when r0x2 vs r0
-# Test with different beta_spatials
+# Test with different r0_scalarss
 # Test impact of differnt dur_inf
 
 
-def setup_sim(dur=1, n_ppl=None, beta_spatial=None, r0=14, dur_exp=None, dur_inf=None, init_immun=0.8, init_prev=0.01):
+def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=None, init_immun=0.8, init_prev=0.01):
     if n_ppl is None:
         n_ppl = [10000, 10000]
-    if beta_spatial is None:
-        beta_spatial = [0.5, 2.0]
+    if r0_scalars is None:
+        r0_scalars = [0.5, 2.0]
     if dur_exp is None:
         dur_exp = lp.constant(value=2)
     if dur_inf is None:
@@ -25,7 +25,7 @@ def setup_sim(dur=1, n_ppl=None, beta_spatial=None, r0=14, dur_exp=None, dur_inf
             "dur": dur,
             "n_ppl": n_ppl,  # Two nodes with populations
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
-            "beta_spatial": beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
+            "r0_scalars": r0_scalars,  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
             "init_immun": init_immun,  # initially immune
             "init_prev": init_prev,  # initially infected from any age
@@ -74,10 +74,10 @@ def test_zero_trans():
     sim_r0_zero.run()
     assert sim_r0_zero.results.E[1:].sum() == 0, "There should be NO exposures when r0 is 0."
 
-    # Test with beta_spatial = 0
-    sim_beta_spatial_zero = setup_sim(beta_spatial=[0, 0])
-    sim_beta_spatial_zero.run()
-    assert sim_beta_spatial_zero.results.E[1:].sum() == 0, "There should be NO exposures when beta_spatial is 0."
+    # Test with r0_scalars = 0
+    sim_r0_scalars_zero = setup_sim(r0_scalars=[0, 0])
+    sim_r0_scalars_zero.run()
+    assert sim_r0_scalars_zero.results.E[1:].sum() == 0, "There should be NO exposures when r0_scalars is 0."
 
     # Test with init_prev = 0
     sim_init_prev_zero = setup_sim(init_prev=0.0)
@@ -90,32 +90,32 @@ def test_double_trans():
     # Default scenario
     init_immun = 0.0
     r0 = 5
-    beta_spatial = np.array([1.0, 1.0])
+    r0_scalars = np.array([1.0, 1.0])
     init_prev = 0.01
-    sim_default = setup_sim(init_immun=init_immun, r0=r0, beta_spatial=beta_spatial, init_prev=init_prev)
+    sim_default = setup_sim(init_immun=init_immun, r0=r0, r0_scalars=r0_scalars, init_prev=init_prev)
     sim_default.run()
 
     # Double r0
-    sim_r0_2x = setup_sim(init_immun=init_immun, r0=r0 * 2, beta_spatial=beta_spatial, init_prev=init_prev)
+    sim_r0_2x = setup_sim(init_immun=init_immun, r0=r0 * 2, r0_scalars=r0_scalars, init_prev=init_prev)
     sim_r0_2x.run()
 
-    # Double beta_spatial
-    sim_beta_spatial_2x = setup_sim(init_immun=init_immun, r0=r0, beta_spatial=beta_spatial * 2, init_prev=init_prev)
-    sim_beta_spatial_2x.run()
+    # Double r0_scalars
+    sim_r0_scalars_2x = setup_sim(init_immun=init_immun, r0=r0, r0_scalars=r0_scalars * 2, init_prev=init_prev)
+    sim_r0_scalars_2x.run()
 
     # Double init_prev
-    sim_init_prev_2x = setup_sim(init_immun=init_immun, r0=r0, beta_spatial=beta_spatial, init_prev=init_prev * 2)
+    sim_init_prev_2x = setup_sim(init_immun=init_immun, r0=r0, r0_scalars=r0_scalars, init_prev=init_prev * 2)
     sim_init_prev_2x.run()
 
     # Compare results
     n_e_t1_default = sim_default.results.E[1:].sum()
     n_e_t1_r0_2x = sim_r0_2x.results.E[1:].sum()
-    n_e_t1_beta_spatial_2x = sim_beta_spatial_2x.results.E[1:].sum()
+    n_e_t1_r0_scalars_2x = sim_r0_scalars_2x.results.E[1:].sum()
     n_e_t1_init_prev_2x = sim_init_prev_2x.results.E[1:].sum()
     atol = n_e_t1_default * 0.8  # Allow for some tolerance in the comparison
     assert np.isclose(n_e_t1_default * 2, n_e_t1_r0_2x, atol=atol), "Doubling r0 should approximately double the number of exposures."
-    assert np.isclose(n_e_t1_default * 2, n_e_t1_beta_spatial_2x, atol=atol), (
-        "Doubling beta_spatial should approximately double the number of exposures."
+    assert np.isclose(n_e_t1_default * 2, n_e_t1_r0_scalars_2x, atol=atol), (
+        "Doubling r0_scalars should approximately double the number of exposures."
     )
     assert np.isclose(n_e_t1_default * 2, n_e_t1_init_prev_2x, atol=atol), (
         "Doubling init_prev should approximately double the number of exposures."

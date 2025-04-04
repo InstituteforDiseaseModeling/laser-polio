@@ -37,7 +37,7 @@ def calculate_distance_matrix(gdf):
 
 if __name__ == "__main__":
     # Load the shapes2.geojson file
-    file_path = "data/shp_africa_adm2.geojson"
+    file_path = "data/shp_africa_low_res.gpkg", layer="adm2"
     try:
         shapes = gpd.read_file(file_path)
     except Exception as e:

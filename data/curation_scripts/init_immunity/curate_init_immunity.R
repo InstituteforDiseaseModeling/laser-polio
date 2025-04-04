@@ -22,17 +22,17 @@ for (coverage in coverages) {
   data <- data %>% filter(period %% 1 == 0)
 
   # Filter the immunity file to guids that are in the shp
-  shp <- st_read('data/shp_africa_adm2.geojson')
-  data <- data %>% filter(guid %in% shp$GUID)
+  shp <- st_read('data/shp_africa_low_res.gpkg', layer='adm2')
+  data <- data %>% filter(guid %in% shp$guid)
 
   # Merge the dot_name column based on matching GUID column
-  shp_names <- shp %>% select(GUID, dot_name)
+  shp_names <- shp %>% select(guid, dot_name)
   shp_names <- shp_names %>% st_drop_geometry()
-  data <- data %>% left_join(shp_names, by = c('guid' = 'GUID'))
+  data <- data %>% left_join(shp_names)
   data <- data %>% select(dot_name, everything())
 
   # Use Python's pandas to export in HDFStore format
-  use_python("C:/github/laser_polio/.venv/Scripts/python.exe")  # Replace with the correct path to your Python executable
+  use_python("C:/github/laser-polio/.venv/Scripts/python.exe")  # Replace with the correct path to your Python executable
 
   # Pass the output_path variable to Python
   reticulate::py_run_string(sprintf("

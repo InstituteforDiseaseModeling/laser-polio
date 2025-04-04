@@ -689,9 +689,11 @@ class Transmission_ABM:
         self.pars = sim.pars
         self.results = sim.results
 
-        # Calcultate geographic R0 modifiers based on underweight data (one for each node)
-        underwt = self.pars.beta_spatial
-        self.beta_spatial = 1 / (1 + np.exp(24 * (np.mean(underwt) - underwt))) + 0.2
+        # Stash the R0 scaling factor
+        self.r0_scalars = self.pars.r0_scalars
+        # # Calcultate geographic R0 modifiers based on underweight data (one for each node)
+        # underwt = self.pars.r0_scalars
+        # self.r0_scalars = 1 / (1 + np.exp(24 * (np.mean(underwt) - underwt))) + 0.2
 
         # Pre-compute individual risk of acquisition and infectivity with correlated sampling
         # Step 0: Add properties to people
@@ -767,8 +769,7 @@ class Transmission_ABM:
 
         # 3) Apply seasonal & geographic modifiers
         beta_seasonality = lp.get_seasonality(self.sim)
-        beta_spatial = self.pars.beta_spatial  # TODO: This currently uses a placeholder. Update it with IHME underweight data & make the
-        beta = node_beta_sums * beta_seasonality * beta_spatial  # Total node infection rate
+        beta = node_beta_sums * beta_seasonality * self.r0_scalars  # Total node infection rate
 
         # 4) Calculate base probability for each agent to become exposed
         alive_counts = self.people.count + self.sim.results.R[self.sim.t]

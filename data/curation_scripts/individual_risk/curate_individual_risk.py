@@ -14,13 +14,13 @@ Image.MAX_IMAGE_PIXELS = None
 
 # Define inputs
 raster_path = "data/curation_scripts/individual_risk/IHME_CGF_UNDERWEIGHT_2019_MEAN.tif"
-shp_path = "data/curation_scripts/shp/shp_africa_adm2.shp"
+shp_path = "data/shp_africa_low_res.gpkg"
 output_file = "data/curation_scripts/individual_risk/underwt_u5_2019.csv"
 
 # Check if shp file exists
 if not os.path.exists(shp_path):
     print(f"Shapefile not found at {shp_path}. Loading geojson file and saving as shapefile.")
-    shp = gpd.read_file("data/shp_africa_adm2.geojson")
+    shp = gpd.read_file("data/shp_africa_low_res.gpkg", layer="adm2")
     # Save as a shapefile
     shp.to_file(shp_path)
 
@@ -45,12 +45,12 @@ df["prop_underwt"] = df["prop_underwt"] / 100
 ###  Validate the output
 
 # Check that the shp and df are the same len
-shp = gpd.read_file("data/shp_africa_adm2.geojson")
+shp = gpd.read_file("data/shp_africa_low_res.gpkg", layer="adm2")
 assert len(shp) == len(df), "The number of rows in the output does not match the number of shapes in the shapefile."
 
 # Fill in missing values with the mean from the next higher admin level
 # Merge the admin names from shp to the df
-df = df.merge(shp[["dot_name", "ADM0_NAME", "ADM1_NAME", "ADM2_NAME"]], on="dot_name", how="left")
+df = df.merge(shp[["dot_name", "adm0_name", "adm1_name", "adm2_name"]], on="dot_name", how="left")
 # Count number of NA values
 n_na = df["prop_underwt"].isna().sum()
 if n_na > 0:
@@ -59,8 +59,8 @@ if n_na > 0:
     # Print the rows with missing values
     print(df[df.isna().any(axis=1)])
 # Fill in missing values with the mean from higher admin levels
-df.loc[:, "prop_underwt"] = df.groupby(["ADM0_NAME", "ADM1_NAME"])["prop_underwt"].transform(lambda x: x.fillna(x.mean()))
-df.loc[:, "prop_underwt"] = df.groupby(["ADM0_NAME"])["prop_underwt"].transform(lambda x: x.fillna(x.mean()))
+df.loc[:, "prop_underwt"] = df.groupby(["adm0_name", "adm1_name"])["prop_underwt"].transform(lambda x: x.fillna(x.mean()))
+df.loc[:, "prop_underwt"] = df.groupby(["adm0_name"])["prop_underwt"].transform(lambda x: x.fillna(x.mean()))
 # Check for missing values again
 assert df["prop_underwt"].isna().sum() == 0, (
     "There are still missing values in the immunity_ri_nOPV2 column after taking the adm1 or adm0 mean."

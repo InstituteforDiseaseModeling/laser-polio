@@ -11,15 +11,15 @@ sia = pd.read_csv("data/curation_scripts/sia/relative_sia_impact_sia_random_effe
 columns_to_clean = ["adm0_name", "adm1_name"]
 sia[columns_to_clean] = sia[columns_to_clean].map(clean_strings)
 
-# Add in WHO_REGION column based on matches to the shapes file
-shp = gpd.read_file("data/shp_africa_adm0.geojson")
+# Add in who_region column based on matches to the shapes file
+shp = gpd.read_file("data/shp_africa_low_res.gpkg", layer="adm0")
 
-# Filter the sia DataFrame based on the ADM0_NAME column having a match in the shp ADM0_NAME column
-sia = sia[sia["adm0_name"].isin(shp["ADM0_NAME"])]
+# Filter the sia DataFrame based on the adm0_name column having a match in the shp adm0_name column
+sia = sia[sia["adm0_name"].isin(shp["adm0_name"])]
 
 # Filter to only the columns we need & Save the cleaned dataframe
 sia = sia[["adm0_name", "adm1_name", "mean"]]
-sia = sia.rename(columns={"adm0_name": "ADM0_NAME", "adm1_name": "ADM1_NAME", "mean": "sia_random_effect"})
+sia = sia.rename(columns={"adm0_name": "adm0_name", "adm1_name": "adm1_name", "mean": "sia_random_effect"})
 print(sia.head())
 
 

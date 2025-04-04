@@ -20,7 +20,7 @@ default_pars = PropertySet(
         "init_immun": [0.0, 0.0],  # Initial immunity per node
         "init_prev": [0.0, 0.0],  # Initial prevalence per node
         "r0": 14,  # Basic reproduction number
-        "beta_spatial": [0.8, 1.2],  # Spatial transmission scalar (multiplied by global rate)
+        "r0_scalars": [0.8, 1.2],  # Spatial transmission scalar (multiplied by global rate)
         "seasonal_factor": 0.125,  # Seasonal variation in transmission
         "seasonal_phase": 180,  # Phase of seasonal variation
         "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)

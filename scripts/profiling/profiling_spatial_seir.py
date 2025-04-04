@@ -14,7 +14,7 @@ def make_sim(n_ppl=100e3, n_nodes=1, dur=365):
     pop = n_ppl / n_nodes * np.ones(n_nodes)
     dist_matrix = np.ones((n_nodes, n_nodes))
     init_prev = np.zeros(n_nodes) + 0.01
-    beta_spatial = np.ones(n_nodes)
+    r0_scalars = np.ones(n_nodes)
     cbr = np.ones(n_nodes) * 30
     vx_prob_ri = np.ones(n_nodes) * 0.1
 
@@ -30,7 +30,7 @@ def make_sim(n_ppl=100e3, n_nodes=1, dur=365):
             # Disease
             "init_prev": init_prev,  # Initial prevalence per node (1% infected)
             "beta_global": 0.3,  # Global infection rate
-            "beta_spatial": beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
+            "r0_scalars": r0_scalars,  # Spatial transmission scalar (multiplied by global rate)
             "seasonal_factor": 0.125,  # Seasonal variation in transmission
             "seasonal_phase": 180,  # Phase of seasonal variation
             "p_paralysis": 1 / 20,  # Probability of paralysis

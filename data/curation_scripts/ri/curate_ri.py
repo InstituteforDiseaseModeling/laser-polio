@@ -69,7 +69,7 @@ assert ri["immunity_ri_nOPV2"].isna().sum() == 0, (
 
 # Select the relevant columns
 ri = ri[["adm0_name", "adm1_name", "adm2_name", "dot_name", "year", "immunity_ri_nOPV2"]]
-ri = ri.rename(columns={"adm0_name": "ADM0_NAME", "adm1_name": "ADM1_NAME", "adm2_name": "ADM2_NAME"})
+ri = ri.rename(columns={"adm0_name": "adm0_name", "adm1_name": "adm1_name", "adm2_name": "adm2_name"})
 print(ri.head())
 ri.to_csv("data/curation_scripts/ri/ri_curated.csv", index=False)
 
