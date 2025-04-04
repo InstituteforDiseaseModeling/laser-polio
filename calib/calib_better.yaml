@@ -5,6 +5,7 @@ parameters:
 
 # Optional metadata for reference or future processing
 metadata:
+  name: I_bet_this_works
   description: |
     Calibration parameters for the LASER polio model.
     The 'r0' parameter controls the basic reproduction number.

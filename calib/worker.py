@@ -1,9 +1,14 @@
 import os
 import yaml
+import json
+from pathlib import Path
 
+import pandas as pd
 import click
 import optuna
+
 import objective
+
 #from objective import objective  # Ensure this is correctly defined elsewhere
 
 
@@ -43,6 +48,11 @@ def run_worker(study_name, num_trials, calib_pars, config_pars):
 
     objective.config_pars = config_pars_dict
 
+    # Create output folder from 'name' field
+    run_name = calib_pars_dict["metadata"]["name"]
+    output_dir = Path(run_name)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     # Set study-level metadata for reproducibility
     metadata = calib_pars_dict.get("metadata", {})
     for key, value in metadata.items():
@@ -53,6 +63,34 @@ def run_worker(study_name, num_trials, calib_pars, config_pars):
 
     # Run the trials
     study.optimize(objective.objective, n_trials=num_trials)
+
+    # === Print best trial info ===
+    best = study.best_trial
+    print("\nBest Trial:")
+    print(f"  Value: {best.value}")
+    print(f"  Parameters:")
+    for k, v in best.params.items():
+        print(f"    {k}: {v}")
+
+    # === Print study metadata ===
+    print("\nMetadata:")
+    for k, v in study.user_attrs.items():
+        print(f"  {k}: {v}")
+
+    # === Export all trials to CSV ===
+    df = study.trials_dataframe(attrs=("number", "value", "params", "state"))
+    df.to_csv(output_dir/"calibration_results.csv", index=False)
+    print("\n✅ Wrote all trial results to calibration_results.csv")
+
+    # === Save best params to separate file ===
+    with open(output_dir/"best_params.json", "w") as f:
+        json.dump(best.params, f, indent=4)
+    print("✅ Saved best parameter set to best_params.json")
+
+    # === Save metadata (optional JSON) ===
+    with open(output_dir/"study_metadata.json", "w") as f:
+        json.dump(study.user_attrs, f, indent=4)
+    print("✅ Saved study metadata to study_metadata.json")
 
 if __name__ == "__main__":
     run_worker()
