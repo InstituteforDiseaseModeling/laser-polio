@@ -1,4 +1,3 @@
-import os
 import yaml
 import json
 from pathlib import Path
@@ -7,6 +6,7 @@ import pandas as pd
 import click
 import optuna
 
+import calib_db
 import objective
 
 #from objective import objective  # Ensure this is correctly defined elsewhere
@@ -20,16 +20,7 @@ import objective
 def run_worker(study_name, num_trials, calib_pars, config_pars):
     """Run an Optuna worker that performs optimization trials."""
 
-    if os.getenv("STORAGE_URL"):
-        storage_url = os.getenv("STORAGE_URL")
-    else:
-        # Construct the storage URL from environment variables
-        # storage_url = "mysql+pymysql://{}:{}@optuna-mysql:3306/{}".format(
-        storage_url = "mysql://{}:{}@mysql:3306/{}".format(
-            os.getenv("MYSQL_USER", "root"), os.getenv("MYSQL_PASSWORD", ""), os.getenv("MYSQL_DB", "optuna_db")
-        )
-
-    print(f"storage_url={storage_url}")
+    storage_url = calib_db.get_storage()
     try:
         study = optuna.load_study(study_name=study_name, storage=storage_url)
     except Exception:
