@@ -1,0 +1,16 @@
+parameters:
+  r0:
+    low: 4.0
+    high: 400.0
+
+# Optional metadata for reference or future processing
+metadata:
+  name: I_bet_this_works
+  description: |
+    Calibration parameters for the LASER polio model.
+    The 'r0' parameter controls the basic reproduction number.
+  version: 1.0
+  created_by: your_name
+  notes:
+    - Only 'r0' is currently included.
+    - Additional parameters may be added in the same format.

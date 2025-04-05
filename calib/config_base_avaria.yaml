@@ -1,0 +1,31 @@
+parameters:
+  dur: 365
+  r0: 14
+  risk_mult_var: 4
+  corr_risk_inf: 0.8
+  beta_spatial: 1.5
+  seasonal_factor: 0.125
+  seasonal_phase: 180
+  p_paralysis: 0.0005
+  dur_exp_no:
+    mean: 3
+    std: 1
+  dur_inf_no:
+    shape: 4.51
+    scale: 5.32
+  gravity_k: 0.5
+  gravity_a: 1
+  gravity_b: 1
+  gravity_c: 2
+  max_migr_frac: 0.01
+  vx_prob_ri_demo:
+    - 0.85
+    - 0.9
+    - 0.87
+    - 0.8
+    - 0.88
+  sia_schedule_demo:
+    - 30
+    - 90
+    - 180
+  sia_eff: 0.95
