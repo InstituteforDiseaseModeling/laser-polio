@@ -31,10 +31,14 @@ WORKDIR /app
 # Copy your script into the container
 RUN pip install --pre -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio
 RUN pip install optuna mysqlclient
-COPY calib/objective.py .
-COPY calib/worker.py .
+COPY calib/logic.py .
+COPY calib/calibrate.py .
+COPY calib/calib_db.py .
 COPY calib/demo_zamfara.py ./calib/demo_zamfara.py
 COPY calib/cloud/check_study.sh .
+COPY calib/calib_better.yaml ./calib_pars.yaml
+COPY calib/config_base_wakanda.yaml ./config.yaml
+
 RUN chmod a+x ./check_study.sh
 
 # Copy additional files into the data directory inside the container
@@ -52,4 +56,4 @@ ENV POLIO_ROOT=/app
 
 # Run the script when the container starts
 #CMD ["python3", "laser.py", "-p", "shared/params.json", "-o", "shared/simulation_results.csv"]
-ENTRYPOINT ["python3", "worker.py"]
+ENTRYPOINT ["python3", "calibrate.py"]
