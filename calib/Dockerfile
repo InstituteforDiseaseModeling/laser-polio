@@ -36,8 +36,8 @@ COPY calib/calibrate.py .
 COPY calib/calib_db.py .
 COPY calib/demo_zamfara.py ./calib/demo_zamfara.py
 COPY calib/cloud/check_study.sh .
-COPY calib/calib_better.yaml ./calib_pars.yaml
-COPY calib/config_base_wakanda.yaml ./config.yaml
+COPY calib/calib_params/calib_better.yaml ./calib_pars.yaml
+COPY calib/configs/config_base_wakanda.yaml ./config.yaml
 
 RUN chmod a+x ./check_study.sh
 
