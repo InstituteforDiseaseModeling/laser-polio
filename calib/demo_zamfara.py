@@ -5,8 +5,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import sciris as sc
-
 from laser_core.propertyset import PropertySet
+
 import laser_polio as lp
 
 """
@@ -150,7 +150,8 @@ sim.components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM
 sim.run()
 
 # Plot results
-#sim.plot(save=True, results_path=results_path)
+# sim.plot(save=True, results_path=results_path)
+
 
 def save_results_to_csv(results, filename="simulation_results.csv"):
     """

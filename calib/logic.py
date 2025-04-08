@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 
+
 def process_data(filename):
     """Load simulation results and extract features for comparison."""
     df = pd.read_csv(filename)
@@ -10,6 +11,7 @@ def process_data(filename):
         "total_infected": df["I"].sum(),
         "peak_infection_time": df.loc[df["I"].idxmax(), "Time"],
     }
+
 
 def compute_fit(actual, predicted, use_squared=False, normalize=False, weights=None):
     """Compute distance between actual and predicted summary metrics."""

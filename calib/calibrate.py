@@ -3,16 +3,17 @@
 import json
 import subprocess
 import sys
-from pathlib import Path
-import yaml
-
-import numpy as np
-import optuna
-import click
 from functools import partial
+from pathlib import Path
 
 import calib_db
-from logic import process_data, compute_fit  # <-- User-configurable logic
+import click
+import numpy as np
+import optuna
+import yaml
+from logic import compute_fit  # <-- User-configurable logic
+from logic import process_data  # <-- User-configurable logic
+
 import laser_polio as lp
 
 # ------------------- USER CONFIG -------------------
@@ -22,8 +23,10 @@ RESULTS_FILE = lp.root / "calib/results/calib_demo_zamfara/simulation_results.cs
 ACTUAL_DATA_FILE = lp.root / "examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_250.csv"
 # ---------------------------------------------------
 
+
 def get_native_runstring():
     return [sys.executable, str(model_script)]
+
 
 def objective(trial, calib_pars, config_pars):
     """Optuna objective: run model with trial parameters and score result."""
@@ -59,6 +62,7 @@ def objective(trial, calib_pars, config_pars):
     Path(RESULTS_FILE).unlink(missing_ok=True)
     return np.mean(scores)
 
+
 @click.command()
 @click.option("--study-name", default="laser_polio_test", help="Name of the Optuna study.")
 @click.option("--num-trials", default=1, type=int, help="Number of optimization trials.")
@@ -74,10 +78,10 @@ def run_worker(study_name, num_trials, calib_pars, config_pars):
         print(f"Study '{study_name}' not found. Creating a new study.")
         study = optuna.create_study(study_name=study_name, storage=storage_url)
 
-    with open(calib_pars, "r") as f:
+    with open(calib_pars) as f:
         calib_pars_dict = yaml.safe_load(f)
 
-    with open(config_pars, "r") as f:
+    with open(config_pars) as f:
         config_pars_dict = yaml.safe_load(f)
 
     run_name = calib_pars_dict["metadata"]["name"]
@@ -104,14 +108,15 @@ def run_worker(study_name, num_trials, calib_pars, config_pars):
         print(f"  {k}: {v}")
 
     df = study.trials_dataframe(attrs=("number", "value", "params", "state"))
-    df.to_csv(output_dir/"calibration_results.csv", index=False)
+    df.to_csv(output_dir / "calibration_results.csv", index=False)
     print("✅ Wrote all trial results to calibration_results.csv")
 
-    with open(output_dir/"best_params.json", "w") as f:
+    with open(output_dir / "best_params.json", "w") as f:
         json.dump(best.params, f, indent=4)
-    with open(output_dir/"study_metadata.json", "w") as f:
+    with open(output_dir / "study_metadata.json", "w") as f:
         json.dump(study.user_attrs, f, indent=4)
     print("✅ Saved best parameter set and metadata.")
+
 
 if __name__ == "__main__":
     run_worker()
