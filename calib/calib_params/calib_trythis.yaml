@@ -1,7 +1,7 @@
 parameters:
   r0:
-    low: 4.0
-    high: 400.0
+    low: 5.0
+    high: 15.0
 
 # Optional metadata for reference or future processing
 metadata:

@@ -1,19 +1,19 @@
 parameters:
   dur: 365
-  r0: 14
-  risk_mult_var: 4
-  corr_risk_inf: 0.8
-  beta_spatial: 1.5
-  seasonal_factor: 0.125
+  r0: 13
+  risk_mult_var: 3
+  corr_risk_inf: 0.7
+  beta_spatial: 1.25
+  seasonal_factor: 0.11
   seasonal_phase: 180
-  p_paralysis: 0.0005
+  p_paralysis: 0.0004
   dur_exp_no:
-    mean: 3
-    std: 1
+    mean: 2
+    std: 2
   dur_inf_no:
     shape: 4.51
     scale: 5.32
-  gravity_k: 0.5
+  gravity_k: 0.4
   gravity_a: 1
   gravity_b: 1
   gravity_c: 2
@@ -28,4 +28,4 @@ parameters:
     - 30
     - 90
     - 180
-  sia_eff: 0.95
+  sia_eff: 0.9
