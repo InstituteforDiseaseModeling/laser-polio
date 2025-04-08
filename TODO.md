@@ -1,19 +1,5 @@
 # Priorities
 
-SIA/RI DATA
-- Ask Hil & Kurt to add links to code in curation_scripts README
-
-DEBUGGING
-- Plot expected births?
-- Update the birth and death plot to summarize by country.
-- Check transmission probability with real data. Why do we need R0 so high!?
-- Test full models with real data
-
-CLEANUP
-- Change terminology from SIA efficacy to SIA coverage spatial heterogeneity
-- Rename variables to distinguish between exposure and infection
-- Drop ABM term from components
-
 CALIBRATION
 - Objectives:
     - Total cases
@@ -25,6 +11,17 @@ CALIBRATION
     - Gravity model coefficient (k)
     - Seasonality pars
     - Stretch: risk_mult_var or corr_risk_inf
+
+DEBUGGING 
+- Plot expected births?
+- Update the birth and death plot to summarize by country.
+- Check transmission probability with real data. Why do we need R0 so high!?
+- Test full models with real data
+
+CLEANUP
+- Change terminology from SIA efficacy to SIA coverage spatial heterogeneity
+- Rename variables to distinguish between exposure and infection
+- Drop ABM term from components
 
 NEW FEATURES
 - Add scalar for N Nigeria
@@ -67,3 +64,4 @@ NEW FEATURES
     - maybe scalar on nOPV2 efficacy
     - m (scalar) parameter on R0 random effects
 - Age-specific R0???
+- Get Hil & Kurt to add links to code in curation_scripts README
