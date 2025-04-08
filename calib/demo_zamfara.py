@@ -5,8 +5,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import sciris as sc
-from laser_core.propertyset import PropertySet
 
+from laser_core.propertyset import PropertySet
 import laser_polio as lp
 
 """
@@ -19,6 +19,7 @@ The model uses the same data and setup as the EMOD model, except in the followin
 - The nodes are not divided below the adm2 level (with no plans to do so)
 - There is no scaling of transmission between N & S Nigeria (other than underweight fraction)
 - We do not update the cbr, ri, sia, or underwt data over time
+- Vaccines are not allowed to transmit
 """
 
 ###################################
@@ -30,6 +31,7 @@ n_days = 365
 pop_scale = 1 / 10
 init_region = "ANKA"
 init_prev = 0.001
+r0 = 14
 results_path = "calib/results/calib_demo_zamfara"
 
 ######### END OF USER PARS ########
@@ -58,7 +60,6 @@ if len(prev_indices) == 0:
 init_prevs[prev_indices] = init_prev
 
 # Distance matrix
-# TODO make sure this is the same order as the dot_names
 dist_matrix = lp.get_distance_matrix(lp.root / "data/distance_matrix_africa_adm2.h5", dot_names)  # Load distances matrix (km)
 
 # SIA schedule
@@ -70,20 +71,21 @@ sia_schedule = lp.process_sia_schedule_polio(sia_schedule_raw, dot_names, start_
 
 ### Load the demographic, coverage, and risk data
 # Age pyramid
-age = pd.read_csv("data/age_africa.csv")
+age = pd.read_csv(lp.root / "data/age_africa.csv")
 age = age[(age["adm0_name"] == "NIGERIA") & (age["Year"] == start_year)]
-prop_u5 = age.loc[age["age_group"] == "0-4", "population"].values[0] / age["population"].sum()
 # Compiled data
 df_comp = pd.read_csv(lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
 df_comp = df_comp[df_comp["year"] == start_year]
 # Population data
-pop_u5 = df_comp.set_index("dot_name").loc[dot_names, "pop_u5"].values  # Extract the pop data in the same order as the dot_names
-pop = pop_u5 / prop_u5  # Estimate the total population size since the data is only for under 5s
+pop = df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values  # total population (all ages)
 pop = pop * pop_scale  # Scale population
 cbr = df_comp.set_index("dot_name").loc[dot_names, "cbr"].values  # CBR data
 ri = df_comp.set_index("dot_name").loc[dot_names, "ri_eff"].values  # RI data
-sia = df_comp.set_index("dot_name").loc[dot_names, "sia_prob"].values  # SIA data
-r0_scalars = df_comp.set_index("dot_name").loc[dot_names, "underwt_prop"].values  # Underweight data
+sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values  # SIA data
+sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=0.7, scale=2.4)  # Secret sauce numbers from Hil
+reff_re = df_comp.set_index("dot_name").loc[dot_names, "reff_random_effect"].values  # random effects from regression model
+r0_scalars = lp.calc_r0_scalars_from_rand_eff(reff_re)  # Center and scale the random effects
+
 
 # Assert that all data arrays have the same length
 assert (
@@ -95,9 +97,10 @@ assert (
     == len(pop)
     == len(cbr)
     == len(ri)
-    == len(sia)
+    == len(sia_prob)
     == len(r0_scalars)
 )
+
 
 # Set parameters
 pars = PropertySet(
@@ -108,11 +111,11 @@ pars = PropertySet(
         # Population
         "n_ppl": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
         "age_pyramid_path": lp.root / "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
-        "cbr": cbr,  # np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year
+        "cbr": cbr,  # Crude birth rate per 1000 per year
         # Disease
         "init_immun": init_immun,  # Initial immunity per node
         "init_prev": init_prevs,  # Initial prevalence per node (1% infected)
-        "r0": 14,  # Basic reproduction number
+        "r0": r0,  # Basic reproduction number
         "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
         "corr_risk_inf": 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
         "r0_scalars": r0_scalars,  # Spatial transmission scalar (multiplied by global rate)
@@ -132,15 +135,12 @@ pars = PropertySet(
         # Interventions
         "vx_prob_ri": ri,  # Probability of routine vaccination
         "sia_schedule": sia_schedule,  # Schedule of SIAs
-        "sia_eff": sia,  # Effectiveness of SIAs
+        "vx_prob_sia": sia_prob,  # Effectiveness of SIAs
     }
 )
 
 with Path("params.json").open("r") as par:
     params = json.load(par)
-#import pdb
-#pdb.set_trace()
-#print( "NOT overriding built-in config with params.json" )
 pars += params
 
 # Initialize the sim
@@ -150,6 +150,8 @@ sim.components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM
 # Run the simulation
 sim.run()
 
+# Plot results
+#sim.plot(save=True, results_path=results_path)
 
 def save_results_to_csv(results, filename="simulation_results.csv"):
     """
@@ -174,13 +176,7 @@ def save_results_to_csv(results, filename="simulation_results.csv"):
     print(f"Results saved to {filename}")
 
 
-# Example usage
 Path(results_path).mkdir(parents=True, exist_ok=True)
 save_results_to_csv(sim.results, filename=results_path + "/simulation_results.csv")
-
-# Plot results
-sim.plot(save=True, results_path=results_path)
-
-# Let's just save sim.results as simulation_output.csv
 
 sc.printcyan("Done.")
