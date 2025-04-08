@@ -7,7 +7,7 @@ The shapefiles & population data are sourced Dropbox/Kurt_sharing.
 | Dataset | Source | Basis | Status |
 |---------|---------|--------|---|
 | Age distribution | [UN World Population Prospects](https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/EXCEL_FILES/2_Population/WPP2024_POP_F02_1_POPULATION_5-YEAR_AGE_GROUPS_BOTH_SEXES.xlsx) 5-year age groups for both sexes | UNWPP | Done |
-| Birth rates (CBR) | Kurt (source code: ???) | UNWPP | Done |
+| Birth rates (CBR) | @kfrey-idm (source code: ???) | UNWPP | Done |
 | Case data (paralysis) | ??? | POLIS | TODO |
 | Death rates | ??? | ??? | TODO |
 | Individual risk corr | [Rasters of U5 underweight fraction curated by Kurt](https://bmgf.sharepoint.com/sites/Measles/Shared%20Documents/Forms/AllItems.aspx?id=%2Fsites%2FMeasles%2FShared%20Documents%2FTeam%20Documents%2FArchive%2FCoverages%2FIHME%2FCGF%5FWORLD%5F2020%5F08%5F31&viewid=088c215a%2D73e3%2D4ef7%2D9801%2Df2e003a79b7f&ct=1740691057970&or=OWA%2DNT%2DMail&ga=1) | [IHME](https://ghdx.healthdata.org/record/ihme-data/global-child-growth-failure-geospatial-estimates-2000-2019) | Done |
