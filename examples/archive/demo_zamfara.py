@@ -27,7 +27,7 @@ sia_schedule = lp.process_sia_schedule_polio("data/sia_scenario_1.csv", dot_name
 # Setup placeholder pars
 init_prev = np.zeros(len(pop))  # TODO: Replace with estimates from regression model?
 init_prev[0] = 0.01  # 1% infected in the first region
-beta_spatial = np.random.uniform(0.5, 2, len(pop))  # TODO: Replace with some sort of spatial transmission scalar
+r0_scalars = np.random.uniform(0.5, 2, len(pop))  # TODO: Replace with some sort of spatial transmission scalar
 vx_prob_ri = np.random.uniform(0, 0.5, len(pop))  # TODO: Replace with actual data
 vx_prob_sia = np.random.uniform(0.5, 0.9, len(pop))  # TODO: Replace with actual data
 
@@ -46,7 +46,7 @@ pars = PropertySet(
         "r0": 14,  # Basic reproduction number
         "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
         "corr_risk_inf": 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
-        "beta_spatial": beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
+        "r0_scalars": r0_scalars,  # Spatial transmission scalar (multiplied by global rate)
         "seasonal_factor": 0.125,  # Seasonal variation in transmission
         "seasonal_phase": 180,  # Phase of seasonal variation
         "p_paralysis": 1 / 20,  # Probability of paralysis

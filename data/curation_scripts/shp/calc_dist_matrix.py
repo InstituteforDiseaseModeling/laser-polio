@@ -1,5 +1,4 @@
 # Load the shapes2.geojson file and extract the centroids of the shapes.
-import fiona
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -37,17 +36,11 @@ def calculate_distance_matrix(gdf):
 
 if __name__ == "__main__":
     # Load the shapes2.geojson file
-    file_path = "data/shp_africa_adm2.geojson"
     try:
-        shapes = gpd.read_file(file_path)
+        shapes = gpd.read_file(filename="data/shp_africa_low_res.gpkg", layer="adm2")
     except Exception as e:
         print(f"Failed to read GeoJSON data with pyogrio: {e}")
         print("Trying to read with fiona...")
-        try:
-            shapes = gpd.read_file(fiona.open(file_path))
-        except Exception as e:
-            print(f"Failed to read GeoJSON data with fiona: {e}")
-            raise
 
     # # Load the shapes2.geojson file
     # shapes = gpd.read_file('data/shp_africa_adm2.geojson')

@@ -12,7 +12,7 @@ def setup_sim():
             "dur": 30,
             "n_ppl": np.array([1000, 500]),  # Two nodes with populations
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
-            "beta_spatial": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
+            "r0_scalars": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
             "init_immun": 0.2,  # 20% initially immune
             "init_prev": 0.05,  # 5% initially infected
@@ -61,7 +61,7 @@ def test_progression_without_transmission():
             "dur": 1,
             "n_ppl": np.array([1000, 500]),  # Two nodes with populations
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
-            "beta_spatial": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
+            "r0_scalars": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
             "init_immun": 0.0,  # 20% initially immune
             "init_prev": 0.0,  # 5% initially infected
@@ -97,7 +97,7 @@ def test_progression_with_transmission():
             "dur": 6,
             "n_ppl": np.array([100, 50]),  # Two nodes with populations
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
-            "beta_spatial": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
+            "r0_scalars": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
             "init_immun": 0.8,  # initially immune <
             "init_prev": 0.1,  # initially infected from any age
@@ -228,7 +228,7 @@ def test_paralysis_probability():
             "dur": 1,
             "n_ppl": np.array([50000, 50000]),  # Two nodes
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
-            "beta_spatial": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
+            "r0_scalars": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
             "init_immun": 0.0,  # 20% initially immune
             "init_prev": 1.0,  # 5% initially infected

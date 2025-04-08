@@ -1,3 +1,4 @@
+import csv
 import datetime as dt
 import os
 from zoneinfo import ZoneInfo  # Python 3.9+
@@ -6,6 +7,8 @@ import numpy as np
 import pandas as pd
 
 __all__ = [
+    "calc_r0_scalars_from_rand_eff",
+    "calc_sia_prob_from_rand_eff",
     "clean_strings",
     "create_cumulative_deaths",
     "date",
@@ -15,8 +18,36 @@ __all__ = [
     "get_seasonality",
     "get_tot_pop_and_cbr",
     "get_woy",
+    "inv_logit",
     "process_sia_schedule_polio",
+    "save_results_to_csv",
 ]
+
+
+def calc_r0_scalars_from_rand_eff(rand_eff=None, R0=14, R_min=3.41, R_max=16.7, emod_scale=2.485, emod_center=-1.050):
+    """
+    Calculate R0 scalars from regression model random effects. We're going to scale and center this so it's similar
+    to  what was done in EMOD. However the spatial pattern will likely be different.
+    See workbook in scripts/sandbox/check_reff_random_effects.py
+    """
+
+    R_m = R_min / R0  # Min R0. Divide by R0 since we ultimately want scalars on R0 (e.g., r0_scalars)
+    R_M = R_max / R0  # Max R0. Divide by R0 since we ultimately want scalars on R0 (e.g., r0_scalars)
+    pim_scale = np.std(rand_eff)  # sd from polio immunity mapper (PIM)
+    pim_center = np.median(rand_eff)  # median from PIM
+    w = inv_logit(emod_scale * (rand_eff - pim_center) / pim_scale)  # Transform the random effects to a 0-1 scale
+    R_c = np.exp(emod_center)  # Nigeria central R0 scalar
+    reff_scalars = (
+        R_c + (R_M - R_c) * np.maximum(w - 0.5, 0) * 2 + (R_c - R_m) * np.minimum(w - 0.5, 0) * 2
+    )  # Rescale the random effects to the R0 bounds
+    return reff_scalars
+
+
+def calc_sia_prob_from_rand_eff(sia_re, center=0.5, scale=0.8):
+    """Convert SIA random effects to probabilities."""
+    vals_rescaled = scale * sia_re + np.log(center / (1 - center))  # Center & scale the random effects (source = Hil???)
+    sia_probs = inv_logit(vals_rescaled)  # Convert to probabilities
+    return sia_probs
 
 
 def clean_strings(revval):
@@ -152,7 +183,7 @@ def find_matching_dot_names(patterns, ref_file):
 
     # Print summary
     print(
-        f"The input pattern(s) matched dot_names for {len(regions)} region(s), {len(adm0)} admin0, {len(adm1)} admin1, {len(adm2)} admin2 "
+        f"The input pattern(s) {patterns} matched dot_names for {len(regions)} region(s), {len(adm0)} admin0, {len(adm1)} admin1, {len(adm2)} admin2 "
     )
 
     return matched_dot_names
@@ -220,6 +251,10 @@ def get_tot_pop_and_cbr(file_path, regions=None, isos=None, year=None):
     pop = (df_filtered["tot_pop"].to_numpy() * 1000).astype(int)  # Round to the nearest integer
     cbr = df_filtered["cbr"].to_numpy()
     return pop, cbr
+
+
+def inv_logit(x):
+    return 1 / (1 + np.exp(-x))
 
 
 def process_sia_schedule(csv_path, start_date):
@@ -320,6 +355,29 @@ def get_woy(sim):
 def get_seasonality(sim):
     woy = get_woy(sim)
     return 1 + sim.pars["seasonal_factor"] * np.cos((2 * np.pi * woy / 52) + sim.pars["seasonal_phase"])
+
+
+def save_results_to_csv(results, filename="simulation_results.csv"):
+    """
+    Save simulation results (S, E, I, R) to a CSV file with columns: Time, Node, S, E, I, R.
+
+    :param results: The results object containing numpy arrays for S, E, I, and R.
+    :param filename: The name of the CSV file to save.
+    """
+    timesteps, nodes = results.S.shape  # Get the number of timesteps and nodes
+
+    with open(filename, mode="w", newline="") as file:
+        writer = csv.writer(file)
+
+        # Write header
+        writer.writerow(["Time", "Node", "S", "E", "I", "R"])
+
+        # Write data
+        for t in range(timesteps):
+            for n in range(nodes):
+                writer.writerow([t, n, results.S[t, n], results.E[t, n], results.I[t, n], results.R[t, n]])
+
+    print(f"Results saved to {filename}")
 
 
 def create_cumulative_deaths(total_population, max_age_years):

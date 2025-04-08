@@ -13,7 +13,9 @@ start_year = 2019
 n_days = 5
 pop_scale = 1 / 100
 init_region = "ANKA"
-init_prev = 0.01
+init_prev = 0.001
+r0 = 14
+results_path = "results/demo_zamfara"
 
 # Find the dot_names matching the specified string(s)
 dot_names = lp.find_matching_dot_names(regions, "data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
@@ -37,7 +39,6 @@ if len(prev_indices) == 0:
 init_prevs[prev_indices] = init_prev
 
 # Distance matrix
-# TODO make sure this is the same order as the dot_names
 dist_matrix = lp.get_distance_matrix("data/distance_matrix_africa_adm2.h5", dot_names)  # Load distances matrix (km)
 
 # SIA schedule
@@ -50,19 +51,20 @@ sia_schedule = lp.process_sia_schedule_polio(sia_schedule_raw, dot_names, start_
 ### Load the demographic, coverage, and risk data
 # Age pyramid
 age = pd.read_csv("data/age_africa.csv")
-age = age[(age["ADM0_NAME"] == "NIGERIA") & (age["Year"] == start_year)]
-prop_u5 = age.loc[age["age_group"] == "0-4", "population"].values[0] / age["population"].sum()
+age = age[(age["adm0_name"] == "NIGERIA") & (age["Year"] == start_year)]
 # Compiled data
 df_comp = pd.read_csv("data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
 df_comp = df_comp[df_comp["year"] == start_year]
 # Population data
-pop_u5 = df_comp.set_index("dot_name").loc[dot_names, "pop_u5"].values  # Extract the pop data in the same order as the dot_names
-pop = pop_u5 / prop_u5  # Estimate the total population size since the data is only for under 5s
+pop = df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values  # total population (all ages)
 pop = pop * pop_scale  # Scale population
 cbr = df_comp.set_index("dot_name").loc[dot_names, "cbr"].values  # CBR data
 ri = df_comp.set_index("dot_name").loc[dot_names, "ri_eff"].values  # RI data
-sia = df_comp.set_index("dot_name").loc[dot_names, "sia_prob"].values  # SIA data
-beta_spatial = df_comp.set_index("dot_name").loc[dot_names, "underwt_prop"].values  # Underweight data
+sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values  # SIA data
+sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=0.7, scale=2.4)  # Secret sauce numbers from Hil
+reff_re = df_comp.set_index("dot_name").loc[dot_names, "reff_random_effect"].values  # random effects from regression model
+r0_scalars = lp.calc_r0_scalars_from_rand_eff(reff_re)  # Center and scale the random effects
+
 
 # Assert that all data arrays have the same length
 assert (
@@ -74,29 +76,30 @@ assert (
     == len(pop)
     == len(cbr)
     == len(ri)
-    == len(sia)
-    == len(beta_spatial)
+    == len(sia_prob)
+    == len(r0_scalars)
 )
 
 
 def setup_sim():
     """Initialize a test simulation with DiseaseState_ABM component."""
+    # Set parameters
     pars = PropertySet(
         {
             # Time
             "start_date": start_date,  # Start date of the simulation
-            "dur": 30,  # Number of timesteps
+            "dur": n_days,  # Number of timesteps
             # Population
             "n_ppl": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
-            "cbr": cbr,  # np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year
+            "cbr": cbr,  # Crude birth rate per 1000 per year
             # Disease
             "init_immun": init_immun,  # Initial immunity per node
             "init_prev": init_prevs,  # Initial prevalence per node (1% infected)
-            "r0": 14,  # Basic reproduction number
+            "r0": r0,  # Basic reproduction number
             "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
             "corr_risk_inf": 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
-            "beta_spatial": beta_spatial,  # Spatial transmission scalar (multiplied by global rate)
+            "r0_scalars": r0_scalars,  # Spatial transmission scalar (multiplied by global rate)
             "seasonal_factor": 0.125,  # Seasonal variation in transmission
             "seasonal_phase": 180,  # Phase of seasonal variation
             "p_paralysis": 1 / 2000,  # Probability of paralysis
@@ -113,8 +116,7 @@ def setup_sim():
             # Interventions
             "vx_prob_ri": ri,  # Probability of routine vaccination
             "sia_schedule": sia_schedule,  # Schedule of SIAs
-            "vx_prob_sia": sia,  # Effectiveness of SIAs
-            "life_expectancies": np.ones(len(dot_names)) * 65,  # placeholder, should probably derive from age pyramid
+            "vx_prob_sia": sia_prob,  # Effectiveness of SIAs
         }
     )
     sim = lp.SEIR_ABM(pars)

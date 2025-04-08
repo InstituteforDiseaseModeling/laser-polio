@@ -45,7 +45,7 @@ if __name__ == "__main__":
     shapes[columns_to_clean] = shapes[columns_to_clean].map(clean_strings)
     shapes["dot_name"] = shapes.apply(lambda row: f"{row['who_region']}:{row['adm0_name']}:{row['adm1_name']}:{row['adm2_name']}", axis=1)
 
-    # Filter the shapes file to entries where ADM0_NAME == 'NIGERIA'
+    # Filter the shapes file to entries where adm0_name == 'NIGERIA'
     # shapes = shapes[shapes['dot_name'].str.contains('NIGERIA', case=False, na=False)]
     # Reset the index to ensure it is a simple range index
     # shapes = shapes.reset_index(drop=True)
