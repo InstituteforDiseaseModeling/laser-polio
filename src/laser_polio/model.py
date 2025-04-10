@@ -10,11 +10,10 @@ import scipy.stats as stats
 import sciris as sc
 from alive_progress import alive_bar
 from laser_core.demographics.kmestimator import KaplanMeierEstimator
-from laser_core.demographics.pyramid import AliasedDistribution
-from laser_core.demographics.pyramid import load_pyramid_csv
+from laser_core.demographics.pyramid import (AliasedDistribution,
+                                             load_pyramid_csv)
 from laser_core.laserframe import LaserFrame
-from laser_core.migration import gravity
-from laser_core.migration import row_normalizer
+from laser_core.migration import gravity, row_normalizer
 from laser_core.propertyset import PropertySet
 from laser_core.utils import calc_capacity
 from tqdm import tqdm
@@ -191,7 +190,7 @@ class SEIR_ABM:
             plt.show()
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True, cache=True)
 def step_nb(disease_state, exposure_timer, infection_timer, acq_risk_multiplier, daily_infectivity, paralyzed, p_paralysis, active_count):
     for i in nb.prange(active_count):
         if disease_state[i] == 1:  # Exposed
@@ -515,7 +514,7 @@ class DiseaseState_ABM:
             plt.show()
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True) #, cache=True)
 def compute_beta_ind_sums(node_ids, daily_infectivity, disease_state, num_nodes):
     num_threads = nb.get_num_threads()
 
@@ -538,7 +537,7 @@ def compute_beta_ind_sums(node_ids, daily_infectivity, disease_state, num_nodes)
     return beta_sums
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True) # , cache=True)
 def compute_infections_nb(disease_state, node_id, acq_risk_multiplier, beta_per_node):
     """
     Return an array "exposure_sums" where exposure_sums[node] is the sum of
@@ -570,7 +569,7 @@ def compute_infections_nb(disease_state, node_id, acq_risk_multiplier, beta_per_
     return exposure_sums
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True, cache=True)
 def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
     """
     A Numba-accelerated version of faster_infect.
@@ -982,7 +981,7 @@ class VitalDynamics_ABM:
             plt.show()
 
 
-@nb.njit(parallel=True)
+@nb.njit((nb.int32, nb.int32[:], nb.int32[:], nb.float64[:], nb.int32, nb.float64[:], nb.int32, nb.int32[:,:]), parallel=True, cache=True)
 def fast_ri(
     step_size,
     node_id,
@@ -990,55 +989,43 @@ def fast_ri(
     ri_timer,
     sim_t,
     vx_prob_ri,
-    results_ri_vaccinated,
-    rand_vals,
-    count,
+    num_people,
+    local_counts
 ):
     """
     Optimized vaccination step with thread-local storage and parallel execution.
     """
-    if sim_t % step_size != 0:  # Run only every 14th timestep
-        return
 
-    num_people = count
-    num_nodes = results_ri_vaccinated.shape[1]  # Assuming shape (timesteps, nodes)
-    num_threads = nb.get_num_threads()
-
-    # Allocate per-thread local arrays
-    local_vaccinated = np.zeros((num_threads, num_nodes), dtype=np.int32)
-
-    # for i in np.arange(num_people):
     for i in nb.prange(num_people):
-        thread_id = nb.get_thread_id()
-        node = node_id[i]
-        if disease_state[i] < 0:  # Skip dead or inactive agents
+
+        state = disease_state[i]
+        if state < 0:  # Skip dead or inactive agents
             continue
+
+        node = node_id[i]
 
         prob_vx = vx_prob_ri[node]
 
         # print(f"Agent {i} in disease state {disease_state[i]}")
         # print("prob_vx=", prob_vx, "prob_take=", prob_take)
 
-        ri_timer[i] -= step_size
+        timer = ri_timer[i] - step_size
+        ri_timer[i] = timer
         eligible = False
         # If first vx, account for the fact that no components are run on day 0
         if sim_t == step_size:
-            eligible = ri_timer[i] <= 0 and ri_timer[i] >= -step_size
+            eligible = timer <= 0 and timer >= -step_size
         elif sim_t > step_size:
-            eligible = ri_timer[i] <= 0 and ri_timer[i] > -step_size
+            eligible = timer <= 0 and timer > -step_size
 
         if eligible:
-            if rand_vals[i] < prob_vx:  # Check probability of vaccination
-                local_vaccinated[thread_id, node] += 1  # Increment vaccinated count
-                if disease_state[i] == 0:  # If susceptible
+             if np.random.rand() < prob_vx:
+                local_counts[nb.get_thread_id(), node] += 1  # Increment vaccinated count
+                if state == 0:  # If susceptible
                     # We don't check for vx_eff here, since that is already accounted for in the prob_vx file
                     disease_state[i] = 3  # Move to Recovered state
 
-    # Merge per-thread results
-    for thread_id in range(num_threads):
-        for j in range(num_nodes):
-            results_ri_vaccinated[sim_t, j] += local_vaccinated[thread_id, j]
-
+    return
 
 class RI_ABM:
     def __init__(self, sim):
@@ -1068,19 +1055,22 @@ class RI_ABM:
             vx_prob_ri = np.full(num_nodes, vx_prob_ri, dtype=np.float64)
 
         # Suppose we have num_people individuals
-        rand_vals = np.random.rand(self.people.count)  # this could be done clevererly
+        # rand_vals = np.random.rand(self.people.count)  # this could be done clevererly
 
-        fast_ri(
-            self.step_size,
-            self.people.node_id,
-            self.people.disease_state,
-            self.people.ri_timer,
-            self.sim.t,
-            vx_prob_ri,
-            self.results.ri_vaccinated,
-            rand_vals,
-            self.people.count,
-        )
+        if self.sim.t % self.step_size == 0:
+            local_counts = np.zeros((nb.get_num_threads(), self.results.ri_vaccinated.shape[1]), dtype=np.int32)
+            fast_ri(
+                self.step_size,
+                self.people.node_id,
+                self.people.disease_state,
+                self.people.ri_timer,
+                self.sim.t,
+                vx_prob_ri,
+                self.people.count,
+                local_counts
+            )
+            self.results.ri_vaccinated[self.sim.t] = local_counts.sum(axis=0)
+
 
     def log(self, t):
         pass
@@ -1103,7 +1093,7 @@ class RI_ABM:
             plt.show()
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True) #, cache=True)
 def fast_sia(
     node_ids,
     disease_states,
