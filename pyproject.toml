@@ -245,7 +245,7 @@ legacy_tox_ini = """
     skip_install = false
     commands =
         twine check .tox/.pkg/dist/*
-        python -m readme_renderer README.md --output /dev/null
+        {envpython} -c "import os, sys, subprocess; subprocess.run([sys.executable, '-m', 'readme_renderer', 'README.md', '--output', os.devnull])"
         check-manifest .
         pre-commit autoupdate
         pre-commit run --all-files --show-diff-on-failure
@@ -268,9 +268,8 @@ legacy_tox_ini = """
         coverage html
 
     [testenv:clean]
-    allowlist_externals = rm
     commands =
-        rm -rf dist
+        python -c "import shutil; shutil.rmtree('dist', ignore_errors=True)"
         coverage erase
     skip_install = true
     deps =

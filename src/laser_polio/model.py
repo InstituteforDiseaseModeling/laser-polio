@@ -10,10 +10,11 @@ import scipy.stats as stats
 import sciris as sc
 from alive_progress import alive_bar
 from laser_core.demographics.kmestimator import KaplanMeierEstimator
-from laser_core.demographics.pyramid import (AliasedDistribution,
-                                             load_pyramid_csv)
+from laser_core.demographics.pyramid import AliasedDistribution
+from laser_core.demographics.pyramid import load_pyramid_csv
 from laser_core.laserframe import LaserFrame
-from laser_core.migration import gravity, row_normalizer
+from laser_core.migration import gravity
+from laser_core.migration import row_normalizer
 from laser_core.propertyset import PropertySet
 from laser_core.utils import calc_capacity
 from tqdm import tqdm
@@ -514,7 +515,7 @@ class DiseaseState_ABM:
             plt.show()
 
 
-@nb.njit(parallel=True) #, cache=True)
+@nb.njit(parallel=True)  # , cache=True)
 def compute_beta_ind_sums(node_ids, daily_infectivity, disease_state, num_nodes):
     num_threads = nb.get_num_threads()
 
@@ -985,23 +986,13 @@ class VitalDynamics_ABM:
             plt.show()
 
 
-@nb.njit((nb.int32, nb.int32[:], nb.int32[:], nb.float64[:], nb.int32, nb.float64[:], nb.int32, nb.int32[:,:]), parallel=True, cache=True)
-def fast_ri(
-    step_size,
-    node_id,
-    disease_state,
-    ri_timer,
-    sim_t,
-    vx_prob_ri,
-    num_people,
-    local_counts
-):
+@nb.njit((nb.int32, nb.int32[:], nb.int32[:], nb.float64[:], nb.int32, nb.float64[:], nb.int32, nb.int32[:, :]), parallel=True, cache=True)
+def fast_ri(step_size, node_id, disease_state, ri_timer, sim_t, vx_prob_ri, num_people, local_counts):
     """
     Optimized vaccination step with thread-local storage and parallel execution.
     """
 
     for i in nb.prange(num_people):
-
         state = disease_state[i]
         if state < 0:  # Skip dead or inactive agents
             continue
@@ -1023,13 +1014,14 @@ def fast_ri(
             eligible = timer <= 0 and timer > -step_size
 
         if eligible:
-             if np.random.rand() < prob_vx:
+            if np.random.rand() < prob_vx:
                 local_counts[nb.get_thread_id(), node] += 1  # Increment vaccinated count
                 if state == 0:  # If susceptible
                     # We don't check for vx_eff here, since that is already accounted for in the prob_vx file
                     disease_state[i] = 3  # Move to Recovered state
 
     return
+
 
 class RI_ABM:
     def __init__(self, sim):
@@ -1071,10 +1063,9 @@ class RI_ABM:
                 self.sim.t,
                 vx_prob_ri,
                 self.people.count,
-                local_counts
+                local_counts,
             )
             self.results.ri_vaccinated[self.sim.t] = local_counts.sum(axis=0)
-
 
     def log(self, t):
         pass
@@ -1097,7 +1088,7 @@ class RI_ABM:
             plt.show()
 
 
-@nb.njit(parallel=True) #, cache=True)
+@nb.njit(parallel=True)  # , cache=True)
 def fast_sia(
     node_ids,
     disease_states,
@@ -1132,7 +1123,6 @@ def fast_sia(
     num_people = count
 
     for i in nb.prange(num_people):
-
         # Skip if agent is not alive, not in targeted node, or not in age range
         if disease_states[i] < 0:
             continue
@@ -1157,6 +1147,7 @@ def fast_sia(
                     local_protected[thread_id, node] += 1  # Increment protected count
 
     return
+
 
 class SIA_ABM:
     def __init__(self, sim):
@@ -1221,7 +1212,7 @@ class SIA_ABM:
                     min_age,
                     max_age,
                     local_vaccinated,
-                    local_protected
+                    local_protected,
                 )
                 # Aggregate thread-local counts into global result arrays
                 self.results.sia_vaccinated[self.sim.t] = local_vaccinated.sum(axis=0)
