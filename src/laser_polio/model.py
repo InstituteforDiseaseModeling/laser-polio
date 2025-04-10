@@ -537,18 +537,12 @@ def compute_beta_ind_sums(node_ids, daily_infectivity, disease_state, num_nodes)
     return beta_sums
 
 
-@nb.njit(parallel=True) # , cache=True)
-def compute_infections_nb(disease_state, node_id, acq_risk_multiplier, beta_per_node):
+@nb.njit(parallel=True, cache=True)
+def compute_infections_nb(num_people, num_nodes, disease_state, node_id, acq_risk_multiplier, beta_per_node, local_sums):
     """
     Return an array "exposure_sums" where exposure_sums[node] is the sum of
     probabilities for susceptible individuals in that node.
     """
-    num_people = len(disease_state)
-    num_nodes = len(beta_per_node)
-
-    # Thread-local storage
-    n_threads = nb.get_num_threads()
-    local_sums = np.zeros((n_threads, num_nodes), dtype=np.float64)
 
     # Parallel loop
     for i in nb.prange(num_people):
@@ -560,17 +554,11 @@ def compute_infections_nb(disease_state, node_id, acq_risk_multiplier, beta_per_
             tid = nb.get_thread_id()
             local_sums[tid, nd] += prob_infection
 
-    # Merge
-    exposure_sums = np.zeros(num_nodes, dtype=np.float32)
-    for t in range(n_threads):
-        for nd in range(num_nodes):
-            exposure_sums[nd] += local_sums[t, nd]
-
-    return exposure_sums
+    return
 
 
 @nb.njit(parallel=True, cache=True)
-def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
+def fast_infect(node_ids, exposure_probs, disease_state, new_infections, local_counts, counts):
     """
     A Numba-accelerated version of faster_infect.
     Parallelizes over nodes, computing a CDF for each node's susceptible population.
@@ -580,8 +568,14 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
     """
     num_nodes = len(new_infections)
     # Precompute which individuals are susceptible
-    is_sus = disease_state == 0
+    # is_sus = disease_state == 0
     n_people = len(node_ids)
+
+    for i in nb.prange(n_people):
+        if disease_state[i] == 0:
+            local_counts[nb.get_thread_id(), node_ids[i]] += 1
+
+    counts[:] = local_counts.sum(axis=0)
 
     for node in nb.prange(num_nodes):
         n_to_draw = new_infections[node]
@@ -589,10 +583,11 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
             continue
 
         # 1) Gather susceptible indices for this node
-        count = 0
-        for i in range(n_people):
-            if node_ids[i] == node and is_sus[i]:
-                count += 1
+        # count = 0
+        # for i in range(n_people):
+        #     if node_ids[i] == node and disease_state[i] == 0:
+        #         count += 1
+        count = counts[node]
 
         if count == 0:
             continue
@@ -603,7 +598,7 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
         idx = 0
         previous = 0.0  # build CDF simultaneously
         for i in range(n_people):
-            if node_ids[i] == node and is_sus[i]:
+            if node_ids[i] == node and disease_state[i] == 0:
                 sus_indices[idx] = i
                 sus_probs[idx] = previous + exposure_probs[i]
                 previous = sus_probs[idx]
@@ -746,9 +741,9 @@ class Transmission_ABM:
         self.do_ni_time = 0
 
     def step(self):
-        def fast_beta():
-            beta_ind_sums = compute_beta_ind_sums(node_ids, infectivity, disease_state, len(self.nodes))
-            return beta_ind_sums
+        # def fast_beta():
+        #     beta_ind_sums = compute_beta_ind_sums(node_ids, infectivity, disease_state, len(self.nodes))
+        #     return beta_ind_sums
 
         # 1) Sum up the total amount of infectivity shed by all infectious agents within a node.
         # This is the daily number of infections that these individuals would be expected to generate
@@ -758,7 +753,8 @@ class Transmission_ABM:
         node_ids = self.people.node_id[: self.people.count]
         infectivity = self.people.daily_infectivity[: self.people.count]
         risk = self.people.acq_risk_multiplier[: self.people.count]
-        node_beta_sums = fast_beta()
+        # node_beta_sums = fast_beta()
+        node_beta_sums = compute_beta_ind_sums(node_ids, infectivity, disease_state, len(self.nodes))
 
         # 2) Spatially redistribute infectivity among nodes
         transfer = (node_beta_sums * self.network).astype(np.float64)  # Don't round here, we'll handle fractional infections later
@@ -776,11 +772,19 @@ class Transmission_ABM:
         base_prob_infection = 1 - np.exp(-per_agent_infection_rate)
 
         # 5) Calculate infections
-        exposure_sums = compute_infections_nb(disease_state, node_ids, risk, base_prob_infection)
+        num_people = len(disease_state)
+        num_nodes = len(base_prob_infection)
+        # Thread-local storage
+        n_threads = nb.get_num_threads()
+        local_sums = np.zeros((n_threads, num_nodes), dtype=np.float64)
+        compute_infections_nb(num_people, num_nodes, disease_state, node_ids, risk, base_prob_infection, local_sums)
+        exposure_sums = local_sums.sum(axis=0)  # merge per-thread counts
         new_infections = np.random.poisson(exposure_sums).astype(np.int32)
 
         # 6) Draw n_expected_exposures for each node according to their exposure_probs
-        fast_infect(node_ids, risk, disease_state, new_infections)
+        local_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+        counts = np.zeros(num_nodes, dtype=np.int32)
+        fast_infect(node_ids, risk, disease_state, new_infections, local_counts, counts)
 
     def log(self, t):
         # Get the counts for each node in one pass
