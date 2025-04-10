@@ -9,7 +9,7 @@ CALIBRATION
     - Stretch: R0 scalar for N Nigeria
     - Stretch: risk_mult_var or corr_risk_inf
 
-DEBUGGING 
+DEBUGGING
 - Plot expected births?
 - Update the birth and death plot to summarize by country.
 - Check transmission probability with real data. Why do we need R0 so high!?

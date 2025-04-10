@@ -191,7 +191,7 @@ class SEIR_ABM:
             plt.show()
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True, cache=True)
 def step_nb(disease_state, exposure_timer, infection_timer, acq_risk_multiplier, daily_infectivity, paralyzed, p_paralysis, active_count):
     for i in nb.prange(active_count):
         if disease_state[i] == 1:  # Exposed
@@ -517,7 +517,7 @@ class DiseaseState_ABM:
             plt.show()
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True)  # , cache=True)
 def compute_beta_ind_sums(node_ids, daily_infectivity, disease_state, num_nodes):
     num_threads = nb.get_num_threads()
 
@@ -540,18 +540,12 @@ def compute_beta_ind_sums(node_ids, daily_infectivity, disease_state, num_nodes)
     return beta_sums
 
 
-@nb.njit(parallel=True)
-def compute_infections_nb(disease_state, node_id, acq_risk_multiplier, beta_per_node):
+@nb.njit(parallel=True, cache=True)
+def compute_infections_nb(num_people, num_nodes, disease_state, node_id, acq_risk_multiplier, beta_per_node, local_sums):
     """
     Return an array "exposure_sums" where exposure_sums[node] is the sum of
     probabilities for susceptible individuals in that node.
     """
-    num_people = len(disease_state)
-    num_nodes = len(beta_per_node)
-
-    # Thread-local storage
-    n_threads = nb.get_num_threads()
-    local_sums = np.zeros((n_threads, num_nodes), dtype=np.float64)
 
     # Parallel loop
     for i in nb.prange(num_people):
@@ -563,17 +557,11 @@ def compute_infections_nb(disease_state, node_id, acq_risk_multiplier, beta_per_
             tid = nb.get_thread_id()
             local_sums[tid, nd] += prob_infection
 
-    # Merge
-    exposure_sums = np.zeros(num_nodes, dtype=np.float32)
-    for t in range(n_threads):
-        for nd in range(num_nodes):
-            exposure_sums[nd] += local_sums[t, nd]
-
-    return exposure_sums
+    return
 
 
-@nb.njit(parallel=True)
-def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
+@nb.njit(parallel=True, cache=True)
+def fast_infect(node_ids, exposure_probs, disease_state, new_infections, local_counts, counts):
     """
     A Numba-accelerated version of faster_infect.
     Parallelizes over nodes, computing a CDF for each node's susceptible population.
@@ -583,8 +571,14 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
     """
     num_nodes = len(new_infections)
     # Precompute which individuals are susceptible
-    is_sus = disease_state == 0
+    # is_sus = disease_state == 0
     n_people = len(node_ids)
+
+    for i in nb.prange(n_people):
+        if disease_state[i] == 0:
+            local_counts[nb.get_thread_id(), node_ids[i]] += 1
+
+    counts[:] = local_counts.sum(axis=0)
 
     for node in nb.prange(num_nodes):
         n_to_draw = new_infections[node]
@@ -592,10 +586,11 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
             continue
 
         # 1) Gather susceptible indices for this node
-        count = 0
-        for i in range(n_people):
-            if node_ids[i] == node and is_sus[i]:
-                count += 1
+        # count = 0
+        # for i in range(n_people):
+        #     if node_ids[i] == node and disease_state[i] == 0:
+        #         count += 1
+        count = counts[node]
 
         if count == 0:
             continue
@@ -606,7 +601,7 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
         idx = 0
         previous = 0.0  # build CDF simultaneously
         for i in range(n_people):
-            if node_ids[i] == node and is_sus[i]:
+            if node_ids[i] == node and disease_state[i] == 0:
                 sus_indices[idx] = i
                 sus_probs[idx] = previous + exposure_probs[i]
                 previous = sus_probs[idx]
@@ -749,9 +744,9 @@ class Transmission_ABM:
         self.do_ni_time = 0
 
     def step(self):
-        def fast_beta():
-            beta_ind_sums = compute_beta_ind_sums(node_ids, infectivity, disease_state, len(self.nodes))
-            return beta_ind_sums
+        # def fast_beta():
+        #     beta_ind_sums = compute_beta_ind_sums(node_ids, infectivity, disease_state, len(self.nodes))
+        #     return beta_ind_sums
 
         # 1) Sum up the total amount of infectivity shed by all infectious agents within a node.
         # This is the daily number of infections that these individuals would be expected to generate
@@ -761,7 +756,8 @@ class Transmission_ABM:
         node_ids = self.people.node_id[: self.people.count]
         infectivity = self.people.daily_infectivity[: self.people.count]
         risk = self.people.acq_risk_multiplier[: self.people.count]
-        node_beta_sums = fast_beta()
+        # node_beta_sums = fast_beta()
+        node_beta_sums = compute_beta_ind_sums(node_ids, infectivity, disease_state, len(self.nodes))
 
         # 2) Spatially redistribute infectivity among nodes
         transfer = (node_beta_sums * self.network).astype(np.float64)  # Don't round here, we'll handle fractional infections later
@@ -779,11 +775,19 @@ class Transmission_ABM:
         base_prob_infection = 1 - np.exp(-per_agent_infection_rate)
 
         # 5) Calculate infections
-        exposure_sums = compute_infections_nb(disease_state, node_ids, risk, base_prob_infection)
+        num_people = len(disease_state)
+        num_nodes = len(base_prob_infection)
+        # Thread-local storage
+        n_threads = nb.get_num_threads()
+        local_sums = np.zeros((n_threads, num_nodes), dtype=np.float64)
+        compute_infections_nb(num_people, num_nodes, disease_state, node_ids, risk, base_prob_infection, local_sums)
+        exposure_sums = local_sums.sum(axis=0)  # merge per-thread counts
         new_infections = np.random.poisson(exposure_sums).astype(np.int32)
 
         # 6) Draw n_expected_exposures for each node according to their exposure_probs
-        fast_infect(node_ids, risk, disease_state, new_infections)
+        local_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+        counts = np.zeros(num_nodes, dtype=np.int32)
+        fast_infect(node_ids, risk, disease_state, new_infections, local_counts, counts)
 
     def log(self, t):
         # Get the counts for each node in one pass
@@ -984,62 +988,41 @@ class VitalDynamics_ABM:
             plt.show()
 
 
-@nb.njit(parallel=True)
-def fast_ri(
-    step_size,
-    node_id,
-    disease_state,
-    ri_timer,
-    sim_t,
-    vx_prob_ri,
-    results_ri_vaccinated,
-    rand_vals,
-    count,
-):
+@nb.njit((nb.int32, nb.int32[:], nb.int32[:], nb.float64[:], nb.int32, nb.float64[:], nb.int32, nb.int32[:, :]), parallel=True, cache=True)
+def fast_ri(step_size, node_id, disease_state, ri_timer, sim_t, vx_prob_ri, num_people, local_counts):
     """
     Optimized vaccination step with thread-local storage and parallel execution.
     """
-    if sim_t % step_size != 0:  # Run only every 14th timestep
-        return
 
-    num_people = count
-    num_nodes = results_ri_vaccinated.shape[1]  # Assuming shape (timesteps, nodes)
-    num_threads = nb.get_num_threads()
-
-    # Allocate per-thread local arrays
-    local_vaccinated = np.zeros((num_threads, num_nodes), dtype=np.int32)
-
-    # for i in np.arange(num_people):
     for i in nb.prange(num_people):
-        thread_id = nb.get_thread_id()
-        node = node_id[i]
-        if disease_state[i] < 0:  # Skip dead or inactive agents
+        state = disease_state[i]
+        if state < 0:  # Skip dead or inactive agents
             continue
+
+        node = node_id[i]
 
         prob_vx = vx_prob_ri[node]
 
         # print(f"Agent {i} in disease state {disease_state[i]}")
         # print("prob_vx=", prob_vx, "prob_take=", prob_take)
 
-        ri_timer[i] -= step_size
+        timer = ri_timer[i] - step_size
+        ri_timer[i] = timer
         eligible = False
         # If first vx, account for the fact that no components are run on day 0
         if sim_t == step_size:
-            eligible = ri_timer[i] <= 0 and ri_timer[i] >= -step_size
+            eligible = timer <= 0 and timer >= -step_size
         elif sim_t > step_size:
-            eligible = ri_timer[i] <= 0 and ri_timer[i] > -step_size
+            eligible = timer <= 0 and timer > -step_size
 
         if eligible:
-            if rand_vals[i] < prob_vx:  # Check probability of vaccination
-                local_vaccinated[thread_id, node] += 1  # Increment vaccinated count
-                if disease_state[i] == 0:  # If susceptible
+            if np.random.rand() < prob_vx:
+                local_counts[nb.get_thread_id(), node] += 1  # Increment vaccinated count
+                if state == 0:  # If susceptible
                     # We don't check for vx_eff here, since that is already accounted for in the prob_vx file
                     disease_state[i] = 3  # Move to Recovered state
 
-    # Merge per-thread results
-    for thread_id in range(num_threads):
-        for j in range(num_nodes):
-            results_ri_vaccinated[sim_t, j] += local_vaccinated[thread_id, j]
+    return
 
 
 class RI_ABM:
@@ -1070,19 +1053,21 @@ class RI_ABM:
             vx_prob_ri = np.full(num_nodes, vx_prob_ri, dtype=np.float64)
 
         # Suppose we have num_people individuals
-        rand_vals = np.random.rand(self.people.count)  # this could be done clevererly
+        # rand_vals = np.random.rand(self.people.count)  # this could be done clevererly
 
-        fast_ri(
-            self.step_size,
-            self.people.node_id,
-            self.people.disease_state,
-            self.people.ri_timer,
-            self.sim.t,
-            vx_prob_ri,
-            self.results.ri_vaccinated,
-            rand_vals,
-            self.people.count,
-        )
+        if self.sim.t % self.step_size == 0:
+            local_counts = np.zeros((nb.get_num_threads(), self.results.ri_vaccinated.shape[1]), dtype=np.int32)
+            fast_ri(
+                self.step_size,
+                self.people.node_id,
+                self.people.disease_state,
+                self.people.ri_timer,
+                self.sim.t,
+                vx_prob_ri,
+                self.people.count,
+                local_counts,
+            )
+            self.results.ri_vaccinated[self.sim.t] = local_counts.sum(axis=0)
 
     def log(self, t):
         pass
@@ -1105,7 +1090,7 @@ class RI_ABM:
             plt.show()
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True)  # , cache=True)
 def fast_sia(
     node_ids,
     disease_states,
@@ -1113,13 +1098,12 @@ def fast_sia(
     sim_t,
     vx_prob,
     vx_eff,
-    results_vaccinated,
-    results_protected,
-    rand_vals,
     count,
     nodes_to_vaccinate,
     min_age,
     max_age,
+    local_vaccinated,
+    local_protected,
 ):
     """
     Numbified supplemental immunization activity (SIA) vaccination step.
@@ -1139,39 +1123,32 @@ def fast_sia(
         min_age, max_age: Integers, age range eligibility in days.
     """
     num_people = count
-    num_nodes = results_vaccinated.shape[1]
-    num_threads = nb.get_num_threads()
-
-    # Pre-allocate thread-local result arrays
-    local_vaccinated = np.zeros((num_threads, num_nodes), dtype=np.int32)
-    local_protected = np.zeros((num_threads, num_nodes), dtype=np.int32)
 
     for i in nb.prange(num_people):
-        thread_id = nb.get_thread_id()
-        node = node_ids[i]
-
         # Skip if agent is not alive, not in targeted node, or not in age range
         if disease_states[i] < 0:
             continue
-        if node not in nodes_to_vaccinate:
-            continue
+
         age = sim_t - dobs[i]
         if not (min_age <= age <= max_age):
             continue
 
+        node = node_ids[i]
+        if nodes_to_vaccinate[node] == 0:
+            continue
+
+        r = np.random.rand()
         prob_vx = vx_prob[node]
-        r = rand_vals[i]
 
         if r < prob_vx:  # Check probability of vaccination
+            thread_id = nb.get_thread_id()
             local_vaccinated[thread_id, node] += 1  # Increment vaccinated count
             if disease_states[i] == 0:  # If susceptible
                 if r < prob_vx * vx_eff:  # Check probability that vaccine takes/protects
                     disease_states[i] = 3  # Move to Recovered state
                     local_protected[thread_id, node] += 1  # Increment protected count
 
-    # Aggregate thread-local counts into global result arrays
-    results_vaccinated[sim_t] = local_vaccinated.sum(axis=0)
-    results_protected[sim_t] = local_protected.sum(axis=0)
+    return
 
 
 class SIA_ABM:
@@ -1212,14 +1189,19 @@ class SIA_ABM:
             if event["date"] == self.sim.datevec[t]:
                 if self.pars.vx_prob_sia is None:
                     continue
-                nodes_to_vaccinate = np.array(event["nodes"], dtype=np.int32)  # Convert to NumPy array
+                # nodes_to_vaccinate = np.array(event["nodes"], dtype=np.int32)  # Convert to NumPy array
+                nodes_to_vaccinate = np.zeros(len(self.sim.nodes), np.uint8)
+                nodes_to_vaccinate[event["nodes"]] = 1
                 vx_prob_sia = np.array(self.pars["vx_prob_sia"], dtype=np.float32)  # Convert to NumPy array
                 vaccinetype = event["vaccinetype"]
                 vx_eff = self.pars["vx_efficacy"][vaccinetype]
                 min_age, max_age = event["age_range"]
 
                 # Suppose we have num_people individuals
-                rand_vals = np.random.rand(self.people.count)  # this could be done clevererly
+                # Pre-allocate thread-local result arrays
+                local_vaccinated = np.zeros((nb.get_num_threads(), self.results.sia_vaccinated.shape[1]), dtype=np.int32)
+                local_protected = np.zeros((nb.get_num_threads(), self.results.sia_protected.shape[1]), dtype=np.int32)
+
                 fast_sia(
                     self.people.node_id,
                     self.people.disease_state,
@@ -1227,14 +1209,16 @@ class SIA_ABM:
                     self.sim.t,
                     vx_prob_sia,
                     vx_eff,
-                    self.results.sia_vaccinated,
-                    self.results.sia_protected,
-                    rand_vals,
                     self.people.count,
                     nodes_to_vaccinate,
                     min_age,
                     max_age,
+                    local_vaccinated,
+                    local_protected,
                 )
+                # Aggregate thread-local counts into global result arrays
+                self.results.sia_vaccinated[self.sim.t] = local_vaccinated.sum(axis=0)
+                self.results.sia_protected[self.sim.t] = local_protected.sum(axis=0)
 
     # def run_vaccination(self, event):
     #     """
