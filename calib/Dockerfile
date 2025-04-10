@@ -28,9 +28,12 @@ RUN python3 -m ensurepip && \
 # Set the working directory inside the container
 WORKDIR /app
 
-# Copy your script into the container
-RUN pip install --pre -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio
+# Install Python dependencies
+RUN pip install --pre -i https://packages.idmod.org/api/pypi/pypi-production/simple "laser-polio<=1.0"
 RUN pip install optuna mysqlclient
+RUN pip install pipdeptree && pipdeptree -p laser-polio > /app/laser_polio_deps.txt
+
+# Copy your application and data files
 COPY calib/logic.py .
 COPY calib/calibrate.py .
 COPY calib/calib_db.py .
