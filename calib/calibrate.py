@@ -2,26 +2,26 @@ import click
 import os
 from logic import run_worker_main
 from pathlib import Path
+import laser_polio as lp
 
-# TODO: Pass the process_data function to the calibrator
+CONTEXT_SETTINGS = dict(help_option_names=['--help'], terminal_width=120)
 
-
-#if os.getenv( "POLIO_ROOT" ):
-    #lp.root = Path( os.getenv( "POLIO_ROOT" ) )
+if os.getenv( "POLIO_ROOT" ):
+    lp.root = Path( os.getenv( "POLIO_ROOT" ) )
 
 # ------------------- USER CONFIG -------------------
 num_trials = 2
-study_name = "my_polio_calibration_study"
-calib_config_path = "calib_pars.yaml"
-model_config_path = "config.yaml"
-sim_path = "laser.py"
-results_path = Path( "calib/results" ) / study_name
+study_name = "calib_zamfara_r0"
+calib_config_path = lp.root / "calib/calib_configs/calib_pars_r0.yaml"
+model_config_path = lp.root / "calib/model_configs/config_zamfara.yaml"
+sim_path = lp.root / "calib/setup_sim.py"
+results_path = lp.root / "calib/results" / study_name
 params_file = "params.json"
-actual_data_file = "examples/calib_demo_zamfara/synthetic_infection_counts.csv"
+actual_data_file = lp.root / "examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_r14.csv"
 # ---------------------------------------------------
 
 
-@click.command()
+@click.command(context_settings=CONTEXT_SETTINGS)
 @click.option("--study-name", default=study_name, show_default=True, help="Name of the Optuna study.")
 @click.option("--num-trials", default=num_trials, show_default=True, type=int, help="Number of optimization trials.")
 @click.option("--calib-config", default=str(calib_config_path), show_default=True, help="Path to calibration parameter file.")

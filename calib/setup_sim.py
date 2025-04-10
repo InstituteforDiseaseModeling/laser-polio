@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -8,6 +9,8 @@ from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
 
+if os.getenv( "POLIO_ROOT" ):
+    lp.root = Path( os.getenv( "POLIO_ROOT" ) )
 
 def setup_sim(config=None, **kwargs):
     """Set up simulation from config file (YAML + overrides) or kwargs."""

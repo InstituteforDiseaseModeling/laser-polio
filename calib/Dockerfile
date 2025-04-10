@@ -15,8 +15,8 @@ RUN dnf update -y && \
     screen \
     procps \
     vim \
-    git \
-    hdf5-devel \
+#    git \
+#hdf5-devel \
     && dnf clean all
 
 # Install Python 3.12 and upgrade pip
@@ -35,10 +35,11 @@ RUN pip install pipdeptree && pipdeptree -p laser-polio > /app/laser_polio_deps.
 COPY calib/logic.py .
 COPY calib/calibrate.py .
 COPY calib/calib_db.py .
-COPY calib/laser.py ./laser.py
+#COPY calib/laser.py ./laser.py
+COPY calib/setup_sim.py ./calib/setup_sim.py
 COPY calib/cloud/check_study.sh .
-COPY calib/calib_configs/calib_pars_r0.yaml ./calib_pars.yaml
-COPY calib/model_configs/config_zamfara.yaml ./config.yaml
+COPY calib/calib_configs/calib_pars_r0.yaml ./calib/calib_configs/calib_pars_r0.yaml
+COPY calib/model_configs/config_zamfara.yaml ./calib/model_configs/config_zamfara.yaml
 
 # Make sure shell scripts are executable
 RUN chmod a+x ./check_study.sh
@@ -52,12 +53,10 @@ COPY ./data/compiled_cbr_pop_ri_sia_underwt_africa.csv /app/data/
 COPY ./data/age_africa.csv /app/data/
 COPY ./data/sia_historic_schedule.csv /app/data/
 COPY ./data/shp_names_africa_adm2.csv /app/data/
-COPY examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_250.csv /app/examples/calib_demo_zamfara/synthetic_infection_counts.csv
+COPY examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_250.csv /app/examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_250.csv
+COPY examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_r14.csv /app/examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_r14.csv
 
 ENV POLIO_ROOT=/app
-
-# Install h5py and numpy together to ensure compatibility
-RUN pip install numpy==1.26.4 h5py
 
 # Clean up unnecessary dependencies and caches
 RUN pip cache purge

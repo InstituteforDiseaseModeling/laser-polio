@@ -121,7 +121,7 @@ def setup_sim(config=None, **kwargs):
         sim.plot(save=True, results_path=results_path)
     if save_data:
         Path(results_path).mkdir(parents=True, exist_ok=True)
-        lp.save_results_to_csv(sim.results, filename=results_path + "/simulation_results.csv")
+        lp.save_results_to_csv(sim, filename=results_path + "/simulation_results.csv")
 
     sc.printcyan("Done.")
 
