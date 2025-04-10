@@ -1,18 +1,19 @@
 import json
-import click
-import yaml
 import os
 from pathlib import Path
 
+import click
 import numpy as np
 import pandas as pd
 import sciris as sc
+import yaml
 from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
 
-if os.getenv( "POLIO_ROOT" ):
-    lp.root = Path( os.getenv( "POLIO_ROOT" ) )
+if os.getenv("POLIO_ROOT"):
+    lp.root = Path(os.getenv("POLIO_ROOT"))
+
 
 def setup_sim(config=None, **kwargs):
     """Set up simulation from config file (YAML + overrides) or kwargs."""
@@ -129,9 +130,9 @@ def setup_sim(config=None, **kwargs):
 # ---------------------------- CLI ENTRY ----------------------------
 # Create a click command line interface
 @click.command()
-@click.option('--model-config', type=str, required=True, help="Path to base model config YAML")
-@click.option('--params-file', type=str, default="params.json", help="Trial parameter JSON file")
-@click.option('--results-path', type=str, default="simulation_results.csv", help="Path to simulation results")
+@click.option("--model-config", type=str, required=True, help="Path to base model config YAML")
+@click.option("--params-file", type=str, default="params.json", help="Trial parameter JSON file")
+@click.option("--results-path", type=str, default="simulation_results.csv", help="Path to simulation results")
 def run_simulation(model_config, params_file, results_path):
     # Load base config
     with open(model_config) as f:
@@ -147,7 +148,7 @@ def run_simulation(model_config, params_file, results_path):
     config = {**model_config_data, **params}
     if results_path:
         config["results_path"] = results_path
-    
+
     # Call the simulation setup function with the loaded config
     setup_sim(config=config)
 

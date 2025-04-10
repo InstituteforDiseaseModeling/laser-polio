@@ -1,4 +1,4 @@
-To run locally on Windows PowerShell: 
+To run locally on Windows PowerShell:
 $env:STORAGE_URL="sqlite:///optuna.db"; python calib/calibrate.py --num-trials=10
 
 

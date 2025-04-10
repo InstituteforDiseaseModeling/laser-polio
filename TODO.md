@@ -9,7 +9,7 @@ CALIBRATION
     - Stretch: R0 scalar for N Nigeria
     - Stretch: risk_mult_var or corr_risk_inf
 
-DEBUGGING 
+DEBUGGING
 - Plot expected births?
 - Update the birth and death plot to summarize by country.
 - Check transmission probability with real data. Why do we need R0 so high!?
@@ -21,7 +21,7 @@ CLEANUP
 - Drop ABM term from components
 
 NEW FEATURES
-- Rethink distance matrix - could we reduce precision to reduce memory? Or would jut uploading lats and longs be faster? 
+- Rethink distance matrix - could we reduce precision to reduce memory? Or would jut uploading lats and longs be faster?
 - Add ability to seed infections at specific times & places
     - Use Kurt's approach for when/where to seed infections: BIRINIWA day 37, 2018 & SHINKAFI day 329, 2020
 - Add scalar for N Nigeria

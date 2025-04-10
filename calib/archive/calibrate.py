@@ -95,7 +95,7 @@ def run_worker(study_name, num_trials, calib_config, model_config):
     for key, value in calib_config_dict.get("metadata", {}).items():
         study.set_user_attr(key, value)
 
-    wrapped_objective = partial(objective, calib_config=calib_config_dict, model_config=model_config_dict)
+    wrapped_objective = partial(objective, calib_config=calib_config_dict, model_config=model_config_path)
     study.optimize(wrapped_objective, n_trials=num_trials)
 
     # Output results
