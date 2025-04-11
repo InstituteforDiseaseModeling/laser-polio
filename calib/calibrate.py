@@ -13,13 +13,13 @@ if os.getenv("POLIO_ROOT"):
 
 # ------------------- USER CONFIG -------------------
 num_trials = 2
-study_name = "calib_zamfara_r0"
-calib_config_path = lp.root / "calib/calib_configs/calib_pars_r0.yaml"
-model_config_path = lp.root / "calib/model_configs/config_zamfara.yaml"
+study_name = "calib_nigeria_smpop_r0_k_seasonality"
+calib_config_path = lp.root / "calib/calib_configs/r0_k_seasonality.yaml"
+model_config_path = lp.root / "calib/model_configs/config_nigeria_popscale0.0001.yaml"
 sim_path = lp.root / "calib/setup_sim.py"
 results_path = lp.root / "calib/results" / study_name
 params_file = "params.json"
-actual_data_file = lp.root / "examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_r14.csv"
+actual_data_file = lp.root / "calib/results/" / study_name / "actual_data.csv"
 # ---------------------------------------------------
 
 
