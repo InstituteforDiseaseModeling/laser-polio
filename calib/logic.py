@@ -14,6 +14,44 @@ import yaml
 import laser_polio as lp
 
 
+def calc_calib_targets_paralysis(filename, model_config_path=None):
+    """Load simulation results and extract features for comparison."""
+
+    # Load the data & config
+    df = pd.read_csv(filename)
+    with open(model_config_path) as f:
+        model_config = yaml.safe_load(f)
+
+    # Parse dates to datetime object if needed
+    if "date" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["date"]):
+        df["date"] = pd.to_datetime(df["date"])
+    df["year"] = df["date"].dt.year
+    df["month"] = df["date"].dt.month
+
+    targets = {}
+
+    # 1. Total infected
+    targets["total_infected"] = df["P"].sum()
+
+    # 2. Yearly cases
+    targets["yearly_cases"] = df.groupby("year")["P"].sum().values
+
+    # 3. Monthly cases
+    targets["monthly_cases"] = df.groupby("month")["P"].sum().values
+
+    # 4. Regional group cases as a single array
+    if model_config and "summary_config" in model_config:
+        region_groups = model_config["summary_config"].get("region_groups", {})
+        regional_cases = []
+        for name in region_groups:
+            node_list = region_groups[name]
+            total = df[df["node"].isin(node_list)]["P"].sum()
+            regional_cases.append(total)
+        targets["regional_cases"] = np.array(regional_cases)
+
+    return targets
+
+
 def calc_calib_targets(filename, model_config_path=None):
     """Load simulation results and extract features for comparison."""
 
@@ -139,8 +177,8 @@ def objective(trial, calib_config, model_config_path, sim_path, results_path, pa
         return float("inf")
 
     # Load results and compute fit
-    actual = calc_calib_targets(actual_data_file, model_config_path)
-    predicted = calc_calib_targets(results_file, model_config_path)
+    actual = calc_calib_targets_paralysis(actual_data_file, model_config_path)
+    predicted = calc_calib_targets_paralysis(results_file, model_config_path)
     return compute_fit(actual, predicted)
 
 
