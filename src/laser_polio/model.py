@@ -869,7 +869,18 @@ class VitalDynamics_ABM:
             # Would move this code block to EULA section but we've got lifespans here.
             node_ids = sim.people.node_id[: sim.people.count]
             unique_nodes, indices = np.unique(node_ids, return_inverse=True)
-            pars.life_expectancies = np.bincount(indices, weights=lifespans / 365) / np.bincount(indices)
+            # Compute weighted sums and counts
+            weighted_sums = np.bincount(indices, weights=lifespans / 365)
+            counts = np.bincount(indices)
+            # Initialize life expectancies array for all nodes
+            n_nodes = len(sim.pars["node_lookup"])
+            life_expectancies = np.zeros(n_nodes)
+            # Map unique_nodes to their computed life expectancies (safely handle divide-by-zero)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                mean_lifespans = np.divide(weighted_sums, counts, out=np.zeros_like(weighted_sums), where=counts > 0)
+            life_expectancies[unique_nodes] = mean_lifespans
+            pars.life_expectancies = life_expectancies
+            # pars.life_expectancies = np.bincount(indices, weights=lifespans / 365) / np.bincount(indices)
 
             dods = lifespans - ages  # we could check that dods is non-negative to be safe
             sim.people.date_of_death[: np.sum(pars.n_ppl)] = dods
