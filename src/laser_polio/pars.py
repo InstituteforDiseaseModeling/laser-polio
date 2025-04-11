@@ -57,6 +57,8 @@ default_pars = PropertySet(
         "step_size_RI_ABM": 14,
         "step_size_SIA_ABM": 1,
         "step_size_Transmission_ABM": 1,
+        # Actual data
+        "actual_data": None,  # Actual dataset
     }
 )
 

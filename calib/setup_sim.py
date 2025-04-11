@@ -25,24 +25,21 @@ def setup_sim(config=None, **kwargs):
     init_region = config.get("init_region", kwargs.get("init_region", "ANKA"))
     init_prev = float(config.get("init_prev", kwargs.get("init_prev", 0.01)))
     results_path = config.get("results_path", kwargs.get("results_path", "results/demo"))
+    actual_data = config.get("actual_data", kwargs.get("actual_data", "data/epi_africa_20250408.h5"))
     save_plots = config.get("save_plots", kwargs.get("save_plots", False))
     save_data = config.get("save_data", kwargs.get("save_data", False))
 
-    print(f"[INFO] Using init_prev = {init_prev}")
-
-    # 1. Identify regions
+    # Geography
     dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
-
-    # 2. Geography
-    centroids = pd.read_csv(lp.root / "data/shp_names_africa_adm2.csv").set_index("dot_name").loc[dot_names]
+    node_lookup = lp.get_node_lookup("data/node_lookup.json", dot_names)
     dist_matrix = lp.get_distance_matrix(lp.root / "data/distance_matrix_africa_adm2.h5", dot_names)
 
-    # 3. Immunity
+    # Immunity
     init_immun = pd.read_hdf(lp.root / "data/init_immunity_0.5coverage_january.h5", key="immunity")
     init_immun = init_immun.set_index("dot_name").loc[dot_names]
     init_immun = init_immun[init_immun["period"] == start_year]
 
-    # 4. Initial infection seeding
+    # Initial infection seeding
     init_prevs = np.zeros(len(dot_names))
     prev_indices = [i for i, dot_name in enumerate(dot_names) if init_region in dot_name]
     if not prev_indices:
@@ -50,13 +47,13 @@ def setup_sim(config=None, **kwargs):
     init_prevs[prev_indices] = init_prev
     print(f"[INFO] Seeding infection in {len(prev_indices)} nodes at {init_prev:.3f} prevalence.")
 
-    # 5. SIA schedule
+    # SIA schedule
     start_date = lp.date(f"{start_year}-01-01")
     historic = pd.read_csv(lp.root / "data/sia_historic_schedule.csv")
     future = pd.read_csv(lp.root / "data/sia_scenario_1.csv")
     sia_schedule = lp.process_sia_schedule_polio(pd.concat([historic, future]), dot_names, start_date)
 
-    # 6. Demographics and risk
+    # Demographics and risk
     df_comp = pd.read_csv(lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
     df_comp = df_comp[df_comp["year"] == start_year]
     pop = df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values * pop_scale
@@ -67,10 +64,13 @@ def setup_sim(config=None, **kwargs):
     sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re)
     r0_scalars = lp.calc_r0_scalars_from_rand_eff(reff_re)
 
-    # 7. Validate all arrays match
-    assert all(len(arr) == len(dot_names) for arr in [dist_matrix, init_immun, centroids, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
+    # Validate all arrays match
+    assert all(len(arr) == len(dot_names) for arr in [dist_matrix, init_immun, node_lookup, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
 
-    # 8. Base parameters (can be overridden)
+    # Load the actual case data
+    epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
+
+    # Base parameters (can be overridden)
     pars = PropertySet(
         {
             "start_date": start_date,
@@ -82,27 +82,30 @@ def setup_sim(config=None, **kwargs):
             "init_prev": init_prevs,
             "r0_scalars": r0_scalars,
             "distances": dist_matrix,
-            "centroids": centroids,
+            "node_lookup": node_lookup,
             "vx_prob_ri": ri,
             "sia_schedule": sia_schedule,
             "vx_prob_sia": sia_prob,
+            "actual_data": epi,
         }
     )
 
-    # 9. Inject Optuna trial params if any exist
+    # Inject Optuna trial params if any exist
     if Path("params.json").exists():
         with open("params.json") as f:
             optuna_params = json.load(f)
         print("[INFO] Loaded Optuna trial params:", optuna_params)
         pars += optuna_params
 
-    # 10. Run sim
+    # Run sim
     sim = lp.SEIR_ABM(pars)
     sim.components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM, lp.RI_ABM, lp.SIA_ABM]
 
+    # Run simulation
     print("[INFO] Running simulation...")
     sim.run()
 
+    # Save results
     if save_plots:
         sim.plot(save=True, results_path=results_path)
     if save_data:
