@@ -367,7 +367,7 @@ def get_epi_data(filename, dot_names, node_lookup, start_year, n_days):
 
     # Assign node_ids based on the node_lookup dictionary
     dotname_to_nodeid = {v["dot_name"]: k for k, v in node_lookup.items()}
-    df["node_id"] = df["dot_name"].map(dotname_to_nodeid)
+    df["node"] = df["dot_name"].map(dotname_to_nodeid)
 
     # Ensure that the nodes are in the same order
     assert np.all(df["dot_name"][0 : len(dot_names)].values == dot_names), "The nodes are not in the same order as the dot_names."
@@ -412,12 +412,14 @@ def save_results_to_csv(sim, filename="simulation_results.csv"):
         writer = csv.writer(file)
 
         # Write header
-        writer.writerow(["timestep", "date", "node", "S", "E", "I", "R"])
+        writer.writerow(["timestep", "date", "node", "S", "E", "I", "R", "P"])
 
         # Write data
         for t in range(timesteps):
             for n in range(nodes):
-                writer.writerow([t, datevec[t], n, results.S[t, n], results.E[t, n], results.I[t, n], results.R[t, n]])
+                writer.writerow(
+                    [t, datevec[t], n, results.S[t, n], results.E[t, n], results.I[t, n], results.R[t, n], results.paralyzed[t, n]]
+                )
 
     print(f"Results saved to {filename}")
 
