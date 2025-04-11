@@ -3,6 +3,7 @@
 CALIBRATION
 - Use more pars for Nigeria
 - Look for some values of k that get cases to move
+- Likelihood fn???
 - Targets:
     - Stretch: age distribution
 - Levers:
@@ -10,6 +11,7 @@ CALIBRATION
     - Stretch: risk_mult_var or corr_risk_inf
 
 DEBUGGING
+- Scan over k & how it impacts transmission. Try different seasonal terms too.
 - Plot expected births?
 - Update the birth and death plot to summarize by country.
 - Check transmission probability with real data. Why do we need R0 so high!?
