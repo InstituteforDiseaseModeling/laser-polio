@@ -1,7 +1,8 @@
 # Priorities
 
 CALIBRATION
-- Add in Nigeria data & make sure it's compatible with the data processing functions
+- Use more pars for Nigeria
+- Look for some values of k that get cases to move
 - Targets:
     - Stretch: age distribution
 - Levers:
