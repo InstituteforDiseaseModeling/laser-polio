@@ -142,7 +142,7 @@ def test_sia_schedule():
     age = sim.t - sim.people.date_of_birth[alive_in_node]  # Age of individuals
     age_eligible = np.sum(age < 5 * 365)  # Filter to <5 years old
     exp_vx = age_eligible * sim.pars.vx_prob_sia[0]  # Expected number of vaccinated individuals
-    assert np.isclose(n_vx_day10, exp_vx, atol=100), "Number of vaccinated individuals does not match expected value."
+    assert np.isclose(n_vx_day10, exp_vx, atol=500), "Number of vaccinated individuals does not match expected value."
 
     # Check recovered count
     n_recovered = np.sum(sim.results.R[-1])

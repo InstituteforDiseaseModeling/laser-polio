@@ -873,7 +873,7 @@ class VitalDynamics_ABM:
             weighted_sums = np.bincount(indices, weights=lifespans / 365)
             counts = np.bincount(indices)
             # Initialize life expectancies array for all nodes
-            n_nodes = len(sim.pars["node_lookup"])
+            n_nodes = len(sim.nodes)
             life_expectancies = np.zeros(n_nodes)
             # Map unique_nodes to their computed life expectancies (safely handle divide-by-zero)
             with np.errstate(divide="ignore", invalid="ignore"):
