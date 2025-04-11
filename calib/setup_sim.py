@@ -69,6 +69,9 @@ def setup_sim(config=None, **kwargs):
 
     # Load the actual case data
     epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
+    epi.rename(columns={"cases": "P"}, inplace=True)
+    Path(results_path).mkdir(parents=True, exist_ok=True)
+    epi.to_csv(results_path + "/actual_data.csv", index=False)
 
     # Base parameters (can be overridden)
     pars = PropertySet(

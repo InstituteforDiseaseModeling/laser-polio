@@ -1,7 +1,7 @@
 regions: ["NIGERIA"]
 start_year: 2019
 n_days: 365
-pop_scale: 1
+pop_scale: 0.0001
 init_region: "BIRINIWA"
 init_prev: 0.01
 results_path: "results/demo_nigeria"

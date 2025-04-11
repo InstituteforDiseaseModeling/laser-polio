@@ -1,13 +1,13 @@
 parameters:
   r0:
     low: 5.0
-    high: 15.0
+    high: 200.0
   gravity_k:
     low: 0.01
     high: 1.0
   seasonal_factor:
     low: 0.0
-    high: 1.0
+    high: 0.4
   seasonal_phase:
-    low: 0
-    high: 364.9
+    low: 120
+    high: 240
