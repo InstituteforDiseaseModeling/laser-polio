@@ -10,7 +10,7 @@ start_year = 2019
 n_days = 365
 pop_scale = 1 / 100
 init_region = "ANKA"
-init_prev = 0.001
+init_prev = 0.01
 r0 = 14
 results_path = "results/demo_zamfara"
 
@@ -27,6 +27,9 @@ sim = lp.run_sim(
     init_prev=init_prev,
     r0=r0,
     results_path=results_path,
+    save_plots=True,
+    save_data=False,
+    verbose=1,
     seed=1,
 )
 

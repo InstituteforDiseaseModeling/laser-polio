@@ -27,6 +27,10 @@ sim = lp.run_sim(
     init_prev=init_prev,
     r0=r0,
     results_path=results_path,
+    save_plots=True,
+    save_data=False,
+    verbose=1,
+    seed=1,
 )
 
 sc.printcyan("Done.")

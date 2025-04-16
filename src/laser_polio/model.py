@@ -35,7 +35,7 @@ class SEIR_ABM:
     Disease state codes: 0=S, 1=E, 2=I, 3=R
     """
 
-    def __init__(self, pars: PropertySet = None, verbose=0.1):
+    def __init__(self, pars: PropertySet = None, verbose=1):
         start_time = time.perf_counter()
         sc.printcyan("Initializing simulation...")
         self.component_times = defaultdict(float)  # Initialize component times
@@ -45,9 +45,12 @@ class SEIR_ABM:
         if pars is not None:
             self.pars += pars  # override default values
         pars = self.pars
-        self.verbose = verbose
+        self.verbose = pars["verbose"] if "verbose" in pars else 1
 
-        if "seed" not in pars:
+        if self.verbose >= 1:
+            sc.printcyan("Initializing simulation...")
+
+        if pars.seed is None:
             now = datetime.now()  # noqa: DTZ005
             pars.seed = now.microsecond ^ int(now.timestamp())
             sc.printred(f"No seed provided. Using random seed of {pars.seed}.")
@@ -133,7 +136,6 @@ class SEIR_ABM:
 
         # Store and instantiate
         self._components = ordered_subset
-
         self.instances = []
         for cls in ordered_subset:
             start_time = time.perf_counter()
@@ -141,11 +143,12 @@ class SEIR_ABM:
             end_time = time.perf_counter()
             self.component_times[cls.__name__ + ".__init__()"] += end_time - start_time
 
-        print(f"Initialized components: {self.instances}")
+        if self.verbose >= 2:
+            print(f"Initialized components: {self.instances}")
 
     def run(self):
         sc.printcyan("Initialization complete. Running simulation...")
-        with alive_bar(self.nt, title="Simulation progress:") as bar:
+        with alive_bar(self.nt, title="Simulation progress:", disable=self.verbose < 1) as bar:
             for tick in range(self.nt):
                 if tick == 0:
                     # Just record the initial state on t=0 & don't run any components
@@ -161,7 +164,8 @@ class SEIR_ABM:
                     self.log_results(tick)
                     self.t += 1
                 bar()  # Update the progress bar
-        sc.printcyan("Simulation complete.")
+        if self.verbose >= 1:
+            sc.printcyan("Simulation complete.")
 
     def log_results(self, t):
         for component in self.instances:
@@ -178,13 +182,14 @@ class SEIR_ABM:
             else:
                 results_path = Path(results_path)  # Ensure results_path is a Path object
                 results_path.mkdir(parents=True, exist_ok=True)
-            sc.printcyan("Saving plots in " + str(results_path))
+            if self.verbose >= 1:
+                sc.printcyan("Saving plots in " + str(results_path))
         for component in self.instances:
             component.plot(save=save, results_path=results_path)
         self.plot_node_pop(save=save, results_path=results_path)
 
         if self.component_times:
-            if self.verbose > 0.1:
+            if self.verbose >= 2:
                 print(f"{self.instances=}")
             plt.figure(figsize=(12, 12))
             plt.pie(
@@ -241,6 +246,7 @@ class DiseaseState_ABM:
         self.pars = sim.pars
         self.nodes = sim.nodes
         self.results = sim.results
+        self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Setup the SEIR components
         pars = self.pars
@@ -259,7 +265,8 @@ class DiseaseState_ABM:
         sim.results.add_array_property("paralyzed", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
 
         def do_init_imm():
-            print(f"Before immune initialization, we have {sim.people.count} active agents.")
+            if self.verbose >= 2:
+                print(f"Before immune initialization, we have {sim.people.count} active agents.")
             # Initialize immunity
             if isinstance(pars.init_immun, (float, list)):  # Handle both float and list cases
                 init_immun_value = pars.init_immun[0] if isinstance(pars.init_immun, list) else pars.init_immun
@@ -411,7 +418,8 @@ class DiseaseState_ABM:
                 deletions = active_count - new_active_count
                 sim.people.true_capacity -= deletions
 
-                print(f"After immune initialization and EULA-gizing, we have {sim.people.count} active agents.")
+                if self.verbose >= 2:
+                    print(f"After immune initialization and EULA-gizing, we have {sim.people.count} active agents.")
                 # viz()
 
         do_init_imm()
@@ -428,7 +436,9 @@ class DiseaseState_ABM:
             infected_indices = []
             node_ids = self.people.node_id[: self.people.count]
             disease_states = self.people.disease_state[: self.people.count]
-            for node, prev in tqdm(enumerate(pars.init_prev), total=len(pars.init_prev), desc="Seeding infections in nodes"):
+            for node, prev in tqdm(
+                enumerate(pars.init_prev), total=len(pars.init_prev), desc="Seeding infections in nodes", disable=self.verbose < 2
+            ):
                 num_infected = int(pars.n_ppl[node] * prev)
                 alive_in_node = (node_ids == node) & (disease_states >= 0)
                 alive_in_node_indices = np.where(alive_in_node)[0]
@@ -720,6 +730,7 @@ class Transmission_ABM:
         self.nodes = np.arange(len(sim.pars.n_ppl))
         self.pars = sim.pars
         self.results = sim.results
+        self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Stash the R0 scaling factor
         self.r0_scalars = self.pars.r0_scalars
@@ -851,6 +862,7 @@ class VitalDynamics_ABM:
         self.nodes = sim.nodes
         self.results = sim.results
         self.step_size = sim.pars.step_size_VitalDynamics_ABM  # Number of days between vital dynamics steps
+        self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Setup the age and vital rate components
         pars = sim.pars
@@ -1060,8 +1072,9 @@ def fast_ri(
 
         prob_vx = vx_prob_ri[node]
 
-        # print(f"Agent {i} in disease state {disease_state[i]}")
-        # print("prob_vx=", prob_vx, "prob_take=", prob_take)
+        # if self.verbose >= 2:
+        #     print(f"Agent {i} in disease state {disease_state[i]}")
+        #     print("prob_vx=", prob_vx)
 
         ri_timer[i] -= step_size
         eligible = False
@@ -1091,6 +1104,8 @@ class RI_ABM:
         self.people = sim.people
         self.nodes = sim.nodes
         self.pars = sim.pars
+        self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
+
         # Calc date of RI (assume single point in time between 1st and 3rd dose)
         self.people.add_scalar_property("ri_timer", dtype=np.int32, default=-1)
         dob = self.people.date_of_birth
@@ -1235,6 +1250,7 @@ class SIA_ABM:
         self.nodes = sim.nodes
         self.pars = sim.pars
         self.results = sim.results
+        self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Add result tracking for SIA
         self.results.add_array_property("sia_vaccinated", shape=(sim.nt, len(sim.nodes)), dtype=np.int32)

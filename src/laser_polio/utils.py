@@ -132,7 +132,7 @@ def daterange(start_date, days):
     return date_range
 
 
-def find_matching_dot_names(patterns, ref_file):
+def find_matching_dot_names(patterns, ref_file, verbose=2):
     """
     Finds and returns dot_names from a CSV file that contain the input string patterns.
     For example, if the input string is 'ZAMFARA', the function will return all dot_names
@@ -167,9 +167,10 @@ def find_matching_dot_names(patterns, ref_file):
     adm2 = set(matched_dot_names)
 
     # Print summary
-    print(
-        f"The input pattern(s) {patterns} matched dot_names for {len(regions)} region(s), {len(adm0)} admin0, {len(adm1)} admin1, {len(adm2)} admin2 "
-    )
+    if verbose >= 2:
+        print(
+            f"The input pattern(s) {patterns} matched dot_names for {len(regions)} region(s), {len(adm0)} admin0, {len(adm1)} admin1, {len(adm2)} admin2 "
+        )
 
     return matched_dot_names
 

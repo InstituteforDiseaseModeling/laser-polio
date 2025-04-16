@@ -9,6 +9,8 @@ __all__ = ["default_pars", "default_run_order"]
 
 default_pars = PropertySet(
     {
+        # Random seed
+        "seed": None,
         # Time
         "start_date": datetime.date(2019, 1, 1),  # Start date of the simulation
         "dur": 30,  # Number of timesteps
@@ -59,6 +61,8 @@ default_pars = PropertySet(
         "step_size_Transmission_ABM": 1,
         # Actual data
         "actual_data": None,  # Actual dataset
+        # Verbosity
+        "verbose": 1,  # 0 = silent, 1 = info, 2 = debug
     }
 )
 

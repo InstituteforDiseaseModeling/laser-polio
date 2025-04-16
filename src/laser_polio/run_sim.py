@@ -18,7 +18,7 @@ if os.getenv("POLIO_ROOT"):
     lp.root = Path(os.getenv("POLIO_ROOT"))
 
 
-def run_sim(config=None, **kwargs):
+def run_sim(config=None, verbose=1, **kwargs):
     """
     Set up simulation from config file (YAML + overrides) or kwargs.
 
@@ -51,7 +51,7 @@ def run_sim(config=None, **kwargs):
     save_data = configs.pop("save_data", False)
 
     # Geography
-    dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
+    dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", verbose=verbose)
     node_lookup = lp.get_node_lookup("data/node_lookup.json", dot_names)
     dist_matrix = lp.get_distance_matrix(lp.root / "data/distance_matrix_africa_adm2.h5", dot_names)
 
@@ -66,7 +66,8 @@ def run_sim(config=None, **kwargs):
     if not prev_indices:
         raise ValueError(f"No nodes found containing '{init_region}'")
     init_prevs[prev_indices] = init_prev
-    print(f"[INFO] Seeding infection in {len(prev_indices)} nodes at {init_prev:.3f} prevalence.")
+    if verbose >= 2:
+        print(f"Seeding infection in {len(prev_indices)} nodes at {init_prev:.3f} prevalence.")
 
     # SIA schedule
     start_date = lp.date(f"{start_year}-01-01")
@@ -110,6 +111,7 @@ def run_sim(config=None, **kwargs):
         "sia_schedule": sia_schedule,
         "vx_prob_sia": sia_prob,
         "actual_data": epi,
+        "verbose": verbose,
     }
 
     # Dynamic values passed by user/CLI/Optuna
@@ -134,7 +136,8 @@ def run_sim(config=None, **kwargs):
     sim.components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM, lp.RI_ABM, lp.SIA_ABM]
 
     # Run simulation
-    print("[INFO] Running simulation...")
+    # if verbose >= 1:
+
     sim.run()
 
     # Save results
