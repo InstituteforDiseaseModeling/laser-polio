@@ -2,6 +2,7 @@ import time
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
+import h5py
 
 import matplotlib.pyplot as plt
 import numba as nb
@@ -20,8 +21,10 @@ from laser_core.propertyset import PropertySet
 from laser_core.utils import calc_capacity
 from tqdm import tqdm
 import logging
+import pdb
 
 import laser_polio as lp
+from laser_polio.laserframeio import LaserFrameIO
 
 __all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "Transmission_ABM", "VitalDynamics_ABM"]
 
@@ -76,6 +79,25 @@ logger.addHandler(console_handler)
 
 ### DONE WITH LOGGER SETUP
 
+@nb.njit(
+    (nb.int32, nb.int32, nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32[:, :], nb.int32[:, :], nb.int32[:], nb.int32[:]),
+    parallel=True,
+    cache=True,
+)
+def get_vital_statistics(num_nodes, num_people, disease_state, node_id, date_of_death, t, tl_alive, tl_dying, num_alive, num_dying):
+    # Iterate in parallel over all people
+    for i in nb.prange(num_people):
+        if disease_state[i] >= 0:  # If they're alive ...
+            tl_alive[nb.get_thread_id(), node_id[i]] += 1  # Count 'em
+            if date_of_death[i] <= t:  # If they're past their due date ...
+                disease_state[i] = -1  # Mark them as deceased
+                tl_dying[nb.get_thread_id(), node_id[i]] += 1  # Count 'em as deceased
+
+    num_alive[:] = tl_alive.sum(axis=0)  # Merge per-thread results
+    num_dying[:] = tl_dying.sum(axis=0)  # Merge per-thread results
+
+    return
+
 # SEIR Model
 class SEIR_ABM:
     """
@@ -109,7 +131,7 @@ class SEIR_ABM:
             capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, np.mean(pars.cbr)))
         else:
             capacity = int(np.sum(pars.n_ppl))
-        self.people = LaserFrame(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
+        self.people = LaserFrameIO(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
         # We initialize disease_state here since it's required for most other components (which facilitates testing)
         self.people.add_scalar_property("disease_state", dtype=np.int32, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
         self.people.disease_state[: self.people.count] = 0  # Set initial population as susceptible
@@ -129,6 +151,73 @@ class SEIR_ABM:
 
         # Components
         self.components = []
+
+    @classmethod
+    def init_from_file(cls, filename: str, pars: PropertySet = None):
+        logger.info(f"Initializing SEIR_ABM from file: {filename}")
+        
+        # initialize model
+        model = cls.__new__(cls)
+        model.pars = deepcopy(lp.default_pars)
+        if pars is not None:
+            model.pars += pars
+        model.verbose = model.pars["verbose"] if "verbose" in model.pars else 1
+        model.t = 0
+        model.nt = model.pars["dur"] + 1
+        model.datevec = lp.daterange(model.pars["start_date"], days=model.nt)
+
+        # Use LaserFrameIO to load people
+        model.people = LaserFrameIO.load(filename)
+
+        # Setup node list
+        model.nodes = np.unique(model.people.node_id[:model.people.count])
+
+        # Results holder
+        model.results = LaserFrameIO(capacity=1)
+
+        # Components container
+        model.components = []
+
+        return model
+
+    @classmethod
+    def __init_from_file_dep(cls, filename: str, pars: PropertySet = None):
+        logger.info(f"Initializing SEIR_ABM from file: {filename}")
+        with h5py.File(filename, "r") as f:
+            capacity = int(f.attrs["capacity"])
+            print( "TBD: Don't use saved capacity. That would miss the point. Recalculate capacity based on total pop and cbr." )
+            count = int(f.attrs["count"])
+            # initialize model
+            model = cls.__new__(cls)
+            model.pars = deepcopy(lp.default_pars)
+            if pars is not None:
+                model.pars += pars
+            model.verbose = model.pars["verbose"] if "verbose" in model.pars else 1
+            model.t = 0
+            model.nt = model.pars["dur"] + 1
+            model.datevec = lp.daterange(model.pars["start_date"], days=model.nt)
+
+            # Allocate the LaserFrame with given capacity and count
+            model.people = LaserFrame(capacity=capacity, initial_count=count)
+
+            # Add scalar properties from the HDF5 structure
+            for key in f.keys():
+                data = f[key][:]
+                dtype = data.dtype
+                print( f"Recovering property {key}." )
+                model.people.add_scalar_property(name=key, dtype=dtype, default=0)
+                model.people.__dict__[key][:count] = data  # Fill the data manually
+
+            # Setup node list
+            model.nodes = np.unique(model.people.node_id[:count])
+
+            # Results holder
+            model.results = LaserFrame(capacity=1)
+
+            # Components container
+            model.components = []
+
+        return model
 
     @property
     def components(self) -> list:
@@ -268,16 +357,36 @@ def step_nb(disease_state, exposure_timer, infection_timer, acq_risk_multiplier,
 
 
 class DiseaseState_ABM:
-    def __init__(self, sim):
+    @classmethod
+    def init_from_file(cls, sim):
+        # Alternate constructor: skip initialization logic
+        self = cls.__new__(cls)  # bypass __init__
+        self._common_init(sim)
+        # Only set up results arrays if needed
+        self._initialize_results_arrays()
+        return self
+
+    def _common_init(self, sim):
         self.sim = sim
         self.people = sim.people
         self.pars = sim.pars
         self.nodes = sim.nodes
         self.results = sim.results
+        self.verbose = self.pars["verbose"] if "verbose" in self.pars else 1
+
+    def _initialize_results_arrays(self):
+        self.results.add_array_property("S", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.add_array_property("E", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.add_array_property("I", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.add_array_property("R", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.add_array_property("paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+
+    def __init__(self, sim):
+        print( "Creating DiseaseState_ABM" )
+        self._common_init( sim )
+        self._initialize_results_arrays()
 
         # Setup the SEIR components
-        pars = self.pars
-        self.verbose = level=pars["verbose"] if "verbose" in pars else 1 # keep this for alive bar
         sim.people.add_scalar_property("paralyzed", dtype=np.int32, default=0)
         # Initialize all agents with an exposure_timer & infection_timer
         sim.people.add_scalar_property("exposure_timer", dtype=np.int32, default=0)
@@ -286,12 +395,7 @@ class DiseaseState_ABM:
         sim.people.add_scalar_property("infection_timer", dtype=np.int32, default=0)
         sim.people.infection_timer[:] = self.pars.dur_inf(self.people.capacity)
 
-        sim.results.add_array_property("S", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
-        sim.results.add_array_property("E", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
-        sim.results.add_array_property("I", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
-        sim.results.add_array_property("R", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
-        sim.results.add_array_property("paralyzed", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
-
+        pars = self.pars
         def do_init_imm():
             logger.debug(f"Before immune initialization, we have {sim.people.count} active agents.")
             # Initialize immunity
@@ -748,7 +852,6 @@ def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
 
     return S, E, I, R, P
 
-
 class Transmission_ABM:
     def __init__(self, sim):
         self.sim = sim
@@ -756,55 +859,60 @@ class Transmission_ABM:
         self.nodes = np.arange(len(sim.pars.n_ppl))
         self.pars = sim.pars
         self.results = sim.results
-
-        # Stash the R0 scaling factor
         self.r0_scalars = self.pars.r0_scalars
-        # # Calcultate geographic R0 modifiers based on underweight data (one for each node)
-        # underwt = self.pars.r0_scalars
-        # self.r0_scalars = 1 / (1 + np.exp(24 * (np.mean(underwt) - underwt))) + 0.2
 
-        # Pre-compute individual risk of acquisition and infectivity with correlated sampling
-        # Step 0: Add properties to people
-        self.people.add_scalar_property(
-            "acq_risk_multiplier", dtype=np.float32, default=1.0
-        )  # Individual-level acquisition risk multiplier (multiplied by base probability for an agent becoming infected)
-        self.people.add_scalar_property(
-            "daily_infectivity", dtype=np.float32, default=1.0
-        )  # Individual daily infectivity (e.g., number of infections generated per day in a fully susceptible population; mean = R0/dur_inf = 14/24)
-        # Step 1: Define parameters for Lognormal & convert to log-space parameters
-        mean_lognormal = 1
-        variance_lognormal = self.pars.risk_mult_var
-        mu_ln = np.log(mean_lognormal**2 / np.sqrt(variance_lognormal + mean_lognormal**2))
-        sigma_ln = np.sqrt(np.log(variance_lognormal / mean_lognormal**2 + 1))
-        # Step 2: Define parameters for daily_infectivity (Gamma distribution)
-        mean_gamma = self.pars.r0 / np.mean(self.pars.dur_inf(1000))  # mean_gamma = R0 / mean(dur_inf)
-        shape_gamma = 1  # makes this equivalent to an exponential distribution
-        scale_gamma = mean_gamma / shape_gamma
-        scale_gamma = max(scale_gamma, 1e-10)  # Ensure scale is never exactly 0 since gamma is undefined for scale_gamma=0
-        # Step 3: Generate correlated normal samples
-        rho = 0.8  # Desired correlation
-        cov_matrix = np.array([[1, rho], [rho, 1]])  # Create covariance matrix
-        L = np.linalg.cholesky(cov_matrix)  # Cholesky decomposition
-        # Generate standard normal samples
+        self._initialize_people_fields()
+        self._initialize_common()
+
+    @classmethod
+    def init_from_file(cls, sim):
+        """Alternative constructor for loading from file without resetting people."""
+        instance = cls.__new__(cls)
+        instance.sim = sim
+        instance.people = sim.people
+        instance.nodes = np.arange(len(sim.pars.n_ppl))
+        instance.pars = sim.pars
+        instance.results = sim.results
+        instance.r0_scalars = instance.pars.r0_scalars
+
+        # Skip sampling & property setting
+        instance._initialize_common()
+        return instance
+
+    def _initialize_people_fields(self):
+        """Initialize individual-level transmission properties."""
+        self.people.add_scalar_property("acq_risk_multiplier", dtype=np.float32, default=1.0)
+        self.people.add_scalar_property("daily_infectivity", dtype=np.float32, default=1.0)
+
+        mean_ln = 1
+        var_ln = self.pars.risk_mult_var
+        mu_ln = np.log(mean_ln**2 / np.sqrt(var_ln + mean_ln**2))
+        sigma_ln = np.sqrt(np.log(var_ln / mean_ln**2 + 1))
+
+        mean_gamma = self.pars.r0 / np.mean(self.pars.dur_inf(1000))
+        scale_gamma = max(mean_gamma / 1, 1e-10)
+
+        rho = 0.8
+        L = np.linalg.cholesky([[1, rho], [rho, 1]])
         if not hasattr(self.people, "true_capacity"):
-            self.people.true_capacity = self.people.capacity  # Ensure true_capacity is set even if we don't initialize prevalence by node
-        n_samples = self.people.true_capacity
-        z = np.random.normal(size=(n_samples, 2))
-        z_corr = z @ L.T  # Apply Cholesky to introduce correlation
-        # Step 4: Transform normal variables into target distributions
-        acq_risk_multiplier = np.exp(mu_ln + sigma_ln * z_corr[:, 0])  # Lognormal transformation
-        daily_infectivity = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)  # Gamma transformation
-        self.people.acq_risk_multiplier[: self.people.true_capacity] = acq_risk_multiplier
-        self.people.daily_infectivity[: self.people.true_capacity] = daily_infectivity
+            self.people.true_capacity = self.people.capacity
+        n = self.people.true_capacity
 
-        # Compute the infection migration network
-        sim.results.add_vector_property("network", length=len(sim.nodes), dtype=np.float32)
-        self.network = sim.results.network
-        init_pops = sim.pars.n_ppl
+        z = np.random.normal(size=(n, 2)) @ L.T
+        self.people.acq_risk_multiplier[:n] = np.exp(mu_ln + sigma_ln * z[:, 0])
+        self.people.daily_infectivity[:n] = stats.gamma.ppf(
+            stats.norm.cdf(z[:, 1]), a=1, scale=scale_gamma
+        )
+
+    def _initialize_common(self):
+        """Initialize shared network and timers."""
+        self.sim.results.add_vector_property("network", length=len(self.sim.nodes), dtype=np.float32)
+        init_pops = self.pars.n_ppl
         k, a, b, c = self.pars.gravity_k, self.pars.gravity_a, self.pars.gravity_b, self.pars.gravity_c
         dist_matrix = self.pars.distances
+
         self.network = gravity(init_pops, dist_matrix, k, a, b, c)
-        self.network /= np.power(init_pops.sum(), c)  # Normalize
+        self.network /= np.power(init_pops.sum(), c)
         self.network = row_normalizer(self.network, self.pars.max_migr_frac)
 
         self.beta_sum_time = 0
@@ -884,74 +992,97 @@ class Transmission_ABM:
         print( f"{self.do_ni_time=}" )
         """
 
-
 class VitalDynamics_ABM:
     def __init__(self, sim):
+        self._common_init(sim)
+        self._initialize_ages_and_births()
+        self._initialize_deaths()
+        self._initialize_birth_rates()
+
+    @classmethod
+    def init_from_file(cls, sim):
+        """Minimal constructor for bootstrapped model state."""
+        self = cls.__new__(cls)
+        self._common_init(sim)
+        self._initialize_birth_results_if_needed()
+        self._initialize_birth_rates()
+        cumulative_deaths = lp.create_cumulative_deaths(np.sum(self.pars.n_ppl), max_age_years=100)
+        self.sim.death_estimator = KaplanMeierEstimator(cumulative_deaths)
+        return self
+
+    def _common_init(self, sim):
         self.sim = sim
         self.people = sim.people
         self.nodes = sim.nodes
         self.results = sim.results
-        self.step_size = sim.pars.step_size_VitalDynamics_ABM  # Number of days between vital dynamics steps
+        self.pars = sim.pars
+        self.step_size = self.pars.step_size_VitalDynamics_ABM
 
-        # Setup the age and vital rate components
-        pars = sim.pars
+    def _initialize_ages_and_births(self):
+        pars = self.pars
         if pars.age_pyramid_path is not None:
-            sim.people.add_scalar_property("date_of_birth", dtype=np.int32, default=-1)
+            self.people.add_scalar_property("date_of_birth", dtype=np.int32, default=-1)
             pyramid = load_pyramid_csv(pars.age_pyramid_path)
-            MINCOL = 0
-            MAXCOL = 1
-            MCOL = 2
-            FCOL = 3
-            sampler = AliasedDistribution(pyramid[:, MCOL] + pyramid[:, FCOL])  # using the male population in this example
-            samples = sampler.sample(len(sim.people))
-            bin_min_age_days = pyramid[:, MINCOL] * 365  # minimum age for bin, in days (include this value)
-            bin_max_age_days = (pyramid[:, MAXCOL] + 1) * 365  # maximum age for bin, in days (exclude this value)
-            mask = np.zeros(len(sim.people), dtype=bool)
-            ages = np.zeros(len(sim.people), dtype=np.int32)
-            for i in range(len(pyramid)):  # for each possible bin value...
-                mask[:] = samples == i  # ...find the agents that belong to this bin
-                # ...and assign a random age, in days, within the bin
-                ages[mask] = np.random.randint(bin_min_age_days[i], bin_max_age_days[i], mask.sum())
-            # Move births on day 0 to one day prior. This prevents births on day 0 when we only record results, we don't run components.
-            ages[ages == 0] = 1
-            sim.people.date_of_birth[: len(sim.people)] = -ages
+            sampler = AliasedDistribution(pyramid[:, 2] + pyramid[:, 3])  # male + female
 
+            samples = sampler.sample(self.people.count)
+            bin_min = pyramid[:, 0] * 365
+            bin_max = (pyramid[:, 1] + 1) * 365
+            mask = np.zeros(self.people.count, dtype=bool)
+            ages = np.zeros(self.people.count, dtype=np.int32)
+
+            for i in range(len(pyramid)):
+                mask[:] = samples == i
+                ages[mask] = np.random.randint(bin_min[i], bin_max[i], mask.sum())
+
+            ages[ages == 0] = 1
+            self.people.date_of_birth[:self.people.count] = -ages
+
+    def _initialize_deaths(self):
+        pars = self.pars
         if pars.cbr is not None:
-            sim.results.add_array_property("births", shape=(sim.nt, len(sim.nodes)), dtype=np.int32)
-            sim.results.add_array_property("deaths", shape=(sim.nt, len(sim.nodes)), dtype=np.int32)
-            sim.people.add_scalar_property("date_of_death", dtype=np.int32, default=0)
+            self.results.add_array_property("births", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+            self.results.add_array_property("deaths", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+            self.people.add_scalar_property("date_of_death", dtype=np.int32, default=0)
 
             cumulative_deaths = lp.create_cumulative_deaths(np.sum(pars.n_ppl), max_age_years=100)
-            sim.death_estimator = KaplanMeierEstimator(cumulative_deaths)
-            lifespans = sim.death_estimator.predict_age_at_death(ages, max_year=100)
-            # Set pars.life_expectancies to mean lifespans by node.
-            # This is just to support placeholder mortality premodeling for EULAs.
-            # Would move this code block to EULA section but we've got lifespans here.
-            node_ids = sim.people.node_id[: sim.people.count]
-            unique_nodes, indices = np.unique(node_ids, return_inverse=True)
-            # Compute weighted sums and counts
-            weighted_sums = np.bincount(indices, weights=lifespans / 365)
-            counts = np.bincount(indices)
-            # Initialize life expectancies array for all nodes
-            n_nodes = len(sim.nodes)
-            life_expectancies = np.zeros(n_nodes)
-            # Map unique_nodes to their computed life expectancies (safely handle divide-by-zero)
-            with np.errstate(divide="ignore", invalid="ignore"):
-                mean_lifespans = np.divide(weighted_sums, counts, out=np.zeros_like(weighted_sums), where=counts > 0)
-            life_expectancies[unique_nodes] = mean_lifespans
-            pars.life_expectancies = life_expectancies
-            # pars.life_expectancies = np.bincount(indices, weights=lifespans / 365) / np.bincount(indices)
+            self.sim.death_estimator = KaplanMeierEstimator(cumulative_deaths)
 
-            dods = lifespans - ages  # we could check that dods is non-negative to be safe
-            sim.people.date_of_death[: np.sum(pars.n_ppl)] = dods
+            # Only compute lifespans if date_of_birth was initialized
+            if "date_of_birth" in self.people.__dict__:
+                ages = -self.people.date_of_birth[:self.people.count]
+                lifespans = self.sim.death_estimator.predict_age_at_death(ages, max_year=100)
+                dods = lifespans - ages
+                self.people.date_of_death[:self.people.count] = dods
 
-        for node in self.nodes:
-            if len(pars.cbr) == 1:
-                self.birth_rate = pars.cbr / (365 * 1000)
+                # Compute life expectancies per node
+                node_ids = self.people.node_id[:self.people.count]
+                _, indices = np.unique(node_ids, return_inverse=True)
+                weighted = np.bincount(indices, weights=lifespans / 365)
+                counts = np.bincount(indices)
+
+                n_nodes = len(self.nodes)
+                life_expectancies = np.zeros(n_nodes)
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    mean_lifespans = np.divide(weighted, counts, out=np.zeros_like(weighted), where=counts > 0)
+                life_expectancies[:len(mean_lifespans)] = mean_lifespans
+                pars.life_expectancies = life_expectancies
+
+    def _initialize_birth_rates(self):
+        pars = self.pars
+        self.birth_rate = np.zeros(len(self.nodes))
+        if pars.cbr is not None:
+            if isinstance(pars.cbr, (float, int)) or len(pars.cbr) == 1:
+                self.birth_rate[:] = pars.cbr[0] / (365 * 1000)
             else:
-                self.birth_rate = pars.cbr[node] / (365 * 1000)  # Birth rate per day per person
+                self.birth_rate[:] = np.array(pars.cbr) / (365 * 1000)
 
-        self.death_estimator = sim.death_estimator
+    def _initialize_birth_results_if_needed(self):
+        """For bootstrapped sims, add result arrays if not already present."""
+        if "births" not in self.results.__dict__:
+            self.results.add_array_property("births", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        if "deaths" not in self.results.__dict__:
+            self.results.add_array_property("deaths", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
 
     def step(self):
         t = self.sim.t
@@ -959,52 +1090,61 @@ class VitalDynamics_ABM:
             return
 
         # 1) Vectorized mask of all alive people
-        alive = self.people.disease_state >= 0
+        #alive = self.people.disease_state >= 0
 
-        # 2) Count how many alive in each node in one pass
-        node_ids_alive = self.people.node_id[alive]
-        alive_count_by_node = np.bincount(node_ids_alive, minlength=len(self.nodes))
+        # 1) Get vital statistics - alive and newly deceased
+        num_nodes = len(self.nodes)
+        tl_alive = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+        tl_dying = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+        alive_count_by_node = np.zeros(num_nodes, dtype=np.int32)
+        deaths_count_by_node = np.zeros(num_nodes, dtype=np.int32)
+        get_vital_statistics(
+            num_nodes,
+            self.people.count,
+            self.people.disease_state,
+            self.people.node_id,
+            self.people.date_of_death,
+            t,
+            tl_alive,
+            tl_dying,
+            alive_count_by_node,
+            deaths_count_by_node,
+        )
 
-        # 3) Compute births node by node, but without big boolean masks
-        for node in self.nodes:
-            expected_births = self.step_size * self.birth_rate * alive_count_by_node[node]
+        # 2) Compute births node by node, but without big boolean masks
+        expected_births = self.step_size * self.birth_rate * alive_count_by_node # [node]
 
-            # Integer part plus probabilistic fractional part
-            birth_integer = int(expected_births)
-            birth_fraction = expected_births - birth_integer
-            birth_rand = np.random.binomial(1, birth_fraction)  # Bernoulli draw
-            births = birth_integer + birth_rand
+        # Integer part plus probabilistic fractional part
+        expected_births = self.step_size * self.birth_rate * alive_count_by_node
+        birth_integer = expected_births.astype(np.int32)
+        birth_fraction = expected_births - birth_integer
+        birth_rand = np.random.binomial(1, birth_fraction)  # Bernoulli draw
+        births = birth_integer + birth_rand
 
-            # If births occur, add them to the population
-            if births > 0:
-                start, end = self.people.add(births)
+        # If births occur, add them to the population
+        if (total_births := births.sum()) > 0:
+            start, end = self.people.add(total_births)
 
-                newborn_ages = np.zeros(births, dtype=np.int32)
-                lifespans = self.death_estimator.predict_age_at_death(newborn_ages, max_year=100)
+            dobs = self.people.date_of_birth[start:end]
+            dods = self.people.date_of_death[start:end]
 
-                self.people.date_of_birth[start:end] = t
-                self.people.disease_state[start:end] = 0
-                self.people.date_of_death[start:end] = lifespans + t
-                self.people.node_id[start:end] = node
-                if any(isinstance(component, RI_ABM) for component in self.sim.components):
-                    self.people.ri_timer[start:end] = 182
+            dobs[:] = 0  # temporarily
+            dods[:] = self.sim.death_estimator.predict_age_at_death(dobs, max_year=100)
+            dobs[:] = t  # now set to current time
+            self.people.disease_state[start:end] = 0
+            dods[:] += t  # offset by current time
+            # assign node IDs to newborns
+            self.people.node_id[start:end] = np.repeat(np.arange(num_nodes), births)
+            if any(isinstance(component, RI_ABM) for component in self.sim.components):
+                self.people.ri_timer[start:end] = 182
 
-                self.results.births[t, node] = births
+            self.results.births[t] = births
 
-        # 4) Now handle deaths, again in a vectorized way
-        #    People die if they're alive and their date_of_death <= t
-        dying = alive & (self.people.date_of_death <= t)
+        # 3) Store the death counts
+        # Actual "death" handled in get_vital_statistics() as we count newly deceased
+        self.results.deaths[t] = deaths_count_by_node
 
-        # Count how many are dying in each node
-        node_ids_dying = self.people.node_id[dying]
-        deaths_count_by_node = np.bincount(node_ids_dying, minlength=len(self.nodes))
-
-        # Mark them dead
-        self.people.disease_state[dying] = -1
-
-        # 5) Store the death counts
-        for node in self.nodes:
-            self.results.deaths[t, node] = deaths_count_by_node[node]
+        return
 
     def log(self, t):
         pass
@@ -1125,24 +1265,49 @@ def fast_ri(
         for j in range(num_nodes):
             results_ri_vaccinated[sim_t, j] += local_vaccinated[thread_id, j]
 
-
 class RI_ABM:
     def __init__(self, sim):
         self.sim = sim
-        self.step_size = sim.pars.step_size_RI_ABM  # Number of days between RI steps
+        self.step_size = sim.pars.step_size_RI_ABM
         self.people = sim.people
         self.nodes = sim.nodes
         self.pars = sim.pars
+        self.results = sim.results
 
-        # Calc date of RI (assume single point in time between 1st and 3rd dose)
+        # Only initialize people-based values if not loading from file
+        self._initialize_people_fields()
+        self._initialize_common()
+
+    @classmethod
+    def init_from_file(cls, sim):
+        """Alternative constructor when loading people from disk."""
+        instance = cls.__new__(cls)
+        instance.sim = sim
+        instance.step_size = sim.pars.step_size_RI_ABM
+        instance.people = sim.people  # Already loaded from disk
+        instance.nodes = sim.nodes
+        instance.pars = sim.pars
+        instance.results = sim.results
+
+        # Skip setting `ri_timer`, just initialize shared parts
+        instance._initialize_common()
+        return instance
+
+    def _initialize_people_fields(self):
+        """Set RI timers and other properties from scratch."""
         self.people.add_scalar_property("ri_timer", dtype=np.int32, default=-1)
         dob = self.people.date_of_birth
-        days_from_birth_to_ri = np.random.uniform(42, 98, len(self.people.ri_timer))  # Assume 6-14 weeks of age for vx
+        days_from_birth_to_ri = np.random.uniform(42, 98, len(self.people.ri_timer))
         self.people.ri_timer = dob + days_from_birth_to_ri
-        sim.results.add_array_property(
-            "ri_vaccinated", shape=(sim.nt, len(sim.nodes)), dtype=np.int32
-        )  # Track number of people vaccinated & protected by RI
-        self.results = sim.results
+
+    def _initialize_common(self):
+        """Initialize common result arrays."""
+        self.sim.results.add_array_property(
+            "ri_vaccinated",
+            shape=(self.sim.nt, len(self.sim.nodes)),
+            dtype=np.int32,
+        )
+        self.results = self.sim.results
 
     def step(self):
         if self.pars["vx_prob_ri"] is None:
@@ -1261,31 +1426,31 @@ def fast_sia(
 
 class SIA_ABM:
     def __init__(self, sim):
-        """
-        Supplemental Immunization Activity (SIA) component.
+        self._common_init(sim)
+        self._initialize_results()
+        self._load_schedule()
 
-        Args:
-            sim: The simulation instance.
-            sia_schedule: List of vaccination events, each a dict with:
-                - 'date': The timestep when the SIA occurs
-                - 'nodes': List of nodes to target
-                - 'age_range': Tuple (min_age, max_age) in days
-                - 'coverage': Vaccine coverage rate (0 to 1)
-                - 'vaccinetype': The vaccine type which is used to determine efficacy
-        """
+    @classmethod
+    def init_from_file(cls, sim):
+        self = cls.__new__(cls)
+        self._common_init(sim)
+        self._initialize_results()
+        self._load_schedule()
+        return self
+
+    def _common_init(self, sim):
         self.sim = sim
         self.people = sim.people
         self.nodes = sim.nodes
         self.pars = sim.pars
         self.results = sim.results
 
-        # Add result tracking for SIA
-        self.results.add_array_property("sia_vaccinated", shape=(sim.nt, len(sim.nodes)), dtype=np.int32)
-        self.results.add_array_property("sia_protected", shape=(sim.nt, len(sim.nodes)), dtype=np.int32)
+    def _initialize_results(self):
+        self.results.add_array_property("sia_vaccinated", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.add_array_property("sia_protected", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
 
-        # Store vaccination schedule
-        self.sia_schedule = sim.pars["sia_schedule"] if sim.pars["sia_schedule"] else []
-        # Convert all 'date' values in self.sia_schedule to datetime.date
+    def _load_schedule(self):
+        self.sia_schedule = self.pars["sia_schedule"] if "sia_schedule" in self.pars else []
         for event in self.sia_schedule:
             event["date"] = lp.date(event["date"])
 

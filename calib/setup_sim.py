@@ -107,8 +107,23 @@ def setup_sim(config=None, **kwargs):
         pars += optuna_params
 
     # Run sim
-    sim = lp.SEIR_ABM(pars)
-    sim.components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM, lp.RI_ABM, lp.SIA_ABM]
+    def from_file():
+        sim = lp.SEIR_ABM.init_from_file("nigeria_init_pop.h5", pars) 
+        disease_state = lp.DiseaseState_ABM.init_from_file( sim )
+        vd = lp.VitalDynamics_ABM.init_from_file( sim )
+        sia = lp. SIA_ABM.init_from_file( sim )
+        ri = lp.RI_ABM.init_from_file( sim )
+        tx = lp.Transmission_ABM.init_from_file( sim )
+        sim._components = [type(vd), type(disease_state), type(tx), type(ri), type(sia)]
+        sim.instances = [vd, disease_state, tx, ri, sia]
+        return sim
+    def regular():
+        sim = lp.SEIR_ABM(pars)
+        sim.components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM, lp.RI_ABM, lp.SIA_ABM]
+        sim.people.save( "nigeria_init_pop.h5" )
+        return sim
+    sim = from_file()
+    #sim = regular()
 
     # Run simulation
     print("[INFO] Running simulation...")
