@@ -857,13 +857,13 @@ class Transmission_ABM:
                     f"Node {node}: S={num_susceptibles}, I={num_infecteds}, Alive={num_alive}, frac_I={num_infecteds / num_alive:.2f}, frac_S={num_susceptibles / num_alive:.2f}, "
                 )
                 logger.info(
-                    f"Exp infections manual (lambda = R0 / inf_period * I / N * scalars; new I = S * (1-exp(-lambda)))={exp_infections_manual:.2f}, "  # Obs infectivity={obs_infectivity:.2f}, Exp infectivity={exp_infectivity:.2f},
+                    f"Exp infections (back of the envelope) (lambda = R0 / inf_period * I / N * scalars; new I = S * (1-exp(-lambda)))={exp_infections_manual:.2f}, "  # Obs infectivity={obs_infectivity:.2f}, Exp infectivity={exp_infectivity:.2f},
                 )
                 logger.info(
                     f"r0={self.sim.pars.r0}, beta_seasonality={beta_seasonality:.4f}, r0_scalar={r0_scalar:.4f}, beta={beta:.4f}, "
                     f"base_prob_infection={base_prob_infection:.4f}, mean_risk={mean_risk:.4f}, "
                 )
-                logger.info(f"Exp infections using individual infectivity ={exp_infections_using_infectivity:.2f}, ")
+                logger.info(f"Exp infections (using individual infectivity) ={exp_infections_using_infectivity:.2f}, ")
 
         # 1) Sum up the total amount of infectivity shed by all infectious agents within a node.
         # This is the daily number of infections that these individuals would be expected to generate

@@ -62,7 +62,7 @@ default_pars = PropertySet(
         # Actual data
         "actual_data": None,  # Actual dataset
         # Verbosity
-        "verbose": 1,  # 0 = silent, 1 = info, 2 = debug
+        "verbose": 1,  # 0 = silent, 1 = info, 2 = debug, 3 = validate with special logging features
     }
 )
 

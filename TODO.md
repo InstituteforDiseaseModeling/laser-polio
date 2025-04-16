@@ -1,6 +1,10 @@
 # Priorities
 
 DEBUGGING
+- Move individual risk into exp calcs???
+- Check with Kurt on model logic
+- Manually set all risk and infectivity to 1, then repeat calcs
+- Manually set <15 immunity to 0 then see if it spreads
 - Plot all data inputs for visual checks
 - Check transmission function calculations. Why do we need R0 so high!?
 - Check transmission probability with real data. Why do we need R0 so high!?
@@ -9,6 +13,7 @@ DEBUGGING
 - Test full models with real data
 
 CALIBRATION
+- Use static image renderers for plotly for optuna figs: https://plotly.com/python/renderers/#:~:text=similar%20for%20Nteract.-,Static%20Image%20Renderers,-A%20set%20of
 - Try comparing observed paralysis counts to infections / 2000
 - Use more pars for Nigeria
 - Likelihood fn???
