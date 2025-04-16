@@ -56,12 +56,27 @@ The contents of the other folders is as follows:
 For details on data source & and curation steps, see data/curation_scripts/README.md
 
 
+## Comparison to EMOD model
+The model uses the same data and setup as the EMOD model, except in the following instances:
+- The model assumes everyone >15y is immune
+- The total population counts are being estimated by scaling up u5 population counts based on their proportion of the population
+- I'm using a sinusoidal seasonality function rather than a step function
+- The nodes are not divided below the adm2 level (with no plans to do so)
+- There is no scaling of transmission between N & S Nigeria (other than underweight fraction)
+- We do not update the cbr, ri, sia, or underwt data over time
+- Vaccines are not allowed to transmit
+
+
 ## Order of operations and time
 The sim records initial conditions on day 0. As such, sim.results objects will be 1 longer than the specified simulation duration (sim.par.dur). On day 0, the results are logged and the clock is advanced without running any components (e.g., step() not run).
 
 It is strongly suggested (read REQUIRED) that the order for running components is: VitalDynamics_ABM, DiseaseState_ABM, RI_ABM, SIA_ABM, Transmission_ABM. Deviating from it will likely cause inaccurate model results. This design was chosen to match the order of operations in Starsim.
 
 In the DiseaseState_ABM component, individuals will progress through different disease states (SEIR) by checking their timers (e.g., exposure_timer, infection_timer). If those timers are zero at the beginning of a timestep (e.g., when running step() for DiseaseState_ABM), individuals will progress to the next state. Since transmission is the last component to run, the timers for newly exposed individuals are not decremented that day. To address this, we subtract one from dur_exp during initialization. In step_nb() in DiseaseState_ABM, exposed individuals must be updated and their timers decremented prior to updating infected individuals. Deviating from that order of operations will prevent the timers for newly infected individuals from being decremented and they'll receive and extra day of infectivity.
+
+## Design principles for performance
+- **Avoid two stage query and apply** - Rather than doing a query (e.g., alive = disease_state > 0) and subsequently cycling through that (e.g., for i in alive), query and act directly (e.g., for disease_state[i] >= 0)
+- **Use numba for big operations**
 
 ## Tests
 Tests can be run with `python -m pytest tests/`

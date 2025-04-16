@@ -9,6 +9,8 @@ __all__ = ["default_pars", "default_run_order"]
 
 default_pars = PropertySet(
     {
+        # Random seed
+        "seed": None,
         # Time
         "start_date": datetime.date(2019, 1, 1),  # Start date of the simulation
         "dur": 30,  # Number of timesteps
@@ -34,7 +36,7 @@ default_pars = PropertySet(
         "gravity_a": 1,  # Origin population exponent
         "gravity_b": 1,  # Destination population exponent
         "gravity_c": 2.0,  # Distance exponent
-        "max_migr_frac": 0.01,  # Fraction of population that migrates
+        "max_migr_frac": 0.1,  # Fraction of population that migrates
         "node_lookup": None,  # Node info (node_id are keys, dict contains dot_name, lat, lon)
         # Interventions
         "vx_prob_ri": None,  # Should include coverage and efficacy from expected number of RI doses
@@ -59,6 +61,8 @@ default_pars = PropertySet(
         "step_size_Transmission_ABM": 1,
         # Actual data
         "actual_data": None,  # Actual dataset
+        # Verbosity
+        "verbose": 1,  # 0 = silent, 1 = info, 2 = debug
     }
 )
 

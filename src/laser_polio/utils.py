@@ -132,7 +132,7 @@ def daterange(start_date, days):
     return date_range
 
 
-def find_matching_dot_names(patterns, ref_file):
+def find_matching_dot_names(patterns, ref_file, verbose=2):
     """
     Finds and returns dot_names from a CSV file that contain the input string patterns.
     For example, if the input string is 'ZAMFARA', the function will return all dot_names
@@ -167,9 +167,10 @@ def find_matching_dot_names(patterns, ref_file):
     adm2 = set(matched_dot_names)
 
     # Print summary
-    print(
-        f"The input pattern(s) {patterns} matched dot_names for {len(regions)} region(s), {len(adm0)} admin0, {len(adm1)} admin1, {len(adm2)} admin2 "
-    )
+    if verbose >= 2:
+        print(
+            f"The input pattern(s) {patterns} matched dot_names for {len(regions)} region(s), {len(adm0)} admin0, {len(adm1)} admin1, {len(adm2)} admin2 "
+        )
 
     return matched_dot_names
 
@@ -215,7 +216,8 @@ def get_node_lookup(node_lookup_path, dot_names):
     :return: A dictionary with integer node_ids as keys and filtered node_lookup values.
     """
     # Load the full node_lookup dictionary
-    full_node_lookup = json.load(open(node_lookup_path))
+    with open(node_lookup_path) as stream:
+        full_node_lookup = json.load(stream)
 
     # Filter by dot_names
     node_lookup = {key: full_node_lookup[key] for key in dot_names}

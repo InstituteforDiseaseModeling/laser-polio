@@ -1,23 +1,22 @@
 # Priorities
 
-Fix the shape mismatch in calibration arrays due to wrapping into next year
+DEBUGGING
+- Check transmission function calculations. Why do we need R0 so high!?
+- Check transmission probability with real data. Why do we need R0 so high!?
+- Plot expected births?
+- Update the birth and death plot to summarize by country.
+- Test full models with real data
 
 CALIBRATION
+- Fix the shape mismatch in calibration arrays due to wrapping into next year
+- Try comparing observed paralysis counts to infections / 2000
 - Use more pars for Nigeria
-- Look for some values of k that get cases to move
 - Likelihood fn???
 - Targets:
     - Stretch: age distribution
 - Levers:
     - Stretch: R0 scalar for N Nigeria
     - Stretch: risk_mult_var or corr_risk_inf
-
-DEBUGGING
-- Scan over k & how it impacts transmission. Try different seasonal terms too.
-- Plot expected births?
-- Update the birth and death plot to summarize by country.
-- Check transmission probability with real data. Why do we need R0 so high!?
-- Test full models with real data
 
 CLEANUP
 - Change terminology from SIA efficacy to SIA coverage spatial heterogeneity
@@ -39,7 +38,7 @@ NEW FEATURES
 
 
 # Refinement
-- Move setup_sim.py into src/laser_polio, rework demo_nigeria & demo_zamfara, use setup_sim for testing. Maybe with option to return pars before setup?
+- Use run_sim for testing.
 - Is there a way to only load data & initialize sims once during calibration? How much speedup could we get?
 - John G recommends Finite Radiation model as default assumption
 - Work with John G to put bounds on gravity model pars??

@@ -15,20 +15,18 @@ The model uses the same data and setup as the EMOD model, except in the followin
 - The nodes are not divided below the adm2 level (with no plans to do so)
 - There is no scaling of transmission between N & S Nigeria (other than underweight fraction)
 - We do not update the cbr, ri, sia, or underwt data over time
-- Vaccines are not allowed to transmit
 """
 
 ###################################
 ######### USER PARAMETERS #########
 
-regions = ["ZAMFARA"]
+regions = ["NIGERIA"]
 start_year = 2019
 n_days = 365
 pop_scale = 1 / 100
-init_region = "ANKA"
-init_prev = 0.001
-r0 = 14
-results_path = "results/demo_zamfara"
+init_region = "PLATEAU"
+init_prev = 0.01
+results_path = "results/demo_nigeria"
 
 ######### END OF USER PARS ########
 ###################################
@@ -98,7 +96,6 @@ assert (
     == len(r0_scalars)
 )
 
-
 # Set parameters
 pars = PropertySet(
     {
@@ -108,11 +105,11 @@ pars = PropertySet(
         # Population
         "n_ppl": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
         "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
-        "cbr": cbr,  # Crude birth rate per 1000 per year
+        "cbr": cbr,  # np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year
         # Disease
         "init_immun": init_immun,  # Initial immunity per node
         "init_prev": init_prevs,  # Initial prevalence per node (1% infected)
-        "r0": r0,  # Basic reproduction number
+        "r0": 14,  # Basic reproduction number
         "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
         "corr_risk_inf": 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
         "r0_scalars": r0_scalars,  # Spatial transmission scalar (multiplied by global rate)
@@ -132,7 +129,7 @@ pars = PropertySet(
         # Interventions
         "vx_prob_ri": ri,  # Probability of routine vaccination
         "sia_schedule": sia_schedule,  # Schedule of SIAs
-        "vx_prob_sia": sia_prob,  # Effectiveness of SIAs
+        "vx_prob_sia": sia_prob,  # SIA vaccination probability
     }
 )
 
@@ -145,8 +142,5 @@ sim.run()
 
 # Plot results
 sim.plot(save=True, results_path=results_path)
-
-# Turn this on (and plotting off) for calibration.
-lp.save_results_to_csv(sim, filename=results_path + "/simulation_results.csv")
 
 sc.printcyan("Done.")
