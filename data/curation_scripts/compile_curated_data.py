@@ -116,6 +116,29 @@ if len(extra_dot_names) > 0:
 # Check for duplicates
 check_duplicates(underwt, ["dot_name"])
 
+# Merge the underwt data into the shp2 dataset
+shp2_underwt = shp2.merge(underwt[["dot_name", "prop_underwt"]], on="dot_name", how="left")
+
+# Plot a map of the underwt data
+shp2_underwt = shp2_underwt.to_crs("EPSG:4326")
+
+# # Plot using prop_underwt as fill
+# fig, ax = plt.subplots(figsize=(10, 10))
+# shp2_underwt.plot(
+#     column="prop_underwt",  # <- column used for coloring
+#     cmap="viridis",  # <- color map (can also try "YlGnBu", "viridis", etc.)
+#     legend=True,  # <- show colorbar
+#     edgecolor=None,  # <- outline of shapes
+#     ax=ax,
+# )
+
+# # Optional: Add title and remove axes
+# ax.set_title("Proportion Underweight by Region", fontsize=14)
+# ax.axis("off")
+
+# plt.tight_layout()
+# plt.show()
+
 
 ### Merge the datasets
 df = demog.copy()
@@ -141,12 +164,55 @@ df = df[
 print(df.head())
 print(f"Length of df: {len(df)}")
 
+# # Plot using prop_underwt as fill
+# # Merge the underwt data into the shp2 dataset
+# shp2_underwt = shp2.merge(df[df["year"] == 2018][["dot_name", "prop_underwt"]], on="dot_name", how="left")
+# fig, ax = plt.subplots(figsize=(10, 10))
+# shp2_underwt.plot(
+#     column="prop_underwt",  # <- column used for coloring
+#     cmap="viridis",  # <- color map (can also try "YlGnBu", "viridis", etc.)
+#     legend=True,  # <- show colorbar
+#     edgecolor=None,  # <- outline of shapes
+#     ax=ax,
+# )
+# # Optional: Add title and remove axes
+# ax.set_title("Proportion Underweight by Region", fontsize=14)
+# ax.axis("off")
+# plt.tight_layout()
+# plt.show()
+
 
 # Fill in missing values with the ri data cuz it's only for the latest year
 df.loc[:, "immunity_ri_nOPV2"] = df.groupby(["adm0_name", "adm1_name", "adm2_name"])["immunity_ri_nOPV2"].transform(
     lambda x: x.fillna(x.mean())
 )
-df.loc[:, "prop_underwt"] = df.groupby(["adm0_name", "adm1_name"])["immunity_ri_nOPV2"].transform(lambda x: x.fillna(x.mean()))
+df.loc[:, "prop_underwt"] = df.groupby(["adm0_name", "adm1_name"])["prop_underwt"].transform(
+    lambda x: x.fillna(x.mean())
+)  # Fill in with province means
+df.loc[:, "prop_underwt"] = df.groupby(
+    [
+        "adm0_name",
+    ]
+)["prop_underwt"].transform(lambda x: x.fillna(x.mean()))  # Fill in with country means
+
+
+# # Plot using prop_underwt as fill
+# import matplotlib.pyplot as plt
+# # Merge the underwt data into the shp2 dataset
+# shp2_underwt = shp2.merge(df[df["year"] == 2018][["dot_name", "prop_underwt"]], on="dot_name", how="left")
+# fig, ax = plt.subplots(figsize=(10, 10))
+# shp2_underwt.plot(
+#     column="prop_underwt",  # <- column used for coloring
+#     cmap="viridis",  # <- color map (can also try "YlGnBu", "viridis", etc.)
+#     legend=True,  # <- show colorbar
+#     edgecolor=None,  # <- outline of shapes
+#     ax=ax,
+# )
+# # Optional: Add title and remove axes
+# ax.set_title("Proportion Underweight by Region", fontsize=14)
+# ax.axis("off")
+# plt.tight_layout()
+# plt.show()
 
 
 ### Validate the merged dataset
@@ -160,15 +226,16 @@ n_years_df = len(df["year"].unique())
 n_years_demog = len(demog["year"].unique())
 assert len(df) == n_adm2 * n_years_demog, "The merged dataset does not have values for each dot_name and year."
 
+# Find which columns have NAs
+na_columns = df.columns[df.isna().any()].tolist()
+print("Columns with NAs:", na_columns)
 
 ### Tidy up
 df = df.copy()  # Create a copy of the DataFrame
 df.rename(columns={"immunity_ri_nOPV2": "ri_eff"}, inplace=True)
 df.head()
 
-
 ### Save the full curated dataframe
 df.to_csv("data/compiled_cbr_pop_ri_sia_underwt_africa.csv", index=False)
-
 
 print("Done.")

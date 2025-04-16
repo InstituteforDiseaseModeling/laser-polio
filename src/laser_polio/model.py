@@ -1,3 +1,4 @@
+import logging
 import time
 from collections import defaultdict
 from copy import deepcopy
@@ -27,6 +28,16 @@ import laser_polio as lp
 __all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "Transmission_ABM", "VitalDynamics_ABM"]
 
 
+# Configure the logger once
+logging.basicConfig(
+    filename="simulation_log.txt",  # or use .log or .csv depending on how you want to consume it
+    level=logging.INFO,
+    format="%(asctime)s [T=%(message)s]",
+    filemode="w",  # Overwrite each time you run; use "a" to append
+)
+logger = logging.getLogger(__name__)
+
+
 # SEIR Model
 class SEIR_ABM:
     """
@@ -35,7 +46,7 @@ class SEIR_ABM:
     Disease state codes: 0=S, 1=E, 2=I, 3=R
     """
 
-    def __init__(self, pars: PropertySet = None, verbose=0.1):
+    def __init__(self, pars: PropertySet = None, verbose=1):
         start_time = time.perf_counter()
         sc.printcyan("Initializing simulation...")
         self.component_times = defaultdict(float)  # Initialize component times
@@ -45,9 +56,10 @@ class SEIR_ABM:
         if pars is not None:
             self.pars += pars  # override default values
         pars = self.pars
-        self.verbose = verbose
+        self.verbose = pars["verbose"] if "verbose" in pars else 1
 
-        if "seed" not in pars:
+        # Set the random seed
+        if pars.seed is None:
             now = datetime.now()  # noqa: DTZ005
             pars.seed = now.microsecond ^ int(now.timestamp())
             sc.printred(f"No seed provided. Using random seed of {pars.seed}.")
@@ -61,6 +73,8 @@ class SEIR_ABM:
         self.datevec = lp.daterange(self.pars["start_date"], days=self.nt)  # Time represented as an array of datetime objects
 
         # Initialize the population
+        if self.verbose >= 1:
+            sc.printcyan("Initializing simulation...")
         pars.n_ppl = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
         if (pars.cbr is not None) & (len(pars.cbr) == 1):
             capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, pars.cbr[0]))
@@ -133,7 +147,6 @@ class SEIR_ABM:
 
         # Store and instantiate
         self._components = ordered_subset
-
         self.instances = []
         for cls in ordered_subset:
             start_time = time.perf_counter()
@@ -141,11 +154,12 @@ class SEIR_ABM:
             end_time = time.perf_counter()
             self.component_times[cls.__name__ + ".__init__()"] += end_time - start_time
 
-        print(f"Initialized components: {self.instances}")
+        if self.verbose >= 2:
+            print(f"Initialized components: {self.instances}")
 
     def run(self):
         sc.printcyan("Initialization complete. Running simulation...")
-        with alive_bar(self.nt, title="Simulation progress:") as bar:
+        with alive_bar(self.nt, title="Simulation progress:", disable=self.verbose < 1) as bar:
             for tick in range(self.nt):
                 if tick == 0:
                     # Just record the initial state on t=0 & don't run any components
@@ -161,7 +175,8 @@ class SEIR_ABM:
                     self.log_results(tick)
                     self.t += 1
                 bar()  # Update the progress bar
-        sc.printcyan("Simulation complete.")
+        if self.verbose >= 1:
+            sc.printcyan("Simulation complete.")
 
     def log_results(self, t):
         for component in self.instances:
@@ -178,13 +193,14 @@ class SEIR_ABM:
             else:
                 results_path = Path(results_path)  # Ensure results_path is a Path object
                 results_path.mkdir(parents=True, exist_ok=True)
-            sc.printcyan("Saving plots in " + str(results_path))
+            if self.verbose >= 1:
+                sc.printcyan("Saving plots in " + str(results_path))
         for component in self.instances:
             component.plot(save=save, results_path=results_path)
         self.plot_node_pop(save=save, results_path=results_path)
 
         if self.component_times:
-            if self.verbose > 0.1:
+            if self.verbose >= 2:
                 print(f"{self.instances=}")
             plt.figure(figsize=(12, 12))
             plt.pie(
@@ -241,6 +257,7 @@ class DiseaseState_ABM:
         self.pars = sim.pars
         self.nodes = sim.nodes
         self.results = sim.results
+        self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Setup the SEIR components
         pars = self.pars
@@ -259,7 +276,8 @@ class DiseaseState_ABM:
         sim.results.add_array_property("paralyzed", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
 
         def do_init_imm():
-            print(f"Before immune initialization, we have {sim.people.count} active agents.")
+            if self.verbose >= 2:
+                print(f"Before immune initialization, we have {sim.people.count} active agents.")
             # Initialize immunity
             if isinstance(pars.init_immun, (float, list)):  # Handle both float and list cases
                 init_immun_value = pars.init_immun[0] if isinstance(pars.init_immun, list) else pars.init_immun
@@ -411,7 +429,8 @@ class DiseaseState_ABM:
                 deletions = active_count - new_active_count
                 sim.people.true_capacity -= deletions
 
-                print(f"After immune initialization and EULA-gizing, we have {sim.people.count} active agents.")
+                if self.verbose >= 2:
+                    print(f"After immune initialization and EULA-gizing, we have {sim.people.count} active agents.")
                 # viz()
 
         do_init_imm()
@@ -428,7 +447,9 @@ class DiseaseState_ABM:
             infected_indices = []
             node_ids = self.people.node_id[: self.people.count]
             disease_states = self.people.disease_state[: self.people.count]
-            for node, prev in tqdm(enumerate(pars.init_prev), total=len(pars.init_prev), desc="Seeding infections in nodes"):
+            for node, prev in tqdm(
+                enumerate(pars.init_prev), total=len(pars.init_prev), desc="Seeding infections in nodes", disable=self.verbose < 2
+            ):
                 num_infected = int(pars.n_ppl[node] * prev)
                 alive_in_node = (node_ids == node) & (disease_states >= 0)
                 alive_in_node_indices = np.where(alive_in_node)[0]
@@ -589,6 +610,7 @@ def compute_infections_nb(disease_state, node_id, acq_risk_multiplier, beta_per_
         if disease_state[i] == 0:  # susceptible
             nd = node_id[i]
             # base probability from node-level infection rate
+            # TODO double check this logic & math from Kurt - should it be normalized???
             prob_infection = beta_per_node[nd] * acq_risk_multiplier[i]
             # Keep a sum of these probabilities
             tid = nb.get_thread_id()
@@ -720,6 +742,7 @@ class Transmission_ABM:
         self.nodes = np.arange(len(sim.pars.n_ppl))
         self.pars = sim.pars
         self.results = sim.results
+        self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Stash the R0 scaling factor
         self.r0_scalars = self.pars.r0_scalars
@@ -779,9 +802,68 @@ class Transmission_ABM:
         self.do_ni_time = 0
 
     def step(self):
-        def fast_beta():
-            beta_ind_sums = compute_beta_ind_sums(node_ids, infectivity, disease_state, len(self.nodes))
-            return beta_ind_sums
+        # Manual debugging of transmission
+        if self.verbose >= 3:
+            # print(f"{self.sim.t=}")
+            # Print the number of people in each disease state
+            ds = self.people.disease_state[: self.people.count]
+            node_id = self.people.node_id[: self.people.count]
+            daily_infectivity = self.people.daily_infectivity[: self.people.count]
+            risk = self.people.acq_risk_multiplier[: self.people.count]
+
+            # Log timestep
+            logger.info(f"TIMESTEP: {self.sim.t}")
+
+            # # Let's check the average infectivity for everyone
+            # obs_mean_infectivity = np.mean(daily_infectivity)
+            # exp_mean_infectivity = 14 / 24
+            # logger.info(f"{self.sim.t} Observed mean infectivity: {obs_mean_infectivity:.4f}, Expected: {exp_mean_infectivity:.4f}")
+
+            # Go node by node
+            infecteds = np.where(ds == 2)
+            infected_nodes = np.unique(node_id[infecteds])
+            for node in infected_nodes:
+                # Number of infecteds
+                num_alive = np.sum((node_id == node) & (ds >= 0)) + self.sim.results.R[self.sim.t][node]
+                num_susceptibles = np.sum((node_id == node) & (ds == 0))
+                num_infecteds = np.sum((node_id == node) & (ds == 2))
+
+                # Check the expected & observed infectivity
+                exp_infectivity = num_infecteds * self.sim.pars.r0 / 24
+                obs_infectivity = node_beta_sum = np.sum(daily_infectivity[(node_id == node) & (ds == 2)])
+                exp_infs_simple = obs_infectivity * num_susceptibles / num_alive
+
+                # Calc beta for this node
+                beta_seasonality = lp.get_seasonality(self.sim)
+                r0_scalar = self.r0_scalars[node]
+                beta = node_beta_sum * beta_seasonality * r0_scalar
+
+                per_agent_infection_rate = beta / np.clip(num_alive, 1, None)
+                base_prob_infection = 1 - np.exp(-per_agent_infection_rate)
+                exp_infections_using_infectivity = base_prob_infection * num_susceptibles
+
+                mean_risk = np.mean(risk[(node_id == node) & (ds == 0)])
+
+                R0 = self.sim.pars.r0
+                infectious_period = 24
+                beta_manual = R0 / infectious_period
+                lambda_ = beta_manual * num_infecteds / num_alive * beta_seasonality * r0_scalar
+                p_infection = 1 - np.exp(-lambda_)
+                exp_infections_manual = p_infection * num_susceptibles
+
+                # Log detailed node-level stats
+                logger.info(
+                    f"MANUAL CALCS: "
+                    f"Node {node}: S={num_susceptibles}, I={num_infecteds}, Alive={num_alive}, frac_I={num_infecteds / num_alive:.2f}, frac_S={num_susceptibles / num_alive:.2f}, "
+                )
+                logger.info(
+                    f"Exp infections manual (lambda = R0 / inf_period * I / N * scalars; new I = S * (1-exp(-lambda)))={exp_infections_manual:.2f}, "  # Obs infectivity={obs_infectivity:.2f}, Exp infectivity={exp_infectivity:.2f},
+                )
+                logger.info(
+                    f"r0={self.sim.pars.r0}, beta_seasonality={beta_seasonality:.4f}, r0_scalar={r0_scalar:.4f}, beta={beta:.4f}, "
+                    f"base_prob_infection={base_prob_infection:.4f}, mean_risk={mean_risk:.4f}, "
+                )
+                logger.info(f"Exp infections using individual infectivity ={exp_infections_using_infectivity:.2f}, ")
 
         # 1) Sum up the total amount of infectivity shed by all infectious agents within a node.
         # This is the daily number of infections that these individuals would be expected to generate
@@ -791,7 +873,7 @@ class Transmission_ABM:
         node_ids = self.people.node_id[: self.people.count]
         infectivity = self.people.daily_infectivity[: self.people.count]
         risk = self.people.acq_risk_multiplier[: self.people.count]
-        node_beta_sums = fast_beta()
+        node_beta_sums = compute_beta_ind_sums(node_ids, infectivity, disease_state, len(self.nodes))
 
         # 2) Spatially redistribute infectivity among nodes
         transfer = (node_beta_sums * self.network).astype(np.float64)  # Don't round here, we'll handle fractional infections later
@@ -814,6 +896,33 @@ class Transmission_ABM:
 
         # 6) Draw n_expected_exposures for each node according to their exposure_probs
         fast_infect(node_ids, risk, disease_state, new_infections)
+
+        if self.verbose >= 3:
+            # Log the number of people in each disease state
+            def fmt(arr, precision=2):
+                """Format NumPy arrays as single-line strings with no wrapping."""
+                return np.array2string(
+                    np.asarray(arr),  # Ensures even scalars/lists work
+                    separator=" ",
+                    threshold=np.inf,
+                    max_line_width=np.inf,
+                    precision=precision,
+                )
+
+            logger.info("NORMAL CALCS: ")
+            logger.info(f"Node beta sums: {fmt(node_beta_sums)}")
+            logger.info(f"Beta seasonality: {fmt(beta_seasonality)}")
+            logger.info(f"R0 scalars: {fmt(self.r0_scalars)}")
+            logger.info(f"Beta sums: {fmt(node_beta_sums)}")
+            logger.info(f"Beta: {fmt(beta)}")
+            logger.info(f"Per agent infection rate: {fmt(per_agent_infection_rate)}")
+            logger.info(f"Base prob infection: {fmt(base_prob_infection)}")
+            logger.info(f"Exposure sums: {fmt(exposure_sums)}")
+            logger.info(f"New infections: {fmt(new_infections)}")
+            total_expected = np.sum(exposure_sums)
+            total_realized = np.sum(new_infections)
+            logger.info(f"Expected infections: {total_expected:.2f}, Realized infections: {total_realized}")
+            logger.info("")
 
     def log(self, t):
         # Get the counts for each node in one pass
@@ -851,6 +960,7 @@ class VitalDynamics_ABM:
         self.nodes = sim.nodes
         self.results = sim.results
         self.step_size = sim.pars.step_size_VitalDynamics_ABM  # Number of days between vital dynamics steps
+        self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Setup the age and vital rate components
         pars = sim.pars
@@ -1060,8 +1170,9 @@ def fast_ri(
 
         prob_vx = vx_prob_ri[node]
 
-        # print(f"Agent {i} in disease state {disease_state[i]}")
-        # print("prob_vx=", prob_vx, "prob_take=", prob_take)
+        # if self.verbose >= 2:
+        #     print(f"Agent {i} in disease state {disease_state[i]}")
+        #     print("prob_vx=", prob_vx)
 
         ri_timer[i] -= step_size
         eligible = False
@@ -1091,6 +1202,8 @@ class RI_ABM:
         self.people = sim.people
         self.nodes = sim.nodes
         self.pars = sim.pars
+        self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
+
         # Calc date of RI (assume single point in time between 1st and 3rd dose)
         self.people.add_scalar_property("ri_timer", dtype=np.int32, default=-1)
         dob = self.people.date_of_birth
@@ -1235,6 +1348,7 @@ class SIA_ABM:
         self.nodes = sim.nodes
         self.pars = sim.pars
         self.results = sim.results
+        self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Add result tracking for SIA
         self.results.add_array_property("sia_vaccinated", shape=(sim.nt, len(sim.nodes)), dtype=np.int32)

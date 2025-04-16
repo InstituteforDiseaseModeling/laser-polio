@@ -56,6 +56,17 @@ The contents of the other folders is as follows:
 For details on data source & and curation steps, see data/curation_scripts/README.md
 
 
+## Comparison to EMOD model
+The model uses the same data and setup as the EMOD model, except in the following instances:
+- The model assumes everyone >15y is immune
+- The total population counts are being estimated by scaling up u5 population counts based on their proportion of the population
+- I'm using a sinusoidal seasonality function rather than a step function
+- The nodes are not divided below the adm2 level (with no plans to do so)
+- There is no scaling of transmission between N & S Nigeria (other than underweight fraction)
+- We do not update the cbr, ri, sia, or underwt data over time
+- Vaccines are not allowed to transmit
+
+
 ## Order of operations and time
 The sim records initial conditions on day 0. As such, sim.results objects will be 1 longer than the specified simulation duration (sim.par.dur). On day 0, the results are logged and the clock is advanced without running any components (e.g., step() not run).
 
