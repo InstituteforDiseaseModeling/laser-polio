@@ -5,7 +5,7 @@ metadata:
   name: laser-polio-worker
 spec:
   ttlSecondsAfterFinished: 120
-  parallelism: 2
+  parallelism: 4
   template:
     spec:
       restartPolicy: OnFailure
@@ -42,12 +42,12 @@ spec:
                 name: mysql-secrets
           resources:
             requests:
-              cpu: "4"
+              cpu: "6"
             limits:
-              cpu: "4"
+              cpu: "8"
           env:
           - name: NUMBA_NUM_THREADS
-            value: "4"
+            value: "8"
       imagePullSecrets:
         - name: idmodregcred3
       nodeSelector:
