@@ -1,4 +1,5 @@
 import subprocess
+import os
 
 import yaml
 from kubernetes import client
@@ -49,7 +50,7 @@ get_laser_polio_deps()
 
 # Replace string variables in the manifest
 env_vars = {
-    "STUDY_NAME": "my_study",
+    "STUDY_NAME": os.getenv( "STUDY_NAME" ),
     "STORAGE_URL": "mysql+pymysql://optuna:superSecretPassword@optuna-mysql:3306/optunaDatabase",
 }
 

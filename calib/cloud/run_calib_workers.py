@@ -1,3 +1,5 @@
+import os
+
 import yaml
 from kubernetes import client
 from kubernetes import config
@@ -15,7 +17,7 @@ with open(yaml_file) as f:
     manifest = yaml.safe_load(f)
 
 env_vars = {
-    "STUDY_NAME": "laser_polio_calib_fixed",
+    "STUDY_NAME": os.getenv( "STUDY_NAME" ), # "laser_polio_calib_fixed",
     "NUM_TRIALS": "50",
     "STORAGE_URL": "mysql+pymysql://optuna:superSecretPassword@optuna-mysql:3306/optunaDatabase",
 }

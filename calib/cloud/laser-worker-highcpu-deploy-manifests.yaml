@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: worker
+  name: laser-polio-worker
 spec:
   ttlSecondsAfterFinished: 120
   parallelism: 2
@@ -26,13 +26,13 @@ spec:
             - secretRef:
                 name: mysql-secrets
       containers:
-        - name: worker
+        - name: laser-polio-worker
           # image: idm-docker-staging.packages.idmod.org/laser/laser_calib:latest
           image: idm-docker-staging.packages.idmod.org/laser/laser-polio:latest
           imagePullPolicy: Always
           command:
             - python3
-            - worker.py
+            - calibrate.py
             - "--study-name"
             - "${STUDY_NAME}"
             - "--num-trials"
@@ -42,18 +42,13 @@ spec:
                 name: mysql-secrets
           resources:
             requests:
-              cpu: "3"
+              cpu: "4"
             limits:
-              cpu: "3"
+              cpu: "4"
           env:
           - name: NUMBA_NUM_THREADS
-            value: "3"
+            value: "4"
       imagePullSecrets:
         - name: idmodregcred3
-      tolerations:
-        - key: "nodepool"
-          operator: "Equal"
-          value: "highcpu"
-          effect: "NoSchedule"
       nodeSelector:
-        nodepool: highcpu
+        agentpool: general
