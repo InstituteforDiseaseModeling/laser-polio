@@ -1022,9 +1022,9 @@ class Transmission_ABM:
         exposure_probs = base_prob_infection[node_ids] * risk  # Try adding in node-level force & personal risk
         if self.verbose >= 3:
             disease_state_pre_infect = disease_state.copy()
-        # fast_infect(node_ids, exposure_probs, disease_state, new_infections)
+        fast_infect(node_ids, exposure_probs, disease_state, new_infections)
         # chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
-        chunk_infect_nb(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
+        # chunk_infect_nb(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
 
         if self.verbose >= 3:
 
