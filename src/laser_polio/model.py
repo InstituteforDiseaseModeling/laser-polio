@@ -714,37 +714,100 @@ def chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_
             continue
 
         # Step 1: Get susceptible individuals in this node
-        sus_mask = (node_ids == node) & (disease_state == 0)
-        sus_indices = np.where(sus_mask)[0]
+        susceptible = (node_ids == node) & (disease_state == 0)
+        sus_indices = np.where(susceptible)[0]
         if len(sus_indices) == 0:
             continue
 
-        total_to_draw = new_infections[node]
-        selected = []
+        total_to_draw = new_infections[node]  # Number of infections to assign
+        selected = []  ## List to store indices to infect
 
         # Step 2: Chunking loop
         for chunk_start in range(0, len(sus_indices), chunk_size):
-            chunk = sus_indices[chunk_start : chunk_start + chunk_size]
-            chunk_probs = exposure_probs[chunk]
+            chunk_sus_inds = sus_indices[chunk_start : chunk_start + chunk_size]  # Get the sus indices in the chunk
+            chunk_probs = exposure_probs[chunk_sus_inds]  # Get the exposure probabilities for sus in the chunk
 
-            prob_sum = np.sum(chunk_probs)
+            # Calc the number of infections to make in this chunk
+            prob_sum = np.sum(chunk_probs)  # Sum the exposure probabilities in the chunk
             if prob_sum == 0:
                 continue
-
-            weights = chunk_probs / prob_sum
-            k = min(total_to_draw - len(selected), len(chunk))
-
+            weights = chunk_probs / prob_sum  # Normalize the probabilities since np.random.choice expects p to sum to 1
+            k = min(total_to_draw - len(selected), len(chunk_sus_inds))  # Number of draws to make in this chunk
             if k <= 0:
                 break
 
-            draws = np.random.choice(chunk, size=k, replace=False, p=weights)
+            # Select individuals to infect
+            draws = np.random.choice(chunk_sus_inds, size=k, replace=False, p=weights)
             selected.extend(draws)
-
             if len(selected) >= total_to_draw:
                 break
 
         # Step 3: Infect selected individuals
         disease_state[selected] = 1
+
+
+import numba as nb
+
+
+@nb.njit(parallel=True)
+def chunk_infect_nb(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000):
+    num_nodes = new_infections.shape[0]
+    num_people = node_ids.shape[0]
+
+    for node in nb.prange(num_nodes):
+        n_draw = new_infections[node]
+        if n_draw <= 0:
+            continue
+
+        # 1. Collect susceptible indices for this node
+        count = 0
+        for i in range(num_people):
+            if node_ids[i] == node and disease_state[i] == 0:
+                count += 1
+
+        if count == 0:
+            continue
+
+        sus_indices = np.empty(count, dtype=np.int64)
+        sus_probs = np.empty(count, dtype=np.float32)
+
+        idx = 0
+        for i in range(num_people):
+            if node_ids[i] == node and disease_state[i] == 0:
+                sus_indices[idx] = i
+                sus_probs[idx] = exposure_probs[i]
+                idx += 1
+
+        selected = np.zeros(n_draw, dtype=np.int64)
+        sel_count = 0
+
+        # 2. Sample from chunks using rejection sampling
+        for chunk_start in range(0, count, chunk_size):
+            if sel_count >= n_draw:
+                break
+
+            end = min(chunk_start + chunk_size, count)
+            chunk = sus_indices[chunk_start:end]
+            chunk_probs = sus_probs[chunk_start:end]
+
+            prob_sum = np.sum(chunk_probs)
+            if prob_sum <= 0:
+                continue
+
+            # Normalize in place
+            norm_probs = chunk_probs / prob_sum
+
+            for i in range(chunk.shape[0]):
+                if sel_count >= n_draw:
+                    break
+                r = np.random.random()
+                if r < norm_probs[i]:
+                    selected[sel_count] = chunk[i]
+                    sel_count += 1
+
+        # 3. Mark selected individuals as infected
+        for i in range(sel_count):
+            disease_state[selected[i]] = 1
 
 
 @nb.njit((nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32), nogil=True, cache=True)
