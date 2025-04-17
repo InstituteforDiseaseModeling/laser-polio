@@ -7,12 +7,12 @@ import laser_polio as lp
 
 regions = ["ZAMFARA"]
 start_year = 2019
-n_days = 365
+n_days = 30
 pop_scale = 1 / 1
 init_region = "ANKA"
 init_prev = 0.01
-r0 = 14 * 3
-gravity_k = 1000.0
+r0 = 14
+gravity_k = 2000.0
 results_path = "results/demo_zamfara"
 
 ######### END OF USER PARS ########
