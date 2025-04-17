@@ -9,25 +9,8 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
-      initContainers:
-        - name: wait-for-study
-          # image: idm-docker-staging.packages.idmod.org/laser/laser_calib:latest
-          image: idm-docker-staging.packages.idmod.org/laser/laser-polio:latest
-          imagePullPolicy: Always
-          command:
-          - /bin/sh
-          - -c
-          - -e
-          - -x
-          - |
-            until [ `sh check_study.sh ${STUDY_NAME}` -eq 0 ];
-            do echo "waiting for study"; sleep 2; done;
-          envFrom:
-            - secretRef:
-                name: mysql-secrets
       containers:
         - name: laser-polio-worker
-          # image: idm-docker-staging.packages.idmod.org/laser/laser_calib:latest
           image: idm-docker-staging.packages.idmod.org/laser/laser-polio:latest
           imagePullPolicy: Always
           command:
