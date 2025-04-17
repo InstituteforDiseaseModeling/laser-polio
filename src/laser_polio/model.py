@@ -746,11 +746,21 @@ def chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_
         disease_state[selected] = 1
 
 
-import numba as nb
-
-
 @nb.njit(parallel=True)
 def chunk_infect_nb(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000):
+    """
+    Parallelized, chunked infection sampling using exposure probabilities.
+
+    Args:
+        node_ids (np.ndarray): Node ID per agent.
+        exposure_probs (np.ndarray): Per-agent unnormalized exposure probabilities.
+        disease_state (np.ndarray): Per-agent disease state (0 = susceptible).
+        new_infections (np.ndarray): Number of infections to assign per node.
+        chunk_size (int): Size of chunks to process within each node.
+
+    Returns:
+        Updates disease_state in place (exposed agents are set to 1).
+    """
     num_nodes = new_infections.shape[0]
     num_people = node_ids.shape[0]
 
@@ -759,53 +769,45 @@ def chunk_infect_nb(node_ids, exposure_probs, disease_state, new_infections, chu
         if n_draw <= 0:
             continue
 
-        # 1. Collect susceptible indices for this node
-        count = 0
+        # Step 1: Get susceptible individuals in this node
+        sus_indices = np.empty(num_people, dtype=np.int64)
+        sus_probs = np.empty(num_people, dtype=np.float32)
+        sus_count = 0
         for i in range(num_people):
             if node_ids[i] == node and disease_state[i] == 0:
-                count += 1
-
-        if count == 0:
+                sus_indices[sus_count] = i
+                sus_probs[sus_count] = exposure_probs[i]
+                sus_count += 1
+        if sus_count == 0:
             continue
 
-        sus_indices = np.empty(count, dtype=np.int64)
-        sus_probs = np.empty(count, dtype=np.float32)
-
-        idx = 0
-        for i in range(num_people):
-            if node_ids[i] == node and disease_state[i] == 0:
-                sus_indices[idx] = i
-                sus_probs[idx] = exposure_probs[i]
-                idx += 1
-
-        selected = np.zeros(n_draw, dtype=np.int64)
+        # Step 2: Chunking loop
+        selected = np.empty(n_draw, dtype=np.int64)
         sel_count = 0
-
-        # 2. Sample from chunks using rejection sampling
-        for chunk_start in range(0, count, chunk_size):
+        for chunk_start in range(0, sus_count, chunk_size):
             if sel_count >= n_draw:
                 break
-
-            end = min(chunk_start + chunk_size, count)
-            chunk = sus_indices[chunk_start:end]
-            chunk_probs = sus_probs[chunk_start:end]
+            chunk_end = min(chunk_start + chunk_size, sus_count)
+            chunk_sus_inds = sus_indices[chunk_start:chunk_end]  # Get the sus indices in the chunk
+            chunk_probs = sus_probs[chunk_start:chunk_end]  # Get the exposure probabilities for sus in the chunk
 
             prob_sum = np.sum(chunk_probs)
             if prob_sum <= 0:
                 continue
 
-            # Normalize in place
             norm_probs = chunk_probs / prob_sum
+            attempts = 0
+            while sel_count < n_draw and attempts < 10 * chunk_sus_inds.shape[0]:
+                for i in range(chunk_sus_inds.shape[0]):
+                    if sel_count >= n_draw:
+                        break
+                    r = np.random.random()
+                    if r < norm_probs[i]:
+                        selected[sel_count] = chunk_sus_inds[i]
+                        sel_count += 1
+                attempts += 1
 
-            for i in range(chunk.shape[0]):
-                if sel_count >= n_draw:
-                    break
-                r = np.random.random()
-                if r < norm_probs[i]:
-                    selected[sel_count] = chunk[i]
-                    sel_count += 1
-
-        # 3. Mark selected individuals as infected
+        # Infect selected agents
         for i in range(sel_count):
             disease_state[selected[i]] = 1
 
