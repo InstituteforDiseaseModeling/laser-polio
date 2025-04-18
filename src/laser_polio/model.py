@@ -912,6 +912,9 @@ class Transmission_ABM:
         daily_infectivity = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)  # Gamma transformation
         self.people.acq_risk_multiplier[: self.people.true_capacity] = acq_risk_multiplier
         self.people.daily_infectivity[: self.people.true_capacity] = daily_infectivity
+        # # Manually reset
+        # self.people.acq_risk_multiplier[: self.people.true_capacity] = 1.0
+        # self.people.daily_infectivity[: self.people.true_capacity] = mean_gamma
 
         # Compute the infection migration network
         sim.results.add_vector_property("network", length=len(sim.nodes), dtype=np.float32)
