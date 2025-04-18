@@ -6,7 +6,6 @@ My rough plan for the next week is to keep debugging transmission, do some param
 - get random number seed from calibration
 
 DEBUGGING
-- Move individual risk into exp calcs???
 - Manually set all risk and infectivity to 1, then repeat calcs
 - Manually set <15 immunity to 0 then see if it spreads
 - Plot all data inputs for visual checks

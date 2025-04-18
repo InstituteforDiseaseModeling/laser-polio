@@ -82,7 +82,7 @@ def run_sim(config=None, verbose=1, **kwargs):
     cbr = df_comp.set_index("dot_name").loc[dot_names, "cbr"].values
     ri = df_comp.set_index("dot_name").loc[dot_names, "ri_eff"].values
     sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values
-    reff_re = df_comp.set_index("dot_name").loc[dot_names, "reff_random_effect"].values
+    # reff_re = df_comp.set_index("dot_name").loc[dot_names, "reff_random_effect"].values
     # TODO Need to REDO random effect probs since they might've been based on the wrong data. Also, need to do the processing before filtering because of the centering & scaling
     sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re)
     # r0_scalars = lp.calc_r0_scalars_from_rand_eff(reff_re)
