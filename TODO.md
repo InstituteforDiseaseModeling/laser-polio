@@ -1,13 +1,15 @@
 # Priorities
 
+My rough plan for the next week is to keep debugging transmission, do some parameter sweeps with the transmission fix, make a synthetic dataset and calibrate to it on the cluster. If I get those done, I have a to do list that only seems to grow 
+- kill sims early if no E, I, or future seeding events
+- likelihood fn for calibrator
+- get random number seed from calibration
+
 DEBUGGING
 - Move individual risk into exp calcs???
-- Check with Kurt on model logic
 - Manually set all risk and infectivity to 1, then repeat calcs
 - Manually set <15 immunity to 0 then see if it spreads
 - Plot all data inputs for visual checks
-- Check transmission function calculations. Why do we need R0 so high!?
-- Check transmission probability with real data. Why do we need R0 so high!?
 - Plot expected births?
 - Update the birth and death plot to summarize by country.
 - Test full models with real data

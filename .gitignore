@@ -67,4 +67,4 @@ docs/_build
 .tox/
 
 # Logs
-*simulation_log.txt
+*simulation_log*.txt
