@@ -140,11 +140,12 @@ def run_sim(config=None, verbose=1, **kwargs):
 
     # Run sim
     sim = lp.SEIR_ABM(pars)
-    sim.components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM, lp.RI_ABM, lp.SIA_ABM]
-
-    # Run simulation
-    # if verbose >= 1:
-
+    components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM]
+    if pars.vx_prob_ri is not None:
+        components.append(lp.RI_ABM)
+    if pars.vx_prob_sia is not None:
+        components.append(lp.SIA_ABM)
+    sim.components = components
     sim.run()
 
     # Save results
