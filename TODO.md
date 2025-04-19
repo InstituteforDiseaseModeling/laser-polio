@@ -3,7 +3,7 @@
 - Check exposure sums manually
 - Look for other checks on transmission probability in addition to Kermack and McKendrick relation
 
-My rough plan for the next week is to keep debugging transmission, do some parameter sweeps with the transmission fix, make a synthetic dataset and calibrate to it on the cluster. If I get those done, I have a to do list that only seems to grow 
+My rough plan for the next week is to keep debugging transmission, do some parameter sweeps with the transmission fix, make a synthetic dataset and calibrate to it on the cluster. If I get those done, I have a to do list that only seems to grow
 - likelihood fn for calibrator
 - get random number seed from calibration
 
