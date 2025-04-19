@@ -1,5 +1,6 @@
 import itertools
 import os
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,12 +17,13 @@ import laser_polio as lp
 
 regions = ["ZAMFARA:ANKA"]
 start_year = 2019
-n_days = 730
+n_days = 365 * 2
 pop_scale = 1 / 1
 init_region = "ANKA"
 results_path = "results/check_outbreak_size"
 n_reps = 1
-r0_values = np.linspace(0, 10, 15)
+r0_values = np.linspace(0, 2, 10)
+# r0_values = np.linspace(0, 10, 15)
 n_ppl = 1e6
 init_prev = 20 / n_ppl
 S0 = 1.0
@@ -29,12 +31,34 @@ S0 = 1.0
 ######### END OF USER PARS ########
 ###################################
 
+os.makedirs(results_path, exist_ok=True)
+
 
 def KM_limit(z, R0, S0, I0):
     if R0 * S0 < 1:
         return 0
     else:
         return z - S0 * (1 - np.exp(-R0 * (z + I0)))
+
+
+def plot_infected_by_node(sim, save=True, results_path=None):
+    plt.figure(figsize=(10, 6))
+    r0 = sim.pars.r0
+    for node in sim.nodes:
+        plt.plot(sim.results.I[:, node], label=f"Node {node}")
+    plt.title("Infected Population by Node")
+    plt.xlabel("Time (Timesteps)")
+    plt.ylabel("Population")
+    # Set lower limit to 0
+    plt.ylim(bottom=0)
+    plt.legend()
+    plt.grid()
+    results_path = Path(results_path)
+
+    if save:
+        plt.savefig(results_path / f"n_infected_by_node_R0_{r0:.2f}.png")
+    else:
+        plt.show()
 
 
 # Expected
@@ -93,6 +117,9 @@ for r0 in r0_values:
                 "final_susceptible": final_S,
             }
         )
+
+        plot_infected_by_node(sim, save=True, results_path=results_path)
+
 
 # Convert to DataFrame
 df_results = pd.DataFrame.from_records(records)
