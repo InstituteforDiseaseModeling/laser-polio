@@ -976,6 +976,7 @@ class Transmission_ABM:
         self.people.acq_risk_multiplier[: self.people.true_capacity] = acq_risk_multiplier
         self.people.daily_infectivity[: self.people.true_capacity] = daily_infectivity
         # Manually reset
+        sc.printyellow("Warning: manually resetting acq_risk_multiplier and daily_infectivity to 1.0 for testing")
         self.people.acq_risk_multiplier[: self.people.true_capacity] = 1.0
         self.people.daily_infectivity[: self.people.true_capacity] = mean_gamma
 
@@ -1094,7 +1095,7 @@ class Transmission_ABM:
             self.sim.results.S[self.sim.t - 1]
             + self.sim.results.E[self.sim.t - 1]
             + self.sim.results.I[self.sim.t - 1]
-            + self.sim.results.R[self.sim.t]
+            + self.sim.results.R[self.sim.t - 1]
             + self.sim.results.births[self.sim.t]
             - self.sim.results.deaths[self.sim.t]
         )
