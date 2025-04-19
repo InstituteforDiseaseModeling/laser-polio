@@ -73,7 +73,8 @@ class SEIR_ABM:
         if pars.seed is None:
             now = datetime.now()  # noqa: DTZ005
             pars.seed = now.microsecond ^ int(now.timestamp())
-            sc.printred(f"No seed provided. Using random seed of {pars.seed}.")
+            if self.verbose >= 1:
+                sc.printred(f"No seed provided. Using random seed of {pars.seed}.")
         set_seed(pars.seed)
 
         # Setup time
@@ -169,7 +170,8 @@ class SEIR_ABM:
             print(f"Initialized components: {self.instances}")
 
     def run(self):
-        sc.printcyan("Initialization complete. Running simulation...")
+        if self.verbose >= 1:
+            sc.printcyan("Initialization complete. Running simulation...")
         with alive_bar(self.nt, title="Simulation progress:", disable=self.verbose < 1) as bar:
             for tick in range(self.nt):
                 if tick == 0:
@@ -470,6 +472,21 @@ class DiseaseState_ABM:
         num_infected = len(infected_indices)
         sim.people.disease_state[infected_indices] = 2
 
+        from collections import defaultdict
+
+        # Schedule additional infections (time → list of (node_id, prevalence))
+        self.seed_schedule = defaultdict(list)
+        if self.pars.seed_schedule is not None:
+            for entry in self.pars.seed_schedule:
+                if "date" in entry and "dot_name" in entry:
+                    date = lp.date(entry["date"])
+                    t = (date - self.pars.start_date).days
+                    node_id = next((nid for nid, info in self.pars.node_lookup.items() if info["dot_name"] == entry["dot_name"]), None)
+                    if node_id is not None:
+                        self.seed_schedule[t].append((node_id, entry["prevalence"]))
+                elif "timestep" in entry and "node_id" in entry:
+                    self.seed_schedule[entry["timestep"]].append((entry["node_id"], entry["prevalence"]))
+
     def step(self):
         # Add these if they don't exist from the Transmission_ABM component (e.g., if running DiseaseState_ABM alone for testing)
         if not hasattr(self.people, "acq_risk_multiplier"):
@@ -488,6 +505,18 @@ class DiseaseState_ABM:
             self.pars.p_paralysis,
             self.people.count,
         )
+
+        t = self.sim.t
+        if t in self.seed_schedule:
+            for node_id, prevalence in self.seed_schedule[t]:
+                node_mask = (self.people.node_id[: self.people.count] == node_id) & (self.people.disease_state[: self.people.count] >= 0)
+                candidates = np.where(node_mask)[0]
+                n_seed = int(len(candidates) * prevalence)
+                if n_seed > 0:
+                    selected = np.random.choice(candidates, size=n_seed, replace=False)
+                    self.people.disease_state[selected] = 2  # Set to infectious
+                    if self.verbose >= 1:
+                        print(f"[DiseaseState_ABM] t={t}: Seeded {n_seed} infections in node {node_id}")
 
     def log(self, t):
         pass

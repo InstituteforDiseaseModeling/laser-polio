@@ -96,12 +96,6 @@ def run_sim(config=None, verbose=1, **kwargs):
     # Validate all arrays match
     assert all(len(arr) == len(dot_names) for arr in [dist_matrix, init_immun, node_lookup, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
 
-    # Load the actual case data
-    epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
-    epi.rename(columns={"cases": "P"}, inplace=True)
-    Path(results_path).mkdir(parents=True, exist_ok=True)
-    epi.to_csv(results_path + "/actual_data.csv", index=False)
-
     # Base parameters (can be overridden)
     base_pars = {
         "start_date": start_date,
@@ -117,7 +111,6 @@ def run_sim(config=None, verbose=1, **kwargs):
         "vx_prob_ri": ri,
         "sia_schedule": sia_schedule,
         "vx_prob_sia": sia_prob,
-        "actual_data": epi,
         "verbose": verbose,
     }
 
@@ -150,6 +143,7 @@ def run_sim(config=None, verbose=1, **kwargs):
 
     # Save results
     if save_plots:
+        Path(results_path).mkdir(parents=True, exist_ok=True)
         sim.plot(save=True, results_path=results_path)
     if save_data:
         Path(results_path).mkdir(parents=True, exist_ok=True)
