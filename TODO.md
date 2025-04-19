@@ -8,6 +8,7 @@ My rough plan for the next week is to keep debugging transmission, do some param
 - get random number seed from calibration
 
 DEBUGGING
+- Add transmission tests with run_sim() using real data
 - Plot all data inputs for visual checks
 - Plot expected births?
 - Update the birth and death plot to summarize by country.
