@@ -1,13 +1,14 @@
 # Priorities
 
+- Check exposure sums manually
+- Look for other checks on transmission probability in addition to Kermack and McKendrick relation
+
 My rough plan for the next week is to keep debugging transmission, do some parameter sweeps with the transmission fix, make a synthetic dataset and calibrate to it on the cluster. If I get those done, I have a to do list that only seems to grow 
 - kill sims early if no E, I, or future seeding events
 - likelihood fn for calibrator
 - get random number seed from calibration
 
 DEBUGGING
-- Manually set all risk and infectivity to 1, then repeat calcs
-- Manually set <15 immunity to 0 then see if it spreads
 - Plot all data inputs for visual checks
 - Plot expected births?
 - Update the birth and death plot to summarize by country.
@@ -24,20 +25,13 @@ CALIBRATION
     - Stretch: R0 scalar for N Nigeria
     - Stretch: risk_mult_var or corr_risk_inf
 
-CLEANUP
-- Change terminology from SIA efficacy to SIA coverage spatial heterogeneity
-- Rename variables to distinguish between exposure and infection
-- Drop ABM term from components
-
 NEW FEATURES
 - Rethink distance matrix - could we reduce precision to reduce memory? Or would jut uploading lats and longs be faster?
 - Add ability to seed infections at specific times & places
     - Use Kurt's approach for when/where to seed infections: BIRINIWA day 37, 2018 & SHINKAFI day 329, 2020
 - Add scalar for N Nigeria
 - Enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
-- Set a random number seed
 - Add age pyramid by country
-- Import/seed infections throughout the sim after initialization
 - Save results & specify frequency
 - Reactive SIAs (2 campaigns per OB)
 - Add chronically missed pop. Maybe use a individual prob of participating in SIA?
@@ -74,3 +68,6 @@ NEW FEATURES
     - m (scalar) parameter on R0 random effects
 - Age-specific R0???
 - Get Hil & Kurt to add links to code in curation_scripts README
+- Change terminology from SIA efficacy to SIA coverage spatial heterogeneity
+- Rename variables to distinguish between exposure and infection
+- Drop ABM term from components
