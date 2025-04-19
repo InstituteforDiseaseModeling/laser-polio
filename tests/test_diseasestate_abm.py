@@ -1,7 +1,12 @@
+from pathlib import Path
+
 import numpy as np
 from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
+
+test_dir = Path(__file__).parent
+data_path = test_dir / "data"
 
 
 def setup_sim():
@@ -290,6 +295,7 @@ def test_seed_schedule():
         vx_prob_ri=None,  # No vaccination
         vx_prob_sia=None,  # No vaccination
         seed_schedule=seed_schedule,
+        age_pyramid_path=str(data_path / "Nigeria_age_pyramid_2024.csv"),
     )
 
     # Test that all nodes except AKNA have 0 infections on day 0
