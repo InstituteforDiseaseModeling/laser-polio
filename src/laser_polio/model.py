@@ -38,6 +38,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Logger precision formatter
+def fmt(arr, precision=2):
+    """Format NumPy arrays as single-line strings with no wrapping."""
+    return np.array2string(
+        np.asarray(arr),  # Ensures even scalars/lists work
+        separator=" ",
+        threshold=np.inf,
+        max_line_width=np.inf,
+        precision=precision,
+    )
+
+
 # SEIR Model
 class SEIR_ABM:
     """
@@ -912,9 +924,9 @@ class Transmission_ABM:
         daily_infectivity = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)  # Gamma transformation
         self.people.acq_risk_multiplier[: self.people.true_capacity] = acq_risk_multiplier
         self.people.daily_infectivity[: self.people.true_capacity] = daily_infectivity
-        # # Manually reset
-        # self.people.acq_risk_multiplier[: self.people.true_capacity] = 1.0
-        # self.people.daily_infectivity[: self.people.true_capacity] = mean_gamma
+        # Manually reset
+        self.people.acq_risk_multiplier[: self.people.true_capacity] = 1.0
+        self.people.daily_infectivity[: self.people.true_capacity] = mean_gamma
 
         # Compute the infection migration network
         sim.results.add_vector_property("network", length=len(sim.nodes), dtype=np.float32)
@@ -994,16 +1006,37 @@ class Transmission_ABM:
         infectivity = self.people.daily_infectivity[: self.people.count]
         risk = self.people.acq_risk_multiplier[: self.people.count]
         node_beta_sums = compute_beta_ind_sums(node_ids, infectivity, disease_state, len(self.nodes))
+        if self.verbose >= 3:
+            n_infected = []
+            for node in self.sim.nodes:
+                # num_alive = np.sum((node_ids == node) & (disease_state >= 0)) + self.sim.results.R[self.sim.t][node]
+                num_susceptibles = np.sum((node_ids == node) & (disease_state == 0))
+                n_I_node = np.sum((node_ids == node) & (disease_state == 2))
+                n_infected.append(n_I_node)
+            n_infected = np.array(n_infected)
+            exp_node_beta_sums = n_infected * self.sim.pars.r0 / np.mean(self.sim.pars.dur_inf(1000))
+            logger.info(f"Expected node beta sums: {fmt(exp_node_beta_sums, 2)}")
+            node_beta_sums_pre = node_beta_sums.copy()
+            logger.info(f"Node beta sums (pre-transfer): {fmt(node_beta_sums_pre, 2)}")
+            logger.info(f"Total node beta sums (pre-transfer): {fmt(node_beta_sums_pre.sum(), 2)}")
 
         # 2) Spatially redistribute infectivity among nodes
         transfer = (node_beta_sums * self.network).astype(np.float64)  # Don't round here, we'll handle fractional infections later
         # Ensure net contagion remains positive after movement
         node_beta_sums += transfer.sum(axis=1) - transfer.sum(axis=0)
         node_beta_sums = np.maximum(node_beta_sums, 0)  # Prevent negative contagion
+        if self.verbose >= 3:
+            logger.info(f"Node beta sums (post-transfer): {fmt(node_beta_sums, 2)}")
+            logger.info(f"Total Node beta sums (post-transfer): {fmt(node_beta_sums.sum(), 2)}")
 
         # 3) Apply seasonal & geographic modifiers
         beta_seasonality = lp.get_seasonality(self.sim)
         beta = node_beta_sums * beta_seasonality * self.r0_scalars  # Total node infection rate
+        if self.verbose >= 3:
+            logger.info(f"beta_seasonality: {fmt(beta_seasonality, 2)}")
+            logger.info(f"R0 scalars: {fmt(self.r0_scalars, 2)}")
+            logger.info(f"beta: {fmt(beta, 2)}")
+            logger.info(f"Total beta: {fmt(beta.sum(), 2)}")
 
         # 4) Calculate base probability for each agent to become exposed
         alive_counts = (
@@ -1016,40 +1049,38 @@ class Transmission_ABM:
         )
         per_agent_infection_rate = beta / np.clip(alive_counts, 1, None)
         base_prob_infection = 1 - np.exp(-per_agent_infection_rate)
+        if self.verbose >= 3:
+            logger.info(f"Alive counts: {fmt(alive_counts, 2)}")
+            logger.info(f"Per agent infection rate: {fmt(per_agent_infection_rate, 2)}")
+            logger.info(f"Base prob infection: {fmt(base_prob_infection, 2)}")
+            # TODO - why is this line goofy??? The nubmers look higher than expected
+            logger.info(f"Exp inf (sans acq risk): {fmt(num_susceptibles * base_prob_infection, 2)}")
 
         # 5) Calculate infections
         exposure_sums = compute_infections_nb(disease_state, node_ids, risk, base_prob_infection)
         new_infections = np.random.poisson(exposure_sums).astype(np.int32)
+        if self.verbose >= 3:
+            logger.info(f"exposure_sums: {fmt(exposure_sums, 2)}")
+            logger.info(f"New infections: {new_infections}")
 
         # 6) Draw n_expected_exposures for each node according to their exposure_probs
         exposure_probs = base_prob_infection[node_ids] * risk  # Try adding in node-level force & personal risk
         if self.verbose >= 3:
             disease_state_pre_infect = disease_state.copy()
-        fast_infect(node_ids, exposure_probs, disease_state, new_infections)
-        # chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
+        # fast_infect(node_ids, exposure_probs, disease_state, new_infections)
+        chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
         # chunk_infect_nb(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
 
         if self.verbose >= 3:
-
-            def fmt(arr, precision=2):
-                """Format NumPy arrays as single-line strings with no wrapping."""
-                return np.array2string(
-                    np.asarray(arr),  # Ensures even scalars/lists work
-                    separator=" ",
-                    threshold=np.inf,
-                    max_line_width=np.inf,
-                    precision=precision,
-                )
-
-            logger.info("NORMAL CALCS: ")
-            # logger.info(f"Node beta sums: {fmt(node_beta_sums)}")
-            # logger.info(f"Beta seasonality: {fmt(beta_seasonality)}")
-            # logger.info(f"R0 scalars: {fmt(self.r0_scalars)}")
-            # logger.info(f"Beta sums: {fmt(node_beta_sums)}")
-            # logger.info(f"Beta: {fmt(beta)}")
-            # logger.info(f"Per agent infection rate: {fmt(per_agent_infection_rate)}")
-            # logger.info(f"Base prob infection: {fmt(base_prob_infection)}")
-            # logger.info(f"Exposure sums: {fmt(exposure_sums)}")
+            #     logger.info("NORMAL CALCS: ")
+            #     # logger.info(f"Node beta sums: {fmt(node_beta_sums)}")
+            #     # logger.info(f"Beta seasonality: {fmt(beta_seasonality)}")
+            #     # logger.info(f"R0 scalars: {fmt(self.r0_scalars)}")
+            #     # logger.info(f"Beta sums: {fmt(node_beta_sums)}")
+            #     # logger.info(f"Beta: {fmt(beta)}")
+            #     # logger.info(f"Per agent infection rate: {fmt(per_agent_infection_rate)}")
+            #     # logger.info(f"Base prob infection: {fmt(base_prob_infection)}")
+            #     # logger.info(f"Exposure sums: {fmt(exposure_sums)}")
             total_expected = np.sum(exposure_sums)
             tot_poisson_draw = np.sum(new_infections)
             # Check the number of people that are newly exposed
