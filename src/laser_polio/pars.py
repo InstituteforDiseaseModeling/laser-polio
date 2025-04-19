@@ -63,6 +63,8 @@ default_pars = PropertySet(
         "actual_data": None,  # Actual dataset
         # Verbosity
         "verbose": 1,  # 0 = silent, 1 = info, 2 = debug, 3 = validate with special logging features
+        # Stopping rules
+        "stop_if_no_cases": False,  # Stop if no E, I, or seed_schedules remain
     }
 )
 

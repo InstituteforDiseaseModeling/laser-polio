@@ -83,6 +83,9 @@ class SEIR_ABM:
         )  # Number of timesteps. We add 1 to include step 0 (initial conditions) and then run for pars.dur steps. Individual components can have their own step sizes
         self.datevec = lp.daterange(self.pars["start_date"], days=self.nt)  # Time represented as an array of datetime objects
 
+        # Setup early stopping option - controlled in DiseaseState_ABM component
+        self.should_stop = False
+
         # Initialize the population
         if self.verbose >= 1:
             sc.printcyan("Initializing simulation...")
@@ -185,6 +188,13 @@ class SEIR_ABM:
 
                     self.log_results(tick)
                     self.t += 1
+
+                    # Early stopping rule
+                    if self.should_stop:
+                        if self.verbose >= 1:
+                            sc.printyellow(f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events.")
+                        break
+
                 bar()  # Update the progress bar
         if self.verbose >= 1:
             sc.printcyan("Simulation complete.")
@@ -488,6 +498,15 @@ class DiseaseState_ABM:
             self.pars.p_paralysis,
             self.people.count,
         )
+
+        # Optional early stopping rule if no cases or seed_schedule events remain
+        if self.pars["stop_if_no_cases"]:
+            any_exposed = self.sim.results.E[self.sim.t - 1, :] > 0
+            any_infected = self.sim.results.I[self.sim.t - 1, :] > 0
+            future_seeds = any(t > self.sim.t for t in self.seed_schedule)
+
+            if not (any_exposed or any_infected or future_seeds):
+                self.sim.should_stop = True
 
     def log(self, t):
         pass

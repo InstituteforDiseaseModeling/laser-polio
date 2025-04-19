@@ -119,6 +119,7 @@ def run_sim(config=None, verbose=1, **kwargs):
         "vx_prob_sia": sia_prob,
         "actual_data": epi,
         "verbose": verbose,
+        "stop_if_no_cases": True,
     }
 
     # Dynamic values passed by user/CLI/Optuna
