@@ -46,7 +46,6 @@ def run_sim(config=None, verbose=1, **kwargs):
     init_region = configs.pop("init_region", "ANKA")
     init_prev = float(configs.pop("init_prev", 0.01))
     results_path = configs.pop("results_path", "results/demo")
-    actual_data = configs.pop("actual_data", "data/epi_africa_20250408.h5")
     save_plots = configs.pop("save_plots", False)
     save_data = configs.pop("save_data", False)
 
@@ -96,12 +95,6 @@ def run_sim(config=None, verbose=1, **kwargs):
     # Validate all arrays match
     assert all(len(arr) == len(dot_names) for arr in [dist_matrix, init_immun, node_lookup, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
 
-    # Load the actual case data
-    epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
-    epi.rename(columns={"cases": "P"}, inplace=True)
-    Path(results_path).mkdir(parents=True, exist_ok=True)
-    epi.to_csv(results_path + "/actual_data.csv", index=False)
-
     # Base parameters (can be overridden)
     base_pars = {
         "start_date": start_date,
@@ -117,7 +110,6 @@ def run_sim(config=None, verbose=1, **kwargs):
         "vx_prob_ri": ri,
         "sia_schedule": sia_schedule,
         "vx_prob_sia": sia_prob,
-        "actual_data": epi,
         "verbose": verbose,
         "stop_if_no_cases": True,
     }
@@ -151,6 +143,7 @@ def run_sim(config=None, verbose=1, **kwargs):
 
     # Save results
     if save_plots:
+        Path(results_path).mkdir(parents=True, exist_ok=True)
         sim.plot(save=True, results_path=results_path)
     if save_data:
         Path(results_path).mkdir(parents=True, exist_ok=True)
