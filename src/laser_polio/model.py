@@ -194,7 +194,9 @@ class SEIR_ABM:
                     # Early stopping rule
                     if self.should_stop:
                         if self.verbose >= 1:
-                            sc.printyellow(f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events.")
+                            sc.printyellow(
+                                f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events. This stops all components (e.g., no births, deaths, or vaccination)"
+                            )
                         break
 
                 bar()  # Update the progress bar
@@ -531,8 +533,8 @@ class DiseaseState_ABM:
 
         # Optional early stopping rule if no cases or seed_schedule events remain
         if self.pars["stop_if_no_cases"]:
-            any_exposed = self.sim.results.E[self.sim.t - 1, :] > 0
-            any_infected = self.sim.results.I[self.sim.t - 1, :] > 0
+            any_exposed = np.sum(self.sim.results.E[self.sim.t - 1, :]) > 0
+            any_infected = np.sum(self.sim.results.I[self.sim.t - 1, :]) > 0
             future_seeds = any(t > self.sim.t for t in self.seed_schedule)
 
             if not (any_exposed or any_infected or future_seeds):
