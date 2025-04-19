@@ -84,6 +84,9 @@ class SEIR_ABM:
         )  # Number of timesteps. We add 1 to include step 0 (initial conditions) and then run for pars.dur steps. Individual components can have their own step sizes
         self.datevec = lp.daterange(self.pars["start_date"], days=self.nt)  # Time represented as an array of datetime objects
 
+        # Setup early stopping option - controlled in DiseaseState_ABM component
+        self.should_stop = False
+
         # Initialize the population
         if self.verbose >= 1:
             sc.printcyan("Initializing simulation...")
@@ -187,6 +190,15 @@ class SEIR_ABM:
 
                     self.log_results(tick)
                     self.t += 1
+
+                    # Early stopping rule
+                    if self.should_stop:
+                        if self.verbose >= 1:
+                            sc.printyellow(
+                                f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events. This stops all components (e.g., no births, deaths, or vaccination)"
+                            )
+                        break
+
                 bar()  # Update the progress bar
         if self.verbose >= 1:
             sc.printcyan("Simulation complete.")
@@ -506,6 +518,7 @@ class DiseaseState_ABM:
             self.people.count,
         )
 
+        # Seed infections after initialization
         t = self.sim.t
         if t in self.seed_schedule:
             for node_id, prevalence in self.seed_schedule[t]:
@@ -517,6 +530,15 @@ class DiseaseState_ABM:
                     self.people.disease_state[selected] = 2  # Set to infectious
                     if self.verbose >= 1:
                         print(f"[DiseaseState_ABM] t={t}: Seeded {n_seed} infections in node {node_id}")
+
+        # Optional early stopping rule if no cases or seed_schedule events remain
+        if self.pars["stop_if_no_cases"]:
+            any_exposed = np.sum(self.sim.results.E[self.sim.t - 1, :]) > 0
+            any_infected = np.sum(self.sim.results.I[self.sim.t - 1, :]) > 0
+            future_seeds = any(t > self.sim.t for t in self.seed_schedule)
+
+            if not (any_exposed or any_infected or future_seeds):
+                self.sim.should_stop = True
 
     def log(self, t):
         pass
@@ -954,6 +976,7 @@ class Transmission_ABM:
         self.people.acq_risk_multiplier[: self.people.true_capacity] = acq_risk_multiplier
         self.people.daily_infectivity[: self.people.true_capacity] = daily_infectivity
         # Manually reset
+        sc.printyellow("Warning: manually resetting acq_risk_multiplier and daily_infectivity to 1.0 for testing")
         self.people.acq_risk_multiplier[: self.people.true_capacity] = 1.0
         self.people.daily_infectivity[: self.people.true_capacity] = mean_gamma
 
@@ -1072,7 +1095,7 @@ class Transmission_ABM:
             self.sim.results.S[self.sim.t - 1]
             + self.sim.results.E[self.sim.t - 1]
             + self.sim.results.I[self.sim.t - 1]
-            + self.sim.results.R[self.sim.t]
+            + self.sim.results.R[self.sim.t - 1]
             + self.sim.results.births[self.sim.t]
             - self.sim.results.deaths[self.sim.t]
         )

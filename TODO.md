@@ -3,12 +3,12 @@
 - Check exposure sums manually
 - Look for other checks on transmission probability in addition to Kermack and McKendrick relation
 
-My rough plan for the next week is to keep debugging transmission, do some parameter sweeps with the transmission fix, make a synthetic dataset and calibrate to it on the cluster. If I get those done, I have a to do list that only seems to grow 
-- kill sims early if no E, I, or future seeding events
+My rough plan for the next week is to keep debugging transmission, do some parameter sweeps with the transmission fix, make a synthetic dataset and calibrate to it on the cluster. If I get those done, I have a to do list that only seems to grow
 - likelihood fn for calibrator
 - get random number seed from calibration
 
 DEBUGGING
+- Add transmission tests with run_sim() using real data
 - Plot all data inputs for visual checks
 - Plot expected births?
 - Update the birth and death plot to summarize by country.
@@ -36,35 +36,48 @@ NEW FEATURES
 
 
 # Refinement
+
+TESTING
 - Use run_sim for testing.
-- Is there a way to only load data & initialize sims once during calibration? How much speedup could we get?
-- John G recommends Finite Radiation model as default assumption
-- Work with John G to put bounds on gravity model pars??
-- Calib question: Is there any appetite for making a broadly usable calibration bootstrapping function? For example, paralytic cases are a rare (1/2000) subset of Infections. So after/during calibration, we could resample the infection counts and get a bunch of new paralysis counts essentially for free.
-- Curate the surveillance delays
-- Add surveillance delays to reactive SIAs
-- Add rule for blackouts (e.g., limiting number of campaigns / year) of maybe 1-2 years
-- Use KM's gravity model scaling approach
-- Export pars as pkl
-- Re-org the data folder to have timestamped files? Or time-stamped folders?
 - Check that the SIA schedule dot_names are in my shapes
-- Switch to radiation model (easier to explain cuz the numbers are %within vs %without)
-- Count number of Sabin2 or nOPV2 transmissions
-- Count number of exportations for calibration
-- Enable different RI rates over time
-- Do we need sub-adm2 resolution? And if so, how do we handle the distance matrix to minimize file size? Consider making values nan if over some threshold?
-- Add EMOD style seasonality
-- Look into age-specific death rates
-- Write pars to disk
-- Add CBR by country-year
+
+CALIBRATION
 - Calibrate the m (scalar) parameter on the R0 random effect
-- Add correlation in vx coverage so it's not random???
+- Calib question: Is there any appetite for making a broadly usable calibration bootstrapping function? For example, paralytic cases are a rare (1/2000) subset of Infections. So after/during calibration, we could resample the infection counts and get a bunch of new paralysis counts essentially for free.
 - In post(?), resample I count to get a variety of paralysis counts
 - Calibration parameter:
     - maybe scalar on nOPV2 efficacy
     - m (scalar) parameter on R0 random effects
-- Age-specific R0???
+
+NEW FEATURES
+- Add CBR by country-year
+- Is there a way to only load data & initialize sims once during calibration? How much speedup could we get?
+- Curate the surveillance delays
+- Add surveillance delays to reactive SIAs
+- Add rule for blackouts (e.g., limiting number of campaigns / year) of maybe 1-2 years
+- Count number of Sabin2 or nOPV2 transmissions
+- Count number of exportations for calibration
+- Enable different RI rates over time
+- Add EMOD style seasonality
+- Look into age-specific death rates
+
+MIGRATION
+- John G recommends Finite Radiation model as default assumption
+- Work with John G to put bounds on gravity model pars??
+- Use KM's gravity model scaling approach
+- Switch to radiation model (easier to explain cuz the numbers are %within vs %without)
+- Do we need sub-adm2 resolution? And if so, how do we handle the distance matrix to minimize file size? Consider making values nan if over some threshold?
+
+QUALITY OF LIFE
+- Export pars as pkl
+- Re-org the data folder to have timestamped files? Or time-stamped folders?
+
+CLEANUP
 - Get Hil & Kurt to add links to code in curation_scripts README
 - Change terminology from SIA efficacy to SIA coverage spatial heterogeneity
 - Rename variables to distinguish between exposure and infection
 - Drop ABM term from components
+
+STRETCH
+- Add correlation in vx coverage so it's not random???
+- Age-specific R0???
