@@ -21,6 +21,7 @@ default_pars = PropertySet(
         # Disease
         "init_immun": [0.0, 0.0],  # Initial immunity per node
         "init_prev": [0.0, 0.0],  # Initial prevalence per node
+        "seed_schedule": None,  # Schedule for seeding cases (list of dicts with either: 1)'date', 'dot_name', 'prevalence' or 2)'timestep', 'node_id', 'prevalence')
         "r0": 14,  # Basic reproduction number
         "r0_scalars": [0.8, 1.2],  # Spatial transmission scalar (multiplied by global rate)
         "seasonal_factor": 0.125,  # Seasonal variation in transmission

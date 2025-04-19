@@ -27,8 +27,6 @@ CALIBRATION
 
 NEW FEATURES
 - Rethink distance matrix - could we reduce precision to reduce memory? Or would jut uploading lats and longs be faster?
-- Add ability to seed infections at specific times & places
-    - Use Kurt's approach for when/where to seed infections: BIRINIWA day 37, 2018 & SHINKAFI day 329, 2020
 - Add scalar for N Nigeria
 - Enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
 - Add age pyramid by country
@@ -56,7 +54,6 @@ NEW FEATURES
 - Enable different RI rates over time
 - Do we need sub-adm2 resolution? And if so, how do we handle the distance matrix to minimize file size? Consider making values nan if over some threshold?
 - Add EMOD style seasonality
-- Double check that I'm using the ri_eff and sia_prob values correctly - do I need to multiply sia_prob by vx_eff?
 - Look into age-specific death rates
 - Write pars to disk
 - Add CBR by country-year
