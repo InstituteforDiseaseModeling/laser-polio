@@ -757,7 +757,7 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
 
 def chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000):
     """
-    Efficiently sample new infections from weighted susceptibles in each node.
+    Efficiently sample exactly the specified number of new infections from weighted susceptibles in each node.
 
     Parameters:
         node_ids (np.ndarray): Array of node IDs for each person.
@@ -767,22 +767,24 @@ def chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_
         chunk_size (int): How many agents to process at once per chunk.
 
     Returns:
-        Updates disease_state in place (sets selected susceptibles to 1).
+        infected_by_node (np.ndarray): Array of actual infections performed per node.
+        And updates disease_state in place (sets selected susceptibles to 1).
+
     """
     num_nodes = len(new_infections)
+    infected_by_node = np.zeros(num_nodes, dtype=np.int32)
 
     for node in range(num_nodes):
-        if new_infections[node] == 0:
+        n_draw = new_infections[node]
+        if n_draw <= 0:
             continue
+        selected = set()  # Store indices to infect
 
         # Step 1: Get susceptible individuals in this node
         susceptible = (node_ids == node) & (disease_state == 0)
         sus_indices = np.where(susceptible)[0]
         if len(sus_indices) == 0:
             continue
-
-        total_to_draw = new_infections[node]  # Number of infections to assign
-        selected = []  ## List to store indices to infect
 
         # Step 2: Chunking loop
         for chunk_start in range(0, len(sus_indices), chunk_size):
@@ -793,97 +795,32 @@ def chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_
             prob_sum = np.sum(chunk_probs)  # Sum the exposure probabilities in the chunk
             if prob_sum == 0:
                 continue
+
             weights = chunk_probs / prob_sum  # Normalize the probabilities since np.random.choice expects p to sum to 1
-            k = min(total_to_draw - len(selected), len(chunk_sus_inds))  # Number of draws to make in this chunk
+            k = min(n_draw - len(selected), len(chunk_sus_inds))  # Number of draws to make in this chunk
             if k <= 0:
                 break
 
             # Select individuals to infect
             draws = np.random.choice(chunk_sus_inds, size=k, replace=False, p=weights)
-            selected.extend(draws)
-            if len(selected) >= total_to_draw:
+            selected.update(draws)
+
+            if len(selected) >= n_draw:
                 break
+
+        # Optional fallback if we still haven't filled the target
+        if len(selected) < n_draw:
+            missing = n_draw - len(selected)
+            fallback_pool = np.setdiff1d(sus_indices, list(selected), assume_unique=True)
+            fill = fallback_pool[:missing]  # take as many as we can
+            selected.update(fill)
 
         # Step 3: Infect selected individuals
+        selected = list(selected)[:n_draw]  # clip if over-selected
         disease_state[selected] = 1
+        infected_by_node[node] = len(selected)
 
-
-@nb.njit(parallel=True)
-def chunk_infect_nb(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000):
-    """
-    Parallelized, chunked infection sampling using exposure probabilities.
-
-    Args:
-        node_ids (np.ndarray): Node ID per agent.
-        exposure_probs (np.ndarray): Per-agent unnormalized exposure probabilities.
-        disease_state (np.ndarray): Per-agent disease state (0 = susceptible).
-        new_infections (np.ndarray): Number of infections to assign per node.
-        chunk_size (int): Size of chunks to process within each node.
-
-    Returns:
-        Updates disease_state in place (exposed agents are set to 1).
-    """
-    num_nodes = new_infections.shape[0]
-    num_people = node_ids.shape[0]
-
-    for node in nb.prange(num_nodes):
-        n_draw = new_infections[node]
-        if n_draw <= 0:
-            continue
-
-        # Step 1: Get susceptible individuals, their prob of exposure, and count
-        sus_indices = np.empty(num_people, dtype=np.int64)
-        sus_probs = np.empty(num_people, dtype=np.float32)
-        sus_count = 0
-        for i in range(num_people):
-            if node_ids[i] == node and disease_state[i] == 0:
-                sus_indices[sus_count] = i
-                sus_probs[sus_count] = exposure_probs[i]
-                sus_count += 1
-        if sus_count == 0:
-            continue
-
-        # Step 2: Go through chunks of susceptibles and select individuals to infect
-        selected = np.empty(n_draw, dtype=np.int64)
-        sel_count = 0
-        for chunk_start in range(0, sus_count, chunk_size):
-            if sel_count >= n_draw:
-                break
-            chunk_end = min(chunk_start + chunk_size, sus_count)
-            chunk_sus_inds = sus_indices[chunk_start:chunk_end]  # Get the sus indices in the chunk
-            chunk_probs = sus_probs[chunk_start:chunk_end]  # Get the exposure probabilities for sus in the chunk
-
-            # Calc the number of infections to make in this chunk
-            prob_sum = np.sum(chunk_probs)  # Sum the exposure probabilities in the chunk
-            if prob_sum == 0:
-                continue
-            norm_probs = chunk_probs / prob_sum  # Normalize the probabilities since np.random.choice expects p to sum to 1
-
-            # Select individuals to infect (limiting to 10 attempts to avoid infinite loops)
-            attempts = 0
-            while sel_count < n_draw and attempts < 10 * chunk_sus_inds.shape[0]:
-                for i in range(chunk_sus_inds.shape[0]):
-                    if sel_count >= n_draw:
-                        break
-                    r = np.random.random()
-                    if r < norm_probs[i]:
-                        selected[sel_count] = chunk_sus_inds[i]
-                        sel_count += 1
-                attempts += 1
-
-        # TODO revisit = Adding this cuz fn() is frequently a few short & there should be plenty of susceptibles left to infect
-        # If we still have slots to fill
-        remaining = n_draw - sel_count
-        if remaining > 0 and sus_count > sel_count:
-            fallback_pool = np.setdiff1d(sus_indices[:sus_count], selected[:sel_count], assume_unique=True)
-            if fallback_pool.size >= remaining:
-                fill = np.random.choice(fallback_pool, size=remaining, replace=False)
-                selected[sel_count : sel_count + remaining] = fill
-                sel_count += remaining
-
-        # Infect selected agents
-        for i in range(sel_count):
-            disease_state[selected[i]] = 1
+    return infected_by_node
 
 
 @nb.njit((nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32), nogil=True, cache=True)
@@ -1119,8 +1056,8 @@ class Transmission_ABM:
         exposure_probs = base_prob_infection[node_ids] * risk  # Try adding in node-level force & personal risk
         if self.verbose >= 3:
             disease_state_pre_infect = disease_state.copy()
-        # fast_infect(node_ids, exposure_probs, disease_state, new_infections)
-        chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
+        fast_infect(node_ids, exposure_probs, disease_state, new_infections)
+        # chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
         # chunk_infect_nb(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
 
         if self.verbose >= 3:
