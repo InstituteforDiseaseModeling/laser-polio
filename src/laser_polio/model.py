@@ -870,6 +870,9 @@ class Transmission_ABM:
         # underwt = self.pars.r0_scalars
         # self.r0_scalars = 1 / (1 + np.exp(24 * (np.mean(underwt) - underwt))) + 0.2
 
+        # Record new exposure counts
+        sim.results.add_array_property("new_exposures", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
+
         # Pre-compute individual risk of acquisition and infectivity with correlated sampling
         # Step 0: Add properties to people
         self.people.add_scalar_property(
@@ -1047,7 +1050,9 @@ class Transmission_ABM:
         exposure_probs = base_prob_infection[node_ids] * risk  # Try adding in node-level force & personal risk
         if self.verbose >= 3:
             disease_state_pre_infect = disease_state.copy()
-        fast_infect(node_ids, exposure_probs, disease_state, new_infections)
+        new_exposures = fast_infect(node_ids, exposure_probs, disease_state, new_infections)
+        self.sim.results.new_exposures[self.sim.t, :] = new_exposures
+
         # chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
         # chunk_infect_nb(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
 
