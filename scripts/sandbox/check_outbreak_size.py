@@ -20,10 +20,9 @@ start_year = 2019
 n_days = 365 * 2
 pop_scale = 1 / 1
 init_region = "ANKA"
-results_path = "results/check_outbreak_size"
+results_path = "results/check_outbreak_size_fast_infect"
 n_reps = 1
-r0_values = np.linspace(0, 2, 10)
-# r0_values = np.linspace(0, 10, 15)
+r0_values = np.linspace(0, 10, 15)
 n_ppl = 1e6
 init_prev = 20 / n_ppl
 S0 = 1.0
@@ -104,8 +103,13 @@ for r0 in r0_values:
             dur_exp=lp.constant(value=2),
         )
 
-        final_R = np.sum(sim.results.R[-1])
-        final_S = np.sum(sim.results.S[-1])
+        # final_R = np.sum(sim.results.R[-1])
+        # final_S = np.sum(sim.results.S[-1])
+
+        # Since we're ending the sim early & there's no init_immunity, the results values are 0 after the sim ends
+        # So we need to find the last non-zero value in the results
+        last_non_zero_R = np.where(sim.results.R[:, 0] > 0)[0][-1]
+        final_R = np.sum(sim.results.R[last_non_zero_R])
 
         # Record the result
         records.append(
@@ -114,7 +118,6 @@ for r0 in r0_values:
                 "init_prev": init_prev,
                 "rep": rep,
                 "final_recovered": final_R,
-                "final_susceptible": final_S,
             }
         )
 
