@@ -870,7 +870,7 @@ class Transmission_ABM:
         # underwt = self.pars.r0_scalars
         # self.r0_scalars = 1 / (1 + np.exp(24 * (np.mean(underwt) - underwt))) + 0.2
 
-        # Record new exposure counts
+        # Record new exposure counts aka incidence
         sim.results.add_array_property("new_exposures", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
 
         # Pre-compute individual risk of acquisition and infectivity with correlated sampling
