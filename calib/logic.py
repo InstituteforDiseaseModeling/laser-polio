@@ -184,8 +184,10 @@ def compute_log_likelihood_fit(actual, predicted, method="poisson", dispersion=1
             else:
                 raise ValueError(f"Unknown method '{method}'")
 
+            # Sum log-likelihoods, but normalize by number of observations (e.g., total_infected has 1 value, while monthly_cases has 12)
+            n = len(logp)
             weight = weights.get(key, 1)
-            log_likelihood += (logp * weight).sum()
+            log_likelihood += weight * logp.sum() / n
 
         except Exception as e:
             print(f"[ERROR] Skipping '{key}' due to: {e}")
