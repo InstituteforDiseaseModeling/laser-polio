@@ -686,6 +686,36 @@ def compute_infections_nb(disease_state, node_id, acq_risk_multiplier, beta_per_
     return exposure_sums
 
 
+def classic_infect(node_ids, exposure_probs, disease_state, new_infections):
+    """
+    Classic agent-level infection: for each susceptible agent, draw a random number and expose if r < p.
+
+    This function is compatible with the fast_infect() signature and can be swapped in via 'infection_method' param.
+
+    Parameters:
+        node_ids (np.ndarray): Array of node IDs for each person (int32).
+        exposure_probs (np.ndarray): Per-agent exposure probability (float32, [0, 1]).
+        disease_state (np.ndarray): Array of disease states (0 = S, 1 = E, 2 = I, 3 = R).
+        new_infections (np.ndarray): Ignored in this function; included for API compatibility.
+
+    Returns:
+        new_exposures_by_node (np.ndarray): Number of new exposures assigned per node.
+    """
+    susceptible = disease_state == 0
+    rand_vals = np.random.rand(len(disease_state))
+    will_be_exposed = (rand_vals < exposure_probs) & susceptible
+
+    # Expose the selected individuals
+    disease_state[will_be_exposed] = 1
+
+    # Tally new exposures per node
+    n_nodes = new_infections.shape[0]
+    exposed_nodes = node_ids[will_be_exposed]
+    new_exposures_by_node = np.bincount(exposed_nodes, minlength=n_nodes)
+
+    return new_exposures_by_node
+
+
 @nb.njit(parallel=True)
 def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
     """
@@ -930,6 +960,17 @@ class Transmission_ABM:
         self.calc_ni_time = 0
         self.do_ni_time = 0
 
+        # Map infection method to function
+        method = self.pars.get("infection_method", "fast").lower()
+        if method == "fast":
+            self.infect_fn = fast_infect
+        elif method == "classic":
+            from laser_polio.utils import classic_infect  # or wherever it's defined
+
+            self.infect_fn = classic_infect
+        else:
+            raise ValueError(f"Unknown infection method: {method}")
+
     def step(self):
         # Manual debugging of transmission
         if self.verbose >= 3:
@@ -1052,7 +1093,7 @@ class Transmission_ABM:
         exposure_probs = base_prob_infection[node_ids] * risk  # Try adding in node-level force & personal risk
         if self.verbose >= 3:
             disease_state_pre_infect = disease_state.copy()
-        new_exposures = fast_infect(node_ids, exposure_probs, disease_state, new_infections)
+        new_exposures = self.infect_fn(node_ids, exposure_probs, disease_state, new_infections)
         self.sim.results.new_exposures[self.sim.t, :] = new_exposures
         # chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
         # chunk_infect_nb(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
@@ -1096,8 +1137,9 @@ class Transmission_ABM:
         self.results.R[t, :] += R_counts
         self.results.paralyzed[t, :] = P_counts
 
-        logger.info(f"E: {self.results.E[t, :]}")
-        logger.info("")
+        if self.verbose >= 3:
+            logger.info(f"E: {self.results.E[t, :]}")
+            logger.info("")
 
     def plot(self, save=False, results_path=""):
         """
