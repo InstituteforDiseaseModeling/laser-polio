@@ -93,7 +93,8 @@ def run_sim(config=None, verbose=1, **kwargs):
     epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
     epi.rename(columns={"cases": "P"}, inplace=True)
     Path(results_path).mkdir(parents=True, exist_ok=True)
-    epi.to_csv(results_path + "/actual_data.csv", index=False)
+    results_path = Path(results_path)
+    epi.to_csv(results_path / "actual_data.csv", index=False)
 
     # Base parameters (can be overridden)
     base_pars = {
@@ -145,7 +146,7 @@ def run_sim(config=None, verbose=1, **kwargs):
         sim.plot(save=True, results_path=results_path)
     if save_data:
         Path(results_path).mkdir(parents=True, exist_ok=True)
-        lp.save_results_to_csv(sim, filename=results_path + "/simulation_results.csv")
+        lp.save_results_to_csv(sim, filename=results_path / "simulation_results.csv")
 
     return sim
 

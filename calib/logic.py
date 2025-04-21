@@ -1,6 +1,3 @@
-import json
-import subprocess
-import sys
 from functools import partial
 from pathlib import Path
 
@@ -195,7 +192,7 @@ def compute_log_likelihood_fit(actual, predicted, method="poisson", dispersion=1
     return log_likelihood
 
 
-def objective(trial, calib_config, model_config_path, fit_function, sim_path, results_path, params_file, actual_data_file):
+def objective(trial, calib_config, model_config_path, fit_function, results_path, actual_data_file):
     """Optuna objective function that runs the simulation and evaluates the fit."""
     results_file = results_path / "simulation_results.csv"
     if Path(results_file).exists():
@@ -217,27 +214,25 @@ def objective(trial, calib_config, model_config_path, fit_function, sim_path, re
         else:
             raise TypeError(f"Cannot infer parameter type for '{name}'")
 
-    # Save parameters to file (used by setup_sim)
-    with open(params_file, "w") as f:
-        json.dump(suggested_params, f, indent=4)
+    # # Save parameters to file (used by setup_sim)
+    # with open(params_file, "w") as f:
+    #     json.dump(suggested_params, f, indent=4)
 
     # Run simulation using subprocess
     try:
-        subprocess.run(
-            [
-                sys.executable,
-                str(sim_path),
-                "--model-config",
-                str(model_config_path),
-                "--params-file",
-                str(params_file),
-                "--results-path",
-                str(results_path),
-            ],
-            check=True,
-        )
-    except subprocess.CalledProcessError as e:
-        print(f"Simulation failed: {e}")
+        # Load base config
+        with open(model_config_path) as f:
+            model_config = yaml.safe_load(f)
+
+        # Merge with precedence to Optuna params
+        config = {**model_config, **suggested_params}
+        if results_path:
+            config["results_path"] = results_path
+
+        # Run simulation
+        lp.run_sim(config, verbose=0)
+    except Exception as e:
+        print(f"[ERROR] Simulation failed: {e}")
         return float("inf")
 
     # Load results and compute fit
@@ -257,8 +252,6 @@ def run_worker_main(
     model_config=None,
     fit_function=None,
     results_path=None,
-    sim_path=None,
-    params_file="params.json",
     actual_data_file=None,
 ):
     """Run Optuna trials to calibrate the model via CLI or programmatically."""
@@ -269,7 +262,6 @@ def run_worker_main(
     model_config = model_config or lp.root / "calib/model_configs/config_zamfara.yaml"
     fit_function = fit_function or "mse"  # options are "log_likelihood" or "mse"
     results_path = results_path or lp.root / "calib/results" / study_name
-    sim_path = sim_path or lp.root / "calib/laser.py"
     actual_data_file = actual_data_file or lp.root / "examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_250.csv"
 
     print(f"[INFO] Running study: {study_name} with {num_trials} trials")
@@ -294,9 +286,7 @@ def run_worker_main(
         calib_config=calib_config_dict,
         model_config_path=Path(model_config),
         fit_function=fit_function,
-        sim_path=Path(sim_path),
         results_path=Path(results_path),
-        params_file=params_file,
         actual_data_file=Path(actual_data_file),
     )
 

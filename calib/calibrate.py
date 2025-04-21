@@ -18,13 +18,11 @@ if os.getenv("POLIO_ROOT"):
 
 # ------------------- USER CONFIG -------------------
 num_trials = 2
-study_name = "calib_nigeria_smpop_r0_k_seasonality"
+study_name = "calib_nigeria_smpop_r0_k_seasonality_run_sim"
 calib_config_path = lp.root / "calib/calib_configs/r0_k_seasonality.yaml"
 model_config_path = lp.root / "calib/model_configs/config_nigeria_popscale0.01.yaml"
 fit_function = "log_likelihood"  # options are "log_likelihood" or "mse"
-sim_path = lp.root / "calib/setup_sim.py"
 results_path = lp.root / "calib/results" / study_name
-params_file = "params.json"
 actual_data_file = lp.root / "calib/results/" / study_name / "actual_data.csv"
 # ---------------------------------------------------
 
@@ -53,8 +51,6 @@ def main(model_config, results_path, study_name, fit_function="mse", **kwargs):
 @click.option("--model-config", default=str(model_config_path), show_default=True)
 @click.option("--fit-function", default=fit_function, show_default=True)
 @click.option("--results-path", default=str(results_path), show_default=True)
-@click.option("--sim-path", default=str(sim_path), show_default=True)
-@click.option("--params-file", default=str(params_file), show_default=True)
 @click.option("--actual-data-file", default=str(actual_data_file), show_default=True)
 def cli(**kwargs):
     main(**kwargs)
