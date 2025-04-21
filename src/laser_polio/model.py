@@ -228,13 +228,28 @@ class SEIR_ABM:
             if self.verbose >= 2:
                 print(f"{self.instances=}")
             plt.figure(figsize=(12, 12))
-            plt.pie(
-                self.component_times.values(),
-                labels=self.component_times.keys(),
-                autopct="%1.1f%%",
-                startangle=140,
-                colors=plt.cm.Paired.colors,
+
+            total_time = sum(self.component_times.values())
+            threshold = 1  # 1%
+            # Set label to None if the percentage is less than threshold
+            labels = list(
+                map(
+                    lambda k, v: k if (v / total_time) > (threshold / 100) else None,
+                    self.component_times.keys(),
+                    self.component_times.values(),
+                )
             )
+
+            plt.pie(
+                x=self.component_times.values(),
+                labels=labels,
+                autopct=lambda pct: f"{pct:1.1f}%" if pct > threshold else "",  # show percentage only if greater than threshold
+                pctdistance=0.85,  # distance of percentage from center (0.6 is the default)
+                labeldistance=1.1,  # distance of labels from center (1.1 is the default)
+                radius=0.9,  # radius of the pie chart (1.0 is the default)
+                # rotatelabels=True,  # rotate labels (False is the default)
+            )
+
             plt.title(f"Time Spent in Each Component ({sum(self.component_times.values()):.2f} seconds)")
             if save:
                 plt.savefig(results_path / "perfpie.png")
