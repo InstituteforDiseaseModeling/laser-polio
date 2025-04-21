@@ -904,12 +904,14 @@ class Transmission_ABM:
         # Step 4: Transform normal variables into target distributions
         acq_risk_multiplier = np.exp(mu_ln + sigma_ln * z_corr[:, 0])  # Lognormal transformation
         daily_infectivity = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)  # Gamma transformation
-        self.people.acq_risk_multiplier[: self.people.true_capacity] = acq_risk_multiplier
-        self.people.daily_infectivity[: self.people.true_capacity] = daily_infectivity
-        # Manually reset
-        sc.printyellow("Warning: manually resetting acq_risk_multiplier and daily_infectivity to 1.0 for testing")
-        self.people.acq_risk_multiplier[: self.people.true_capacity] = 1.0
-        self.people.daily_infectivity[: self.people.true_capacity] = mean_gamma
+        # Set individual heterogeneity properties
+        if self.pars.individual_heterogeneity:
+            self.people.acq_risk_multiplier[: self.people.true_capacity] = acq_risk_multiplier
+            self.people.daily_infectivity[: self.people.true_capacity] = daily_infectivity
+        else:
+            sc.printyellow("Warning: manually resetting acq_risk_multiplier and daily_infectivity to 1.0 for testing")
+            self.people.acq_risk_multiplier[: self.people.true_capacity] = 1.0
+            self.people.daily_infectivity[: self.people.true_capacity] = mean_gamma
 
         # Compute the infection migration network
         sim.results.add_vector_property("network", length=len(sim.nodes), dtype=np.float32)
@@ -1044,7 +1046,7 @@ class Transmission_ABM:
         new_infections = np.random.poisson(exposure_sums).astype(np.int32)
         if self.verbose >= 3:
             logger.info(f"exposure_sums: {fmt(exposure_sums, 2)}")
-            logger.info(f"New infections: {new_infections}")
+            logger.info(f"Expected new exposures: {new_infections}")
 
         # 6) Draw n_expected_exposures for each node according to their exposure_probs
         exposure_probs = base_prob_infection[node_ids] * risk  # Try adding in node-level force & personal risk
@@ -1052,9 +1054,10 @@ class Transmission_ABM:
             disease_state_pre_infect = disease_state.copy()
         new_exposures = fast_infect(node_ids, exposure_probs, disease_state, new_infections)
         self.sim.results.new_exposures[self.sim.t, :] = new_exposures
-
         # chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
         # chunk_infect_nb(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
+        if self.verbose >= 3:
+            logger.info(f"Observed new exposures: {new_exposures}")
 
         if self.verbose >= 3:
             #     logger.info("NORMAL CALCS: ")

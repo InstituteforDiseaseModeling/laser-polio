@@ -1,5 +1,6 @@
 # Priorities
 
+- Do oldschool rand number checks
 - Check exposure sums manually
 - Look for other checks on transmission probability in addition to Kermack and McKendrick relation
 
