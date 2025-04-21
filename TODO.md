@@ -1,24 +1,15 @@
-# Priorities
+# PRIORITIES
 
 CALIBRATION
 - Fix the shape mismatch in calibration arrays due to wrapping into next year
 - Seed infections after start date
 - Run calibration (with all the latest changes) on the cluster
 - Use more pars for Nigeria
-- Targets:
-    - Stretch: age distribution
-- Levers:
-    - Stretch: R0 scalar for N Nigeria
-    - Stretch: risk_mult_var or corr_risk_inf
 
 NEW FEATURES
-- Rethink distance matrix - could we reduce precision to reduce memory? Or would jut uploading lats and longs be faster?
-- Add scalar for N Nigeria
 - Enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
 - Add age pyramid by country
-- Save results & specify frequency
 - Reactive SIAs (2 campaigns per OB)
-- Add chronically missed pop. Maybe use a individual prob of participating in SIA?
 
 DEBUGGING
 - Ask AI why my model might deviate from KM
@@ -27,9 +18,8 @@ DEBUGGING
 - Plot all data inputs for visual checks
 - Plot expected births?
 - Update the birth and death plot to summarize by country.
-- Test full models with real data
 
-# Refinement
+# REFINEMENT
 
 TESTING
 - Use run_sim for testing.
@@ -50,8 +40,15 @@ CALIBRATION
 - Calibration parameter:
     - maybe scalar on nOPV2 efficacy
     - m (scalar) parameter on R0 random effects
+- Targets:
+    - Stretch: age distribution
+- Levers:
+    - Stretch: R0 scalar for N Nigeria
+    - Stretch: risk_mult_var or corr_risk_inf
 
 NEW FEATURES
+- Add scalar for N Nigeria
+- Rethink distance matrix - could we reduce precision to reduce memory? Or would jut uploading lats and longs be faster?
 - Add CBR by country-year
 - Is there a way to only load data & initialize sims once during calibration? How much speedup could we get?
 - Curate the surveillance delays
@@ -62,6 +59,9 @@ NEW FEATURES
 - Enable different RI rates over time
 - Add EMOD style seasonality
 - Look into age-specific death rates
+- Save results & specify frequency
+- Add chronically missed pop. Maybe use a individual prob of participating in SIA?
+- Add delays to paralysis (and new_exposed) detection times
 
 MIGRATION
 - John G recommends Finite Radiation model as default assumption
