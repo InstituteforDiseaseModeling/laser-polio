@@ -1,8 +1,7 @@
 # Priorities
 
-- Do par sweeps with model fixes
-- Get random number seed from calibration
 - Make a synthetic dataset and calibrate to it on the cluster
+- Save calib results to results folder, not calib/results folder
 
 DEBUGGING
 - Ask AI why my model might deviate from KM

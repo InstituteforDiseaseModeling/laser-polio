@@ -231,10 +231,13 @@ def objective(trial, calib_config, model_config_path, fit_function, results_path
             config["results_path"] = results_path
 
         # Run simulation
-        lp.run_sim(config, verbose=1)
+        sim = lp.run_sim(config, verbose=1)
     except Exception as e:
         print(f"[ERROR] Simulation failed: {e}")
         return float("inf")
+
+    # Save seed to Optuna
+    trial.set_user_attr("rand_seed", sim.pars.seed)  # Save the random seed
 
     # Load results and compute fit
     actual = calc_calib_targets_paralysis(actual_data_file, model_config_path, is_actual_data=True)
