@@ -1,7 +1,5 @@
 # Priorities
 
-- Clean up logs
-- Look for slowdowns in code? 
 - Do par sweeps with model fixes
 - Get random number seed from calibration
 - Make a synthetic dataset and calibrate to it on the cluster

@@ -1123,7 +1123,6 @@ class Transmission_ABM:
             logger.info(f"Alive counts: {fmt(alive_counts, 2)}")
             logger.info(f"Per agent infection rate: {fmt(per_agent_infection_rate, 2)}")
             logger.info(f"Base prob infection: {fmt(base_prob_infection, 2)}")
-            # TODO - why is this line goofy??? The nubmers look higher than expected
             logger.info(f"Exp inf (sans acq risk): {fmt(num_susceptibles * base_prob_infection, 2)}")
 
         # 5) Calculate infections
@@ -1139,21 +1138,8 @@ class Transmission_ABM:
             disease_state_pre_infect = disease_state.copy()
         new_exposures = self.infect_fn(node_ids, exposure_probs, disease_state, new_infections)
         self.sim.results.new_exposures[self.sim.t, :] = new_exposures
-        # chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
-        # chunk_infect_nb(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000)
         if self.verbose >= 3:
             logger.info(f"Observed new exposures: {new_exposures}")
-
-        if self.verbose >= 3:
-            #     logger.info("NORMAL CALCS: ")
-            #     # logger.info(f"Node beta sums: {fmt(node_beta_sums)}")
-            #     # logger.info(f"Beta seasonality: {fmt(beta_seasonality)}")
-            #     # logger.info(f"R0 scalars: {fmt(self.r0_scalars)}")
-            #     # logger.info(f"Beta sums: {fmt(node_beta_sums)}")
-            #     # logger.info(f"Beta: {fmt(beta)}")
-            #     # logger.info(f"Per agent infection rate: {fmt(per_agent_infection_rate)}")
-            #     # logger.info(f"Base prob infection: {fmt(base_prob_infection)}")
-            #     # logger.info(f"Exposure sums: {fmt(exposure_sums)}")
             total_expected = np.sum(exposure_sums)
             tot_poisson_draw = np.sum(new_infections)
             # Check the number of people that are newly exposed
