@@ -1,4 +1,6 @@
+import calendar
 import csv
+import datetime
 import datetime as dt
 import json
 import os
@@ -14,6 +16,7 @@ __all__ = [
     "create_cumulative_deaths",
     "date",
     "daterange",
+    "find_latest_end_of_month",
     "find_matching_dot_names",
     "get_distance_matrix",
     "get_epi_data",
@@ -130,6 +133,25 @@ def daterange(start_date, days):
 
     date_range = np.array([start_date + dt.timedelta(days=i) for i in range(days)])
     return date_range
+
+
+def find_latest_end_of_month(dates=None):
+    """
+    Return the latest date that is the last day of its month.
+
+    Parameters:
+        dates (List[datetime.date]): A list of datetime.date objects.
+
+    Returns:
+        datetime.date or None: The most recent end-of-month date, or None if none found.
+    """
+
+    def is_end_of_month(d: datetime.date) -> bool:
+        return d.day == calendar.monthrange(d.year, d.month)[1]
+
+    end_of_month_dates = [d for d in dates if is_end_of_month(d)]
+
+    return max(end_of_month_dates) if end_of_month_dates else None
 
 
 def find_matching_dot_names(patterns, ref_file, verbose=2):
@@ -359,8 +381,6 @@ def get_epi_data(filename, dot_names, node_lookup, start_year, n_days):
 
     # Filter by dates
     df["date"] = pd.to_datetime(df["month_start"])
-    # # # Convert to end of month so that the dates are compatible with calibration
-    # df["date"] = pd.to_datetime(df["month_start"]) + pd.offsets.MonthEnd(0)
     start_date = pd.to_datetime(f"{start_year}-01-01")
     end_date = pd.to_datetime(start_date + pd.DateOffset(days=n_days))
     df = df[(df["date"] >= start_date) & (df["date"] < end_date)]

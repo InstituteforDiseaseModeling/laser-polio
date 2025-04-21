@@ -35,6 +35,9 @@ def calc_calib_targets_paralysis(filename, model_config_path=None, is_actual_dat
     else:
         case_col = "new_exposed"
         scale_factor = 1 / 2000.0
+        # The actual data is in months & the sim has a tendency to rap into the next year (e.g., 2020-01-01) so we need to exclude and dates beyond the last month of the actual data
+        max_date = lp.find_latest_end_of_month(df["date"])
+        df = df[df["date"] <= max_date]
 
     targets = {}
 
@@ -234,6 +237,7 @@ def objective(trial, calib_config, model_config_path, fit_function, results_path
 
         # Run simulation
         sim = lp.run_sim(config, verbose=1)
+
     except Exception as e:
         print(f"[ERROR] Simulation failed: {e}")
         return float("inf")
