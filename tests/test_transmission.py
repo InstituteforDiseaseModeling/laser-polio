@@ -15,10 +15,10 @@ def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=N
         n_ppl = [10000, 10000]
     if r0_scalars is None:
         r0_scalars = [0.5, 2.0]
-    if dur_exp is None:
-        dur_exp = lp.constant(value=2)
-    if dur_inf is None:
-        dur_inf = lp.constant(value=1)
+    # if dur_exp is None:
+    #     dur_exp = lp.constant(value=2)
+    # if dur_inf is None:
+    #     dur_inf = lp.constant(value=1)
     pars = PropertySet(
         {
             "start_date": lp.date("2020-01-01"),
@@ -29,13 +29,13 @@ def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=N
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
             "init_immun": init_immun,  # initially immune
             "init_prev": init_prev,  # initially infected from any age
-            "dur_exp": dur_exp,  # Duration of the exposed state
-            "dur_inf": dur_inf,  # Duration of the infectious state
+            # "dur_exp": dur_exp,  # Duration of the exposed state
+            # "dur_inf": dur_inf,  # Duration of the infectious state
             "p_paralysis": 1 / 2000,  # 1% paralysis probability
             "r0": r0,  # Basic reproduction number
             "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
             "corr_risk_inf": 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
-            "seasonal_factor": 0.125,  # Seasonal variation in transmission
+            "seasonal_factor": 0.0,  # Seasonal variation in transmission
             "seasonal_phase": 180,  # Phase of seasonal variation
             "distances": np.array([[0, 1], [1, 0]]),  # Distance in km between nodes
             "gravity_k": 0.5,  # Gravity scaling constant
@@ -46,7 +46,7 @@ def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=N
         }
     )
     sim = lp.SEIR_ABM(pars)
-    sim.components = [lp.DiseaseState_ABM, lp.Transmission_ABM]
+    sim.components = [lp.DiseaseState_ABM, lp.Transmission_ABM, lp.VitalDynamics_ABM]
     return sim
 
 
@@ -58,13 +58,23 @@ def test_trans_default():
 
     # Check if the number of exposures matches the expected value
     R0 = sim.pars["r0"]
-    D = np.mean(sim.pars["dur_inf"](100))  # mean duration of infectiousness
-    I = sim.results.I[0]  # initial infected individuals
+    D = np.mean(sim.pars["dur_inf"](1000))  # mean duration of infectiousness
     S = sim.results.S[0]  # susceptible individuals at the start
-    N = sim.people.count
-    exp_E = np.sum((R0 / D) * I * (S / N))
+    E = sim.results.E[0]  # susceptible individuals at the start
+    I = sim.results.I[0]  # initial infected individuals
+    R = sim.results.R[0]  # initial recovered individuals
+    N = S + E + I + R  # total population
+    # exp_E = np.sum((R0 / D) * I * (S / N))
+
+    beta = R0 / D
+    r0_scalars = sim.pars["r0_scalars"]
+    lambda_ = beta * np.array(r0_scalars) * (I)
+    per_agent_rate = lambda_ / N
+    p_inf = 1 - np.exp(-per_agent_rate)
+    exp_E = np.sum(S * p_inf)
+
     obs_E = sim.results.E[1:].sum()
-    assert np.isclose(obs_E, exp_E, atol=100), "The number of exposures does not match the expected value."
+    assert np.isclose(obs_E, exp_E, atol=10), "The number of exposures does not match the expected value."
 
 
 # Test ZERO transmission scenarios

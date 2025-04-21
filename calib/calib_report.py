@@ -26,7 +26,7 @@ def save_study_results(study, output_dir: Path, csv_name: str = "trials.csv"):
         print(f"    {k}: {v}")
 
     # Save trials dataframe
-    df = study.trials_dataframe(attrs=("number", "value", "params", "state"))
+    df = study.trials_dataframe(attrs=("number", "value", "params", "state", "user_attrs"))
     df.to_csv(output_dir / csv_name, index=False)
 
     # Save best params

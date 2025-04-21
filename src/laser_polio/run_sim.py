@@ -82,18 +82,30 @@ def run_sim(config=None, verbose=1, **kwargs):
     cbr = df_comp.set_index("dot_name").loc[dot_names, "cbr"].values
     ri = df_comp.set_index("dot_name").loc[dot_names, "ri_eff"].values
     sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values
-    reff_re = df_comp.set_index("dot_name").loc[dot_names, "reff_random_effect"].values
+    # reff_re = df_comp.set_index("dot_name").loc[dot_names, "reff_random_effect"].values
+    # TODO Need to REDO random effect probs since they might've been based on the wrong data. Also, need to do the processing before filtering because of the centering & scaling
     sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re)
-    r0_scalars = lp.calc_r0_scalars_from_rand_eff(reff_re)
+    # r0_scalars = lp.calc_r0_scalars_from_rand_eff(reff_re)
+    # Calcultate geographic R0 modifiers based on underweight data (one for each node)
+    underwt = df_comp.set_index("dot_name").loc[dot_names, "prop_underwt"].values
+    r0_scalars = (1 / (1 + np.exp(24 * (0.22 - underwt)))) + 0.2  # The 0.22 is the mean of Nigeria underwt
+    # # Check Zamfara means
+    # print(f"{underwt[-14:]}")
+    # print(f"{r0_scalars[-14:]}")
 
     # Validate all arrays match
     assert all(len(arr) == len(dot_names) for arr in [dist_matrix, init_immun, node_lookup, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
+
+    # Setup results path
+    if results_path is None:
+        results_path = Path("results/default")  # Provide a default path
 
     # Load the actual case data
     epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
     epi.rename(columns={"cases": "P"}, inplace=True)
     Path(results_path).mkdir(parents=True, exist_ok=True)
-    epi.to_csv(results_path + "/actual_data.csv", index=False)
+    results_path = Path(results_path)
+    epi.to_csv(results_path / "actual_data.csv", index=False)
 
     # Base parameters (can be overridden)
     base_pars = {
@@ -110,8 +122,8 @@ def run_sim(config=None, verbose=1, **kwargs):
         "vx_prob_ri": ri,
         "sia_schedule": sia_schedule,
         "vx_prob_sia": sia_prob,
-        "actual_data": epi,
         "verbose": verbose,
+        "stop_if_no_cases": True,
     }
 
     # Dynamic values passed by user/CLI/Optuna
@@ -121,31 +133,23 @@ def run_sim(config=None, verbose=1, **kwargs):
     # TODO: make this optional
     # sc.pp(pars.to_dict())
 
-    # TODO - optionally load calibration parameters
-    # TODO - needs a rethink. Could probably just pass pars in as kwargs
-    print("WARNING: Loading calibration parameters is not yet implemented.")
-    # # Inject Optuna trial params if any exist
-    # if Path("params.json").exists():
-    #     with open("params.json") as f:
-    #         optuna_params = json.load(f)
-    #     print("[INFO] Loaded Optuna trial params:", optuna_params)
-    #     pars += optuna_params
-
     # Run sim
     sim = lp.SEIR_ABM(pars)
-    sim.components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM, lp.RI_ABM, lp.SIA_ABM]
-
-    # Run simulation
-    # if verbose >= 1:
-
+    components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM]
+    if pars.vx_prob_ri is not None:
+        components.append(lp.RI_ABM)
+    if pars.vx_prob_sia is not None:
+        components.append(lp.SIA_ABM)
+    sim.components = components
     sim.run()
 
     # Save results
     if save_plots:
+        Path(results_path).mkdir(parents=True, exist_ok=True)
         sim.plot(save=True, results_path=results_path)
     if save_data:
         Path(results_path).mkdir(parents=True, exist_ok=True)
-        lp.save_results_to_csv(sim, filename=results_path + "/simulation_results.csv")
+        lp.save_results_to_csv(sim, filename=results_path / "simulation_results.csv")
 
     return sim
 

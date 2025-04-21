@@ -1,6 +1,3 @@
-import json
-import subprocess
-import sys
 from functools import partial
 from pathlib import Path
 
@@ -8,13 +5,16 @@ import calib_db
 import numpy as np
 import optuna
 import pandas as pd
+import sciris as sc
 import yaml
+from scipy.stats import nbinom
+from scipy.stats import poisson
 
 # from logic import objective
 import laser_polio as lp
 
 
-def calc_calib_targets_paralysis(filename, model_config_path=None):
+def calc_calib_targets_paralysis(filename, model_config_path=None, is_actual_data=True):
     """Load simulation results and extract features for comparison."""
 
     # Load the data & config
@@ -28,24 +28,32 @@ def calc_calib_targets_paralysis(filename, model_config_path=None):
     df["year"] = df["date"].dt.year
     df["month"] = df["date"].dt.month
 
+    # Choose the column to summarize
+    if is_actual_data:
+        case_col = "P"
+        scale_factor = 1.0
+    else:
+        case_col = "I"
+        scale_factor = 1 / 2000.0
+
     targets = {}
 
-    # 1. Total infected
-    targets["total_infected"] = df["P"].sum()
+    # 1. Total infected (scaled if simulated)
+    targets["total_infected"] = df[case_col].sum() * scale_factor
 
     # 2. Yearly cases
-    targets["yearly_cases"] = df.groupby("year")["P"].sum().values
+    targets["yearly_cases"] = df.groupby("year")[case_col].sum().values * scale_factor
 
     # 3. Monthly cases
-    targets["monthly_cases"] = df.groupby("month")["P"].sum().values
+    targets["monthly_cases"] = df.groupby("month")[case_col].sum().values * scale_factor
 
-    # 4. Regional group cases as a single array
+    # 4. Regional group cases
     if model_config and "summary_config" in model_config:
         region_groups = model_config["summary_config"].get("region_groups", {})
         regional_cases = []
         for name in region_groups:
             node_list = region_groups[name]
-            total = df[df["node"].isin(node_list)]["P"].sum()
+            total = df[df["node"].isin(node_list)][case_col].sum() * scale_factor
             regional_cases.append(total)
         targets["regional_cases"] = np.array(regional_cases)
 
@@ -114,7 +122,7 @@ def compute_fit(actual, predicted, use_squared=False, normalize=False, weights=N
             v2 = np.array(predicted[key], dtype=float)
 
             if v1.shape != v2.shape:
-                print(f"[WARN] Shape mismatch on '{key}': {v1.shape} vs {v2.shape}")
+                sc.printyellow(f"[WARN] Shape mismatch on '{key}': {v1.shape} vs {v2.shape}")
                 continue
 
             gofs = np.abs(v1 - v2)
@@ -133,7 +141,59 @@ def compute_fit(actual, predicted, use_squared=False, normalize=False, weights=N
     return fit
 
 
-def objective(trial, calib_config, model_config_path, sim_path, results_path, params_file, actual_data_file):
+def compute_log_likelihood_fit(actual, predicted, method="poisson", dispersion=1.0, weights=None):
+    """
+    Compute log-likelihood of actual data given predicted data.
+
+    Parameters:
+        actual (dict): Dict of observed summary statistics.
+        predicted (dict): Dict of simulated summary statistics.
+        method (str): Distribution to use ("poisson" or "neg_binomial").
+        dispersion (float): Dispersion parameter for neg_binomial (var = mu + mu^2 / r).
+        weights (dict): Optional weights for each target.
+
+    Returns:
+        float: Total log-likelihood (higher is better).
+    """
+    log_likelihood = 0.0
+    weights = weights or {}
+
+    for key in actual:
+        if key not in predicted:
+            print(f"[WARN] Key missing in predicted: {key}")
+            continue
+
+        try:
+            v_obs = np.array(actual[key], dtype=float)
+            v_sim = np.array(predicted[key], dtype=float)
+            v_sim = np.clip(v_sim, 1e-6, None)  # Prevent log(0) in Poisson
+
+            if v_obs.shape != v_sim.shape:
+                sc.printyellow(f"[WARN] Shape mismatch on '{key}': {v_obs.shape} vs {v_sim.shape}")
+                continue
+
+            if method == "poisson":
+                logp = poisson.logpmf(v_obs, v_sim)
+            elif method == "neg_binomial":
+                # NB parameterization via mean (mu) and dispersion (r)
+                # r = dispersion; p = r / (r + mu)
+                mu = v_sim
+                r = dispersion
+                p = r / (r + mu)
+                logp = nbinom.logpmf(v_obs, r, p)
+            else:
+                raise ValueError(f"Unknown method '{method}'")
+
+            weight = weights.get(key, 1)
+            log_likelihood += (logp * weight).sum()
+
+        except Exception as e:
+            print(f"[ERROR] Skipping '{key}' due to: {e}")
+
+    return log_likelihood
+
+
+def objective(trial, calib_config, model_config_path, fit_function, results_path, actual_data_file):
     """Optuna objective function that runs the simulation and evaluates the fit."""
     results_file = results_path / "simulation_results.csv"
     if Path(results_file).exists():
@@ -155,33 +215,38 @@ def objective(trial, calib_config, model_config_path, sim_path, results_path, pa
         else:
             raise TypeError(f"Cannot infer parameter type for '{name}'")
 
-    # Save parameters to file (used by setup_sim)
-    with open(params_file, "w") as f:
-        json.dump(suggested_params, f, indent=4)
+    # # Save parameters to file (used by setup_sim)
+    # with open(params_file, "w") as f:
+    #     json.dump(suggested_params, f, indent=4)
 
     # Run simulation using subprocess
     try:
-        subprocess.run(
-            [
-                sys.executable,
-                str(sim_path),
-                "--model-config",
-                str(model_config_path),
-                "--params-file",
-                str(params_file),
-                "--results-path",
-                str(results_path),
-            ],
-            check=True,
-        )
-    except subprocess.CalledProcessError as e:
-        print(f"Simulation failed: {e}")
+        # Load base config
+        with open(model_config_path) as f:
+            model_config = yaml.safe_load(f)
+
+        # Merge with precedence to Optuna params
+        config = {**model_config, **suggested_params}
+        if results_path:
+            config["results_path"] = results_path
+
+        # Run simulation
+        sim = lp.run_sim(config, verbose=1)
+    except Exception as e:
+        print(f"[ERROR] Simulation failed: {e}")
         return float("inf")
 
+    # Save seed to Optuna
+    trial.set_user_attr("rand_seed", sim.pars.seed)  # Save the random seed
+
     # Load results and compute fit
-    actual = calc_calib_targets_paralysis(actual_data_file, model_config_path)
-    predicted = calc_calib_targets_paralysis(results_file, model_config_path)
-    return compute_fit(actual, predicted)
+    actual = calc_calib_targets_paralysis(actual_data_file, model_config_path, is_actual_data=True)
+    predicted = calc_calib_targets_paralysis(results_file, model_config_path, is_actual_data=False)
+
+    if fit_function == "log_likelihood":
+        return -compute_log_likelihood_fit(actual, predicted, method="poisson")  # NEGATE: Optuna minimizes
+    else:
+        return compute_fit(actual, predicted)
 
 
 def run_worker_main(
@@ -189,9 +254,8 @@ def run_worker_main(
     num_trials=None,
     calib_config=None,
     model_config=None,
+    fit_function=None,
     results_path=None,
-    sim_path=None,
-    params_file="params.json",
     actual_data_file=None,
 ):
     """Run Optuna trials to calibrate the model via CLI or programmatically."""
@@ -200,8 +264,8 @@ def run_worker_main(
     num_trials = num_trials or 5
     calib_config = calib_config or lp.root / "calib/calib_configs/calib_pars_r0.yaml"
     model_config = model_config or lp.root / "calib/model_configs/config_zamfara.yaml"
+    fit_function = fit_function or "mse"  # options are "log_likelihood" or "mse"
     results_path = results_path or lp.root / "calib/results" / study_name
-    sim_path = sim_path or lp.root / "calib/laser.py"
     actual_data_file = actual_data_file or lp.root / "examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_250.csv"
 
     print(f"[INFO] Running study: {study_name} with {num_trials} trials")
@@ -225,9 +289,8 @@ def run_worker_main(
         objective,
         calib_config=calib_config_dict,
         model_config_path=Path(model_config),
-        sim_path=Path(sim_path),
+        fit_function=fit_function,
         results_path=Path(results_path),
-        params_file=params_file,
         actual_data_file=Path(actual_data_file),
     )
 
