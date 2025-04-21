@@ -20,7 +20,7 @@ results_path = "results/scan_over_r0_k_zamfara"
 n_pts = 5  # Number of points to simulate
 n_reps = 3
 r0_values = np.linspace(5, 50, n_pts)
-gravity_k_values = np.linspace(1.0, 100.0, n_pts)
+gravity_k_values = np.linspace(1.0, 5000.0, n_pts)
 
 
 ######### END OF USER PARS ########

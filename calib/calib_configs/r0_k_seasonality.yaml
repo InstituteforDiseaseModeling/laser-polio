@@ -1,10 +1,10 @@
 parameters:
   r0:
     low: 5.0
-    high: 200.0
+    high: 50.0
   gravity_k:
-    low: 0.01
-    high: 1.0
+    low: 1.0
+    high: 5000.0
   seasonal_factor:
     low: 0.0
     high: 0.4
