@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 from laser_core.propertyset import PropertySet
@@ -250,6 +251,7 @@ def test_paralysis_probability():
     assert 0 < np.sum(sim.people.paralyzed == 1) <= exp_paralysis * 2  # Added some leeway for randomness
 
 
+@patch("laser_polio.lp.root", Path("tests/data"))
 def test_run_sim():
     sim = lp.run_sim(pop_scale=1 / 1000, n_days=3, verbose=0)
     assert isinstance(sim, lp.SEIR_ABM), "The simulation should be an instance of SEIR_ABM"
@@ -264,6 +266,7 @@ def test_run_sim():
     assert sim.results.I[0, 0] > 0  # Check that the initial infected count is greater than 0
 
 
+@patch("laser_polio.lp.root", Path("tests/data"))
 def test_seed_schedule():
     """Test infection seeding using dot_name + date via run_sim()."""
 
