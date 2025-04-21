@@ -4,7 +4,7 @@ import pandas as pd
 import laser_polio as lp
 
 # Load data
-df = pd.read_hdf("data/curation_scripts/epi/tsir_data_subset_type2_2025-04-08.h5", key="tsir_data")
+df = pd.read_hdf("data/curation_scripts/epi/tsir_data_subset_type2_2025-04-21.h5", key="tsir_data")
 shp = gpd.read_file(filename="data/shp_africa_low_res.gpkg", layer="adm2")
 
 # Drop the administrative level columns from the df
@@ -22,6 +22,6 @@ df = df[lp.date(df["month_start"]) <= pd.Timestamp.now().date()]
 
 
 # Save in Pandas-native HDF5 format
-df.to_hdf("data/epi_africa_20250408.h5", key="epi", mode="w", format="table", complevel=5)
+df.to_hdf("data/epi_africa_20250421.h5", key="epi", mode="w", format="table", complevel=5)
 
 print("Done")
