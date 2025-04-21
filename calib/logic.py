@@ -9,6 +9,8 @@ import numpy as np
 import optuna
 import pandas as pd
 import yaml
+from scipy.stats import nbinom
+from scipy.stats import poisson
 
 # from logic import objective
 import laser_polio as lp
@@ -131,6 +133,57 @@ def compute_fit(actual, predicted, use_squared=False, normalize=False, weights=N
             print(f"[ERROR] Skipping '{key}' due to: {e}")
 
     return fit
+
+
+def compute_log_likelihood_fit(actual, predicted, method="poisson", dispersion=1.0, weights=None):
+    """
+    Compute log-likelihood of actual data given predicted data.
+
+    Parameters:
+        actual (dict): Dict of observed summary statistics.
+        predicted (dict): Dict of simulated summary statistics.
+        method (str): Distribution to use ("poisson" or "neg_binomial").
+        dispersion (float): Dispersion parameter for neg_binomial (var = mu + mu^2 / r).
+        weights (dict): Optional weights for each target.
+
+    Returns:
+        float: Total log-likelihood (higher is better).
+    """
+    log_likelihood = 0.0
+    weights = weights or {}
+
+    for key in actual:
+        if key not in predicted:
+            print(f"[WARN] Key missing in predicted: {key}")
+            continue
+
+        try:
+            v_obs = np.array(actual[key], dtype=float)
+            v_sim = np.array(predicted[key], dtype=float)
+
+            if v_obs.shape != v_sim.shape:
+                print(f"[WARN] Shape mismatch on '{key}': {v_obs.shape} vs {v_sim.shape}")
+                continue
+
+            if method == "poisson":
+                logp = poisson.logpmf(v_obs, v_sim)
+            elif method == "neg_binomial":
+                # NB parameterization via mean (mu) and dispersion (r)
+                # r = dispersion; p = r / (r + mu)
+                mu = v_sim
+                r = dispersion
+                p = r / (r + mu)
+                logp = nbinom.logpmf(v_obs, r, p)
+            else:
+                raise ValueError(f"Unknown method '{method}'")
+
+            weight = weights.get(key, 1)
+            log_likelihood += (logp * weight).sum()
+
+        except Exception as e:
+            print(f"[ERROR] Skipping '{key}' due to: {e}")
+
+    return log_likelihood
 
 
 def objective(trial, calib_config, model_config_path, sim_path, results_path, params_file, actual_data_file):
