@@ -1,20 +1,11 @@
 # Priorities
 
-- Make a synthetic dataset and calibrate to it on the cluster
-- Save calib results to results folder, not calib/results folder
-
-DEBUGGING
-- Ask AI why my model might deviate from KM
-- Look for other checks on transmission probability in addition to Kermack and McKendrick relation
-- Add transmission tests with run_sim() using real data
-- Plot all data inputs for visual checks
-- Plot expected births?
-- Update the birth and death plot to summarize by country.
-- Test full models with real data
 
 CALIBRATION
 - Use static image renderers for plotly for optuna figs: https://plotly.com/python/renderers/#:~:text=similar%20for%20Nteract.-,Static%20Image%20Renderers,-A%20set%20of
 - Fix the shape mismatch in calibration arrays due to wrapping into next year
+- Seed infections after start date
+- Run calibration (with all the latest changes) on the cluster
 - Use more pars for Nigeria
 - Targets:
     - Stretch: age distribution
@@ -31,6 +22,14 @@ NEW FEATURES
 - Reactive SIAs (2 campaigns per OB)
 - Add chronically missed pop. Maybe use a individual prob of participating in SIA?
 
+DEBUGGING
+- Ask AI why my model might deviate from KM
+- Look for other checks on transmission probability in addition to Kermack and McKendrick relation
+- Add transmission tests with run_sim() using real data
+- Plot all data inputs for visual checks
+- Plot expected births?
+- Update the birth and death plot to summarize by country.
+- Test full models with real data
 
 # Refinement
 
