@@ -1,8 +1,6 @@
 # Priorities
 
-
 CALIBRATION
-- Use static image renderers for plotly for optuna figs: https://plotly.com/python/renderers/#:~:text=similar%20for%20Nteract.-,Static%20Image%20Renderers,-A%20set%20of
 - Fix the shape mismatch in calibration arrays due to wrapping into next year
 - Seed infections after start date
 - Run calibration (with all the latest changes) on the cluster
@@ -49,8 +47,6 @@ TESTING
 
 CALIBRATION
 - Calibrate the m (scalar) parameter on the R0 random effect
-- Calib question: Is there any appetite for making a broadly usable calibration bootstrapping function? For example, paralytic cases are a rare (1/2000) subset of Infections. So after/during calibration, we could resample the infection counts and get a bunch of new paralysis counts essentially for free.
-- In post(?), resample I count to get a variety of paralysis counts
 - Calibration parameter:
     - maybe scalar on nOPV2 efficacy
     - m (scalar) parameter on R0 random effects

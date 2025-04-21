@@ -44,13 +44,42 @@ def save_study_results(study, output_dir: Path, csv_name: str = "trials.csv"):
     print(f"Study results saved to '{output_dir}'")
 
 
-def plot_stuff(study_name, storage_url):
+# def plot_stuff(study_name, storage_url):
+#     study = optuna.load_study(study_name=study_name, storage=storage_url)
+#     vis.plot_optimization_history(study).show()
+#     try:
+#         vis.plot_param_importances(study).show()
+#     except Exception as ex:
+#         print("Exception trying to plot param importances; this usually happens when all trials have produced the same score.")
+#         print(str(ex))
+#     vis.plot_slice(study).show()
+#     vis.plot_contour(study, params=["r0", "gravity_k"]).show()  # pick any 2 params
+
+
+def plot_stuff(study_name, storage_url, output_dir=None):
     study = optuna.load_study(study_name=study_name, storage=storage_url)
-    vis.plot_optimization_history(study).show()
+
+    # Default output directory to current working dir if not provided
+    output_dir = Path(output_dir) if output_dir else Path.cwd()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"[INFO] Saving Optuna plots to: {output_dir.resolve()}")
+
+    # Optimization history
+    fig1 = vis.plot_optimization_history(study)
+    fig1.write_html(output_dir / "plot_opt_history.html")
+
+    # Param importances
     try:
-        vis.plot_param_importances(study).show()
+        fig2 = vis.plot_param_importances(study)
+        fig2.write_html(output_dir / "plot_param_importances.html")
     except Exception as ex:
-        print("Exception trying to plot param importances; this usually happens when all trials have produced the same score.")
-        print(str(ex))
-    vis.plot_slice(study).show()
-    vis.plot_contour(study, params=["r0", "gravity_k"]).show()  # pick any 2 params
+        print("[WARN] Could not plot param importances:", ex)
+
+    # Slice plot
+    fig3 = vis.plot_slice(study)
+    fig3.write_html(output_dir / "plot_slice.html")
+
+    # Contour plot — feel free to customize parameters
+    fig4 = vis.plot_contour(study, params=["r0", "gravity_k"])
+    fig4.write_html(output_dir / "plot_contour.html")
