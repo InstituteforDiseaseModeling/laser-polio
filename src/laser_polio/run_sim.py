@@ -46,6 +46,7 @@ def run_sim(config=None, verbose=1, **kwargs):
     init_region = configs.pop("init_region", "ANKA")
     init_prev = float(configs.pop("init_prev", 0.01))
     results_path = configs.pop("results_path", "results/demo")
+    actual_data = configs.pop("actual_data", "data/epi_africa_20250408.h5")
     save_plots = configs.pop("save_plots", False)
     save_data = configs.pop("save_data", False)
 
@@ -95,6 +96,13 @@ def run_sim(config=None, verbose=1, **kwargs):
     # Validate all arrays match
     assert all(len(arr) == len(dot_names) for arr in [dist_matrix, init_immun, node_lookup, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
 
+    # Load the actual case data
+    epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
+    epi.rename(columns={"cases": "P"}, inplace=True)
+    Path(results_path).mkdir(parents=True, exist_ok=True)
+    results_path = Path(results_path)
+    epi.to_csv(results_path / "actual_data.csv", index=False)
+
     # Base parameters (can be overridden)
     base_pars = {
         "start_date": start_date,
@@ -121,16 +129,6 @@ def run_sim(config=None, verbose=1, **kwargs):
     # TODO: make this optional
     # sc.pp(pars.to_dict())
 
-    # TODO - optionally load calibration parameters
-    # TODO - needs a rethink. Could probably just pass pars in as kwargs
-    print("WARNING: Loading calibration parameters is not yet implemented.")
-    # # Inject Optuna trial params if any exist
-    # if Path("params.json").exists():
-    #     with open("params.json") as f:
-    #         optuna_params = json.load(f)
-    #     print("[INFO] Loaded Optuna trial params:", optuna_params)
-    #     pars += optuna_params
-
     # Run sim
     sim = lp.SEIR_ABM(pars)
     components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM]
@@ -147,7 +145,7 @@ def run_sim(config=None, verbose=1, **kwargs):
         sim.plot(save=True, results_path=results_path)
     if save_data:
         Path(results_path).mkdir(parents=True, exist_ok=True)
-        lp.save_results_to_csv(sim, filename=results_path + "/simulation_results.csv")
+        lp.save_results_to_csv(sim, filename=results_path / "simulation_results.csv")
 
     return sim
 
