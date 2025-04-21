@@ -33,7 +33,7 @@ def calc_calib_targets_paralysis(filename, model_config_path=None, is_actual_dat
         case_col = "P"
         scale_factor = 1.0
     else:
-        case_col = "I"
+        case_col = "new_exposed"
         scale_factor = 1 / 2000.0
 
     targets = {}

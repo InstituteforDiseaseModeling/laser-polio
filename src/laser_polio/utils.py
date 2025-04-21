@@ -359,6 +359,8 @@ def get_epi_data(filename, dot_names, node_lookup, start_year, n_days):
 
     # Filter by dates
     df["date"] = pd.to_datetime(df["month_start"])
+    # # # Convert to end of month so that the dates are compatible with calibration
+    # df["date"] = pd.to_datetime(df["month_start"]) + pd.offsets.MonthEnd(0)
     start_date = pd.to_datetime(f"{start_year}-01-01")
     end_date = pd.to_datetime(start_date + pd.DateOffset(days=n_days))
     df = df[(df["date"] >= start_date) & (df["date"] < end_date)]
@@ -405,7 +407,7 @@ def save_results_to_csv(sim, filename="simulation_results.csv"):
     :param filename: The name of the CSV file to save.
     """
 
-    timesteps = sim.t
+    timesteps = sim.nt
     datevec = sim.datevec
     nodes = len(sim.nodes)
     results = sim.results
@@ -414,13 +416,23 @@ def save_results_to_csv(sim, filename="simulation_results.csv"):
         writer = csv.writer(file)
 
         # Write header
-        writer.writerow(["timestep", "date", "node", "S", "E", "I", "R", "P"])
+        writer.writerow(["timestep", "date", "node", "S", "E", "I", "R", "P", "new_exposed"])
 
         # Write data
         for t in range(timesteps):
             for n in range(nodes):
                 writer.writerow(
-                    [t, datevec[t], n, results.S[t, n], results.E[t, n], results.I[t, n], results.R[t, n], results.paralyzed[t, n]]
+                    [
+                        t,
+                        datevec[t],
+                        n,
+                        results.S[t, n],
+                        results.E[t, n],
+                        results.I[t, n],
+                        results.R[t, n],
+                        results.paralyzed[t, n],
+                        results.new_exposed[t, n],
+                    ]
                 )
 
     print(f"Results saved to {filename}")

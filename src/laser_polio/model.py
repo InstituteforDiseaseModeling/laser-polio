@@ -945,7 +945,7 @@ class Transmission_ABM:
         # self.r0_scalars = 1 / (1 + np.exp(24 * (np.mean(underwt) - underwt))) + 0.2
 
         # Record new exposure counts aka incidence
-        sim.results.add_array_property("new_exposures", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
+        sim.results.add_array_property("new_exposed", shape=(sim.nt, len(self.nodes)), dtype=np.int32)
 
         # Pre-compute individual risk of acquisition and infectivity with correlated sampling
         # Step 0: Add properties to people
@@ -1136,10 +1136,10 @@ class Transmission_ABM:
         exposure_probs = base_prob_infection[node_ids] * risk  # Try adding in node-level force & personal risk
         if self.verbose >= 3:
             disease_state_pre_infect = disease_state.copy()
-        new_exposures = self.infect_fn(node_ids, exposure_probs, disease_state, new_infections)
-        self.sim.results.new_exposures[self.sim.t, :] = new_exposures
+        new_exposed = self.infect_fn(node_ids, exposure_probs, disease_state, new_infections)
+        self.sim.results.new_exposed[self.sim.t, :] = new_exposed
         if self.verbose >= 3:
-            logger.info(f"Observed new exposures: {new_exposures}")
+            logger.info(f"Observed new exposures: {new_exposed}")
             total_expected = np.sum(exposure_sums)
             tot_poisson_draw = np.sum(new_infections)
             # Check the number of people that are newly exposed
