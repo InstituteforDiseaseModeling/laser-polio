@@ -5,6 +5,7 @@ import calib_db
 import numpy as np
 import optuna
 import pandas as pd
+import sciris as sc
 import yaml
 from scipy.stats import nbinom
 from scipy.stats import poisson
@@ -121,7 +122,7 @@ def compute_fit(actual, predicted, use_squared=False, normalize=False, weights=N
             v2 = np.array(predicted[key], dtype=float)
 
             if v1.shape != v2.shape:
-                print(f"[WARN] Shape mismatch on '{key}': {v1.shape} vs {v2.shape}")
+                sc.printyellow(f"[WARN] Shape mismatch on '{key}': {v1.shape} vs {v2.shape}")
                 continue
 
             gofs = np.abs(v1 - v2)
@@ -168,7 +169,7 @@ def compute_log_likelihood_fit(actual, predicted, method="poisson", dispersion=1
             v_sim = np.clip(v_sim, 1e-6, None)  # Prevent log(0) in Poisson
 
             if v_obs.shape != v_sim.shape:
-                print(f"[WARN] Shape mismatch on '{key}': {v_obs.shape} vs {v_sim.shape}")
+                sc.printyellow(f"[WARN] Shape mismatch on '{key}': {v_obs.shape} vs {v_sim.shape}")
                 continue
 
             if method == "poisson":
@@ -230,7 +231,7 @@ def objective(trial, calib_config, model_config_path, fit_function, results_path
             config["results_path"] = results_path
 
         # Run simulation
-        lp.run_sim(config, verbose=0)
+        lp.run_sim(config, verbose=1)
     except Exception as e:
         print(f"[ERROR] Simulation failed: {e}")
         return float("inf")
