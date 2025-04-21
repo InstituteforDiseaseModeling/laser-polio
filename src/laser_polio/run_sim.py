@@ -96,6 +96,10 @@ def run_sim(config=None, verbose=1, **kwargs):
     # Validate all arrays match
     assert all(len(arr) == len(dot_names) for arr in [dist_matrix, init_immun, node_lookup, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
 
+    # Setup results path
+    if results_path is None:
+        results_path = Path("results/default")  # Provide a default path
+
     # Load the actual case data
     epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
     epi.rename(columns={"cases": "P"}, inplace=True)
