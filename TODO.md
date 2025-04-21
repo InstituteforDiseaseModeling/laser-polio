@@ -1,6 +1,7 @@
 # PRIORITIES
 
 CALIBRATION
+- Use static image renderers for plotly for optuna figs: https://plotly.com/python/renderers/#:~:text=similar%20for%20Nteract.-,Static%20Image%20Renderers,-A%20set%20of
 - Fix the shape mismatch in calibration arrays due to wrapping into next year
 - Seed infections after start date
 - Run calibration (with all the latest changes) on the cluster
