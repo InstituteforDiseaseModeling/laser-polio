@@ -1,8 +1,11 @@
 # Priorities
 
-- Do oldschool rand number checks
-- Check exposure sums manually
 - Look for other checks on transmission probability in addition to Kermack and McKendrick relation
+- Ask AI why my model might deviate from KM
+- Likelihood fn for calibrator
+- Clean up logs
+- Look for slowdowns in code? 
+
 
 My rough plan for the next week is to keep debugging transmission, do some parameter sweeps with the transmission fix, make a synthetic dataset and calibrate to it on the cluster. If I get those done, I have a to do list that only seems to grow
 - likelihood fn for calibrator
