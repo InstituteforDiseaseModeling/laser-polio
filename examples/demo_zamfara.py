@@ -33,6 +33,7 @@ sim = lp.run_sim(
     seed=1,
     r0=r0,
     gravity_k=gravity_k,
+    infection_method="fast",
 )
 
 sc.printcyan("Done.")
