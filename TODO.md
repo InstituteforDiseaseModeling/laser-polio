@@ -1,15 +1,13 @@
 # Priorities
 
+- Try calibrating with new likelihood fn & kill switch locally
 - Look for other checks on transmission probability in addition to Kermack and McKendrick relation
 - Ask AI why my model might deviate from KM
-- Likelihood fn for calibrator
 - Clean up logs
 - Look for slowdowns in code? 
-
-
-My rough plan for the next week is to keep debugging transmission, do some parameter sweeps with the transmission fix, make a synthetic dataset and calibrate to it on the cluster. If I get those done, I have a to do list that only seems to grow
-- likelihood fn for calibrator
-- get random number seed from calibration
+- Do par sweeps with model fixes
+- Get random number seed from calibration
+- Make a synthetic dataset and calibrate to it on the cluster
 
 DEBUGGING
 - Add transmission tests with run_sim() using real data
@@ -20,9 +18,8 @@ DEBUGGING
 
 CALIBRATION
 - Use static image renderers for plotly for optuna figs: https://plotly.com/python/renderers/#:~:text=similar%20for%20Nteract.-,Static%20Image%20Renderers,-A%20set%20of
-- Try comparing observed paralysis counts to infections / 2000
+- Fix the shape mismatch in calibration arrays due to wrapping into next year
 - Use more pars for Nigeria
-- Likelihood fn???
 - Targets:
     - Stretch: age distribution
 - Levers:
@@ -43,6 +40,16 @@ NEW FEATURES
 
 TESTING
 - Use run_sim for testing.
+- Is there a way to only load data & initialize sims once during calibration? How much speedup could we get?
+- John G recommends Finite Radiation model as default assumption
+- Work with John G to put bounds on gravity model pars??
+- Calib question: Is there any appetite for making a broadly usable calibration bootstrapping function? For example, paralytic cases are a rare (1/2000) subset of Infections. So after/during calibration, we could resample the infection counts and get a bunch of new paralysis counts essentially for free.
+- Curate the surveillance delays
+- Add surveillance delays to reactive SIAs
+- Add rule for blackouts (e.g., limiting number of campaigns / year) of maybe 1-2 years
+- Use KM's gravity model scaling approach
+- Export pars as pkl
+- Re-org the data folder to have timestamped files? Or time-stamped folders?
 - Check that the SIA schedule dot_names are in my shapes
 
 CALIBRATION

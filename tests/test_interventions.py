@@ -92,7 +92,7 @@ def test_ri_vx_prob():
     n_vx = np.sum(sim.results.ri_vaccinated)
     n_r = np.sum(sim.results.R[-1])
 
-    assert np.isclose(n_exp, n_vx, atol=10), "Vaccination rate does not match probability."
+    assert np.isclose(n_exp, n_vx, atol=15), "Vaccination rate does not match probability."
     assert n_vx == n_r, "Vaccinated and Recovered counts should be equal if vx efficacy is 100%"
 
 

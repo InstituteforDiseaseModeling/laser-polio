@@ -6,3 +6,4 @@ tqdm
 scipy
 pymysql
 cryptography
+plotly
