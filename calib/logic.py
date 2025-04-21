@@ -16,7 +16,7 @@ from scipy.stats import poisson
 import laser_polio as lp
 
 
-def calc_calib_targets_paralysis(filename, model_config_path=None):
+def calc_calib_targets_paralysis(filename, model_config_path=None, is_actual_data=True):
     """Load simulation results and extract features for comparison."""
 
     # Load the data & config
@@ -30,24 +30,32 @@ def calc_calib_targets_paralysis(filename, model_config_path=None):
     df["year"] = df["date"].dt.year
     df["month"] = df["date"].dt.month
 
+    # Choose the column to summarize
+    if is_actual_data:
+        case_col = "P"
+        scale_factor = 1.0
+    else:
+        case_col = "I"
+        scale_factor = 1 / 2000.0
+
     targets = {}
 
-    # 1. Total infected
-    targets["total_infected"] = df["P"].sum()
+    # 1. Total infected (scaled if simulated)
+    targets["total_infected"] = df[case_col].sum() * scale_factor
 
     # 2. Yearly cases
-    targets["yearly_cases"] = df.groupby("year")["P"].sum().values
+    targets["yearly_cases"] = df.groupby("year")[case_col].sum().values * scale_factor
 
     # 3. Monthly cases
-    targets["monthly_cases"] = df.groupby("month")["P"].sum().values
+    targets["monthly_cases"] = df.groupby("month")[case_col].sum().values * scale_factor
 
-    # 4. Regional group cases as a single array
+    # 4. Regional group cases
     if model_config and "summary_config" in model_config:
         region_groups = model_config["summary_config"].get("region_groups", {})
         regional_cases = []
         for name in region_groups:
             node_list = region_groups[name]
-            total = df[df["node"].isin(node_list)]["P"].sum()
+            total = df[df["node"].isin(node_list)][case_col].sum() * scale_factor
             regional_cases.append(total)
         targets["regional_cases"] = np.array(regional_cases)
 
@@ -160,6 +168,7 @@ def compute_log_likelihood_fit(actual, predicted, method="poisson", dispersion=1
         try:
             v_obs = np.array(actual[key], dtype=float)
             v_sim = np.array(predicted[key], dtype=float)
+            v_sim = np.clip(v_sim, 1e-6, None)  # Prevent log(0) in Poisson
 
             if v_obs.shape != v_sim.shape:
                 print(f"[WARN] Shape mismatch on '{key}': {v_obs.shape} vs {v_sim.shape}")
@@ -186,7 +195,7 @@ def compute_log_likelihood_fit(actual, predicted, method="poisson", dispersion=1
     return log_likelihood
 
 
-def objective(trial, calib_config, model_config_path, sim_path, results_path, params_file, actual_data_file):
+def objective(trial, calib_config, model_config_path, fit_function, sim_path, results_path, params_file, actual_data_file):
     """Optuna objective function that runs the simulation and evaluates the fit."""
     results_file = results_path / "simulation_results.csv"
     if Path(results_file).exists():
@@ -232,9 +241,13 @@ def objective(trial, calib_config, model_config_path, sim_path, results_path, pa
         return float("inf")
 
     # Load results and compute fit
-    actual = calc_calib_targets_paralysis(actual_data_file, model_config_path)
-    predicted = calc_calib_targets_paralysis(results_file, model_config_path)
-    return compute_fit(actual, predicted)
+    actual = calc_calib_targets_paralysis(actual_data_file, model_config_path, is_actual_data=True)
+    predicted = calc_calib_targets_paralysis(results_file, model_config_path, is_actual_data=False)
+
+    if fit_function == "log_likelihood":
+        return -compute_log_likelihood_fit(actual, predicted, method="poisson")  # NEGATE: Optuna minimizes
+    else:
+        return compute_fit(actual, predicted)
 
 
 def run_worker_main(
@@ -242,6 +255,7 @@ def run_worker_main(
     num_trials=None,
     calib_config=None,
     model_config=None,
+    fit_function=None,
     results_path=None,
     sim_path=None,
     params_file="params.json",
@@ -253,6 +267,7 @@ def run_worker_main(
     num_trials = num_trials or 5
     calib_config = calib_config or lp.root / "calib/calib_configs/calib_pars_r0.yaml"
     model_config = model_config or lp.root / "calib/model_configs/config_zamfara.yaml"
+    fit_function = fit_function or "mse"  # options are "log_likelihood" or "mse"
     results_path = results_path or lp.root / "calib/results" / study_name
     sim_path = sim_path or lp.root / "calib/laser.py"
     actual_data_file = actual_data_file or lp.root / "examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_250.csv"
@@ -278,6 +293,7 @@ def run_worker_main(
         objective,
         calib_config=calib_config_dict,
         model_config_path=Path(model_config),
+        fit_function=fit_function,
         sim_path=Path(sim_path),
         results_path=Path(results_path),
         params_file=params_file,

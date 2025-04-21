@@ -1,5 +1,7 @@
 # Priorities
 
+- switch to using lp.run_sim in calibration
+
 DEBUGGING
 - Check transmission function calculations. Why do we need R0 so high!?
 - Check transmission probability with real data. Why do we need R0 so high!?

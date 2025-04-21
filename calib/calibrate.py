@@ -20,7 +20,8 @@ if os.getenv("POLIO_ROOT"):
 num_trials = 2
 study_name = "calib_nigeria_smpop_r0_k_seasonality"
 calib_config_path = lp.root / "calib/calib_configs/r0_k_seasonality.yaml"
-model_config_path = lp.root / "calib/model_configs/config_nigeria_popscale0.0001.yaml"
+model_config_path = lp.root / "calib/model_configs/config_nigeria_popscale0.01.yaml"
+fit_function = "log_likelihood"  # options are "log_likelihood" or "mse"
 sim_path = lp.root / "calib/setup_sim.py"
 results_path = lp.root / "calib/results" / study_name
 params_file = "params.json"
@@ -28,9 +29,9 @@ actual_data_file = lp.root / "calib/results/" / study_name / "actual_data.csv"
 # ---------------------------------------------------
 
 
-def main(model_config, results_path, study_name, **kwargs):
+def main(model_config, results_path, study_name, fit_function="mse", **kwargs):
     # Run calibration
-    run_worker_main(model_config=model_config, results_path=results_path, study_name=study_name, **kwargs)
+    run_worker_main(model_config=model_config, results_path=results_path, study_name=study_name, fit_function=fit_function, **kwargs)
 
     # Save & plot the calibration results
     shutil.copy(model_config, Path(results_path) / "model_config.yaml")
@@ -50,6 +51,7 @@ def main(model_config, results_path, study_name, **kwargs):
 @click.option("--num-trials", default=num_trials, show_default=True, type=int)
 @click.option("--calib-config", default=str(calib_config_path), show_default=True)
 @click.option("--model-config", default=str(model_config_path), show_default=True)
+@click.option("--fit-function", default=fit_function, show_default=True)
 @click.option("--results-path", default=str(results_path), show_default=True)
 @click.option("--sim-path", default=str(sim_path), show_default=True)
 @click.option("--params-file", default=str(params_file), show_default=True)
