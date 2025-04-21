@@ -744,6 +744,9 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
     n_people = len(node_ids)
     n_new_exposures = np.zeros(num_nodes, dtype=np.int32)
 
+    # 1A) Calculate the number of susceptible individuals in each node
+    # This is done in parallel to speed up the process
+
     # Thread-local storage
     local_sums = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
     # Parallel loop
@@ -751,7 +754,6 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
         if disease_state[i] == 0:  # susceptible
             nd = node_ids[i]
             local_sums[nb.get_thread_id(), nd] += 1
-
     # Merge
     susceptible_sums = local_sums.sum(axis=0)  # Sum across threads
 
@@ -760,14 +762,16 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
         if n_to_draw <= 0:
             continue
 
-        # 1) Get + check count of susceptible agents in this node
+        # 1B) Get and check count of susceptible agents in _this_ node
         sus_count = susceptible_sums[node]
         if sus_count == 0:
             continue
 
-        # Step 2: Build CDF of exposure_probs over susceptibles & get susceptible indices
-        sus_indices = np.empty(sus_count, dtype=np.int64)  # Index of each susceptible
-        sus_probs = np.empty(sus_count, dtype=np.float32)  # CDF values
+        # Step 2: Collect indices of susceptible individuals in this node
+        # and copy their exposure probabilities into a new array
+        # We need the copy in case we need to retry sampling to get unique indices
+        sus_indices = np.empty(sus_count, dtype=np.int32)
+        sus_probs = np.empty(sus_count, dtype=np.float32)
         idx = 0
         for i in range(n_people):
             if (node_ids[i] == node) and (disease_state[i] == 0):
@@ -775,22 +779,35 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
                 sus_probs[idx] = exposure_probs[i]
                 idx += 1
 
-        # Variation of NumPy random.choice()
-        n_uniq = 0
-        p = sus_probs
-        size = n_to_draw
+        # Step 3: Choose unique indices from susceptible population
+        # using variation of NumPy random.choice()
+        n_uniq = 0  # How many unique indices have we selected so far
+        p = sus_probs  # alias sus_probs because the original algorithm uses p
+        size = n_to_draw  # alias n_to_draw because the original algorithm uses size
         while n_uniq < size:
-            x = np.random.rand(size - n_uniq)
-            cdf = np.cumsum(p)
-            if cdf[-1] == 0:
+            # The magic is here with the random probes, the cumulative sum of the weights,
+            # which effectively makes each index scaled by its weight,
+            # and the binary search to find the indices.
+
+            # Easy example, imagine two susceptible individuals, one with p=0.1 and one with p=0.9
+            # If we draw a random number x in [0..1), we can find the index of the individual
+            # that will be exposed by searching for the index of the first element in the cumulative
+            # sum of the weights that is greater than x, which is much more likely to be the second
+            # individual than the first.
+
+            x = np.random.rand(size - n_uniq)  # Random values for sampling [0..1)
+            cdf = np.cumsum(p)  # cumsum of weights for searching
+            if cdf[-1] == 0:  # exit early if no susceptibles remaining
                 break
+            # Binary search for indices, modify x to be in [0..cdf[-1])
+            # One multiply vs thousands of divides for cdf /= cdf[-1]
             indices = np.searchsorted(cdf, x * cdf[-1], side="right")
-            indices = np.unique(indices)  # Get unique indices
-            disease_state[sus_indices[indices]] = 1  # Expose the chosen individuals
-            n_new_exposures[node] += indices.size
-            n_uniq += indices.size
-            if n_uniq < size:
-                p[indices] = 0.0  # Set the probabilities to zero for the selected indices
+            indices = np.unique(indices)  # unique indices only
+            disease_state[sus_indices[indices]] = 1  # expose the chosen individuals
+            n_new_exposures[node] += indices.size  # update the count with new exposures
+            n_uniq += indices.size  # update the number of unique indices selected
+            if n_uniq < size:  # if we haven't selected enough unique indices, we need to retry
+                p[indices] = 0.0  # set the probabilities for the selected indices to zero
 
     return n_new_exposures
 
