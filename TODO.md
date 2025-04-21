@@ -1,7 +1,6 @@
 # PRIORITIES
 
 CALIBRATION
-- Fix the shape mismatch in calibration arrays due to date issues in the epi data
 - Seed infections after start date
 - Run calibration (with all the latest changes) on the cluster
 - Refine and simplify the calibration functions
