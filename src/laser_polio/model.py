@@ -776,6 +776,50 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
     return n_new_exposures
 
 
+def efsp_infect(node_ids, exposure_probs, disease_state, new_infections):
+    """
+    Infect agents using precomputed number of infections per node, using Efraimidis-Spirakis
+    weighted sampling without replacement.
+
+    Parameters:
+        node_ids (np.ndarray): Array of node IDs per agent (int32).
+        exposure_probs (np.ndarray): Exposure probabilities (float32).
+        disease_state (np.ndarray): Disease states (0 = S, 1 = E, 2 = I, 3 = R).
+        new_infections (np.ndarray): Number of infections to assign per node (int32).
+
+    Returns:
+        np.ndarray: Number of new exposures assigned per node (same shape as new_infections).
+    """
+    n_nodes = new_infections.shape[0]
+    new_exposures_by_node = np.zeros(n_nodes, dtype=np.int32)
+
+    # Loop over each node with infections to assign
+    for node in np.flatnonzero(new_infections):
+        # Get agent indices for this node
+        in_node = np.flatnonzero((node_ids == node) & (disease_state == 0))
+        if in_node.size == 0:
+            continue
+
+        # Weights for these susceptible individuals
+        weights = exposure_probs[in_node]
+        weights = np.clip(weights, 1e-8, 1.0)  # Avoid division by 0 or unstable keys
+
+        k = min(new_infections[node], in_node.size)  # Can't infect more than available
+        if k == 0:
+            continue
+
+        # Efraimidis-Spirakis: sample k indices based on weights
+        keys = np.log(np.random.rand(in_node.size)) / weights
+        top_k_indices = np.argpartition(keys, k)[:k]
+        selected_agents = in_node[top_k_indices]
+
+        # Infect them
+        disease_state[selected_agents] = 1
+        new_exposures_by_node[node] = k
+
+    return new_exposures_by_node
+
+
 def chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000):
     """
     Efficiently sample exactly the specified number of new infections from weighted susceptibles in each node.
@@ -961,13 +1005,13 @@ class Transmission_ABM:
         self.do_ni_time = 0
 
         # Map infection method to function
-        method = self.pars.get("infection_method", "fast").lower()
+        method = self.pars["infection_method"].lower()
         if method == "fast":
             self.infect_fn = fast_infect
         elif method == "classic":
-            from laser_polio.utils import classic_infect  # or wherever it's defined
-
             self.infect_fn = classic_infect
+        elif method == "efsp":
+            self.infect_fn = efsp_infect
         else:
             raise ValueError(f"Unknown infection method: {method}")
 
