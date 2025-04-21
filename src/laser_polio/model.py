@@ -1147,7 +1147,6 @@ class Transmission_ABM:
             logger.info(
                 f"Tot exp infections: {total_expected:.2f}, Total pois draw: {tot_poisson_draw}, Tot realized infections: {num_new_exposed}"
             )
-            logger.info(f"Expected infections by node (Pois draws): {fmt(new_infections)}")
 
     def log(self, t):
         # Get the counts for each node in one pass
@@ -1168,7 +1167,7 @@ class Transmission_ABM:
         self.results.paralyzed[t, :] = P_counts
 
         if self.verbose >= 3:
-            logger.info(f"E: {self.results.E[t, :]}")
+            logger.info(f"Exposed logged at end of timestep: {self.results.E[t, :]}")
             logger.info("")
 
     def plot(self, save=False, results_path=""):
