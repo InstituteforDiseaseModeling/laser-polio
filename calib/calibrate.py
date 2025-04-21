@@ -22,8 +22,8 @@ study_name = "calib_nigeria_smpop_r0_k_seasonality_20250421_v1"
 calib_config_path = lp.root / "calib/calib_configs/r0_k_seasonality.yaml"
 model_config_path = lp.root / "calib/model_configs/config_nigeria_popscale0.01.yaml"
 fit_function = "log_likelihood"  # options are "log_likelihood" or "mse"
-results_path = lp.root / "calib/results" / study_name
-actual_data_file = lp.root / "calib/results" / study_name / "actual_data.csv"
+results_path = lp.root / "results" / study_name
+actual_data_file = lp.root / "results" / study_name / "actual_data.csv"
 # ---------------------------------------------------
 
 
