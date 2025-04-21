@@ -1,8 +1,5 @@
 # Priorities
 
-- Try calibrating with new likelihood fn & kill switch locally
-- Look for other checks on transmission probability in addition to Kermack and McKendrick relation
-- Ask AI why my model might deviate from KM
 - Clean up logs
 - Look for slowdowns in code? 
 - Do par sweeps with model fixes
@@ -10,6 +7,8 @@
 - Make a synthetic dataset and calibrate to it on the cluster
 
 DEBUGGING
+- Ask AI why my model might deviate from KM
+- Look for other checks on transmission probability in addition to Kermack and McKendrick relation
 - Add transmission tests with run_sim() using real data
 - Plot all data inputs for visual checks
 - Plot expected births?
