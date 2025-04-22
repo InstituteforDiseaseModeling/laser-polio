@@ -39,6 +39,7 @@ def save_study_results(study, output_dir: Path, csv_name: str = "trials.csv"):
     metadata["timestamp"] = metadata.get("timestamp") or datetime.now().isoformat()  # noqa: DTZ005
     metadata["study_name"] = study.study_name
     metadata["storage_url"] = study.storage_url
+    metadata["laser_polio_git_info"] = sc.gitinfo()
     with open(output_dir / "study_metadata.json", "w") as f:
         json.dump(metadata, f, indent=4)
 

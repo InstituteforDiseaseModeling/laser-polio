@@ -7,8 +7,6 @@ CALIBRATION
 - Refine how regional groupings are made for N/S Nigeria
 - Are we at risk of collisions with simulation_results.csv?
 - Update README with usage instructions
-- add git hash
-- add lp version
 - record pkg versions
 - save best trial results & figs
 
@@ -42,6 +40,7 @@ CALIBRATION
 - Levers:
     - Stretch: R0 scalar for N Nigeria
     - Stretch: risk_mult_var or corr_risk_inf
+- Record lp version
 
 DEBUGGING
 - Ask AI why my model might deviate from KM
