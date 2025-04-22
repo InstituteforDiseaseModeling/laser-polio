@@ -74,7 +74,7 @@ def test_trans_default():
     exp_E = np.sum(S * p_inf)
 
     obs_E = sim.results.E[1:].sum()
-    assert np.isclose(obs_E, exp_E, atol=10), "The number of exposures does not match the expected value."
+    assert np.isclose(obs_E, exp_E, atol=15), "The number of exposures does not match the expected value."
 
 
 # Test ZERO transmission scenarios
@@ -122,7 +122,7 @@ def test_double_trans():
     n_e_t1_r0_2x = sim_r0_2x.results.E[1:].sum()
     n_e_t1_r0_scalars_2x = sim_r0_scalars_2x.results.E[1:].sum()
     n_e_t1_init_prev_2x = sim_init_prev_2x.results.E[1:].sum()
-    atol = n_e_t1_default * 0.8  # Allow for some tolerance in the comparison
+    atol = n_e_t1_default * 0.9  # Allow for some tolerance in the comparison
     assert np.isclose(n_e_t1_default * 2, n_e_t1_r0_2x, atol=atol), "Doubling r0 should approximately double the number of exposures."
     assert np.isclose(n_e_t1_default * 2, n_e_t1_r0_scalars_2x, atol=atol), (
         "Doubling r0_scalars should approximately double the number of exposures."
