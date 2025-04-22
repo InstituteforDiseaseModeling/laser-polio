@@ -5,8 +5,8 @@ import cloud_calib_config as cfg
 import optuna
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from calib_report import plot_stuff
-from calib_report import save_study_results
+from calib.report import plot_stuff
+from calib.report import save_study_results
 
 # STORAGE_URL2 = "mysql+pymysql://root@127.0.0.1:3306/optuna_db"
 IMAGE_NAME = "idm-docker-staging.packages.idmod.org/laser/laser-polio:latest"

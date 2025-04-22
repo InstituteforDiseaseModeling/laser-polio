@@ -146,8 +146,8 @@ if __name__ == "__main__":
     run_docker_calibration(study_name, num_trials=1)
 
     # Step 3: Post-execution study reporting
-    from calib_report import plot_stuff
-    from calib_report import save_study_results
+    from calib.report import plot_stuff
+    from calib.report import save_study_results
 
     storage_url = STORAGE_URL2
     study = optuna.load_study(study_name=study_name, storage=storage_url)
