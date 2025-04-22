@@ -6,6 +6,14 @@ CALIBRATION
 - Refine and simplify the calibration functions
 - Refine how regional groupings are made for N/S Nigeria
 
+CLOUD
+- Import ps from user config file that's in gitignore
+- should be able to make 1 file that I could run to kickoff port forwarding & optuna dashboard (.bat file)
+- might be able to connect aks to kubernetes app in VS code so I can interact with each node
+- think there's an aks python library that might provide a link or option for inspecting nodes to see which are running
+- web interface for aks -> could allow us to login & browse what's running from online, but probably too many settings for me
+
+
 NEW FEATURES
 - Enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
 

@@ -21,6 +21,7 @@ uv.lock
 *.tif
 
 # Calibration & results files
+*local_storage.yaml
 *params.json
 *simulation_results.csv
 results/

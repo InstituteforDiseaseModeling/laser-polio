@@ -1,4 +1,7 @@
 # calib_job_config.py
+from pathlib import Path
+
+import yaml
 
 study_name = "test_polio_calib_fixed"
 num_trials = 1
@@ -8,12 +11,15 @@ namespace = "default"
 job_name = "laser-polio-worker-jb"
 image = "idm-docker-staging.packages.idmod.org/laser/laser-polio:latest"
 
-# Placeholder
-storage_url = "REPLACE_WITH_VALUE_FROM_DOCS"
 
-if storage_url == "REPLACE_WITH_VALUE_FROM_DOCS":
-    raise RuntimeError(
-        "\n[ERROR] You must set `storage_url` in calib_job_config.py!\n"
-        "Follow the instructions in the documentation to get the correct value.\n"
-        "Hint: It's probably an Azure blob storage URL with credentials.\n"
-    )
+# Define the path to the YAML file with the storage URL from the docs
+storage_path = Path("calib/cloud/local_storage.yaml")
+
+# Try loading the storage URL from YAML, fallback to env var
+storage_url = None
+if storage_path.exists():
+    storage = yaml.safe_load(storage_path.read_text())
+    storage_url = storage.get("storage_url")
+# Safety check
+if storage_url is None:
+    raise RuntimeError("Missing STORAGE_URL in local_storage.yaml")
