@@ -24,6 +24,7 @@ uv.lock
 *params.json
 *simulation_results.csv
 results/
+*local_storage.yaml
 
 # Large files
 *shape0.gpkg
