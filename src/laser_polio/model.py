@@ -192,12 +192,12 @@ class SEIR_ABM:
                     self.t += 1
 
                     # Early stopping rule
-                    if self.should_stop:
-                        if self.verbose >= 1:
-                            sc.printyellow(
-                                f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events. This stops all components (e.g., no births, deaths, or vaccination)"
-                            )
-                        break
+                    # if self.should_stop:
+                    #     if self.verbose >= 1:
+                    #         sc.printyellow(
+                    #             f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events. This stops all components (e.g., no births, deaths, or vaccination)"
+                    #         )
+                    #     break
 
                 bar()  # Update the progress bar
         if self.verbose >= 1:
@@ -1270,12 +1270,29 @@ class VitalDynamics_ABM:
         if t % self.step_size != 0:
             return
 
-        # 1) Vectorized mask of all alive people
-        alive = self.people.disease_state >= 0
+        # # 1) Vectorized mask of all alive people
+        # alive = self.people.disease_state >= 0
 
-        # 2) Count how many alive in each node in one pass
-        node_ids_alive = self.people.node_id[alive]
-        alive_count_by_node = np.bincount(node_ids_alive, minlength=len(self.nodes))
+        # # 2) Count how many alive in each node in one pass
+        # node_ids_alive = self.people.node_id[alive]
+        # alive_count_by_node = np.bincount(node_ids_alive, minlength=len(self.nodes))
+        num_nodes = len(self.nodes)
+        tl_alive = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+        tl_dying = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+        alive_count_by_node = np.zeros(num_nodes, dtype=np.int32)
+        deaths_count_by_node = np.zeros(num_nodes, dtype=np.int32)
+        get_vital_statistics(
+            num_nodes,
+            self.people.count,
+            self.people.disease_state,
+            self.people.node_id,
+            self.people.date_of_death,
+            t,
+            tl_alive,
+            tl_dying,
+            alive_count_by_node,
+            deaths_count_by_node,
+        )
 
         # 3) Compute births node by node, but without big boolean masks
         for node in self.nodes:
@@ -1303,20 +1320,23 @@ class VitalDynamics_ABM:
 
                 self.results.births[t, node] = births
 
-        # 4) Now handle deaths, again in a vectorized way
-        #    People die if they're alive and their date_of_death <= t
-        dying = alive & (self.people.date_of_death <= t)
+                # # 4) Now handle deaths, again in a vectorized way
+                # #    People die if they're alive and their date_of_death <= t
+                # dying = alive & (self.people.date_of_death <= t)
 
-        # Count how many are dying in each node
-        node_ids_dying = self.people.node_id[dying]
-        deaths_count_by_node = np.bincount(node_ids_dying, minlength=len(self.nodes))
+                # # Count how many are dying in each node
+                # node_ids_dying = self.people.node_id[dying]
+                # deaths_count_by_node = np.bincount(node_ids_dying, minlength=len(self.nodes))
 
-        # Mark them dead
-        self.people.disease_state[dying] = -1
+                # # Mark them dead
+                # self.people.disease_state[dying] = -1
 
-        # 5) Store the death counts
-        for node in self.nodes:
-            self.results.deaths[t, node] = deaths_count_by_node[node]
+                # # 5) Store the death counts
+                # for node in self.nodes:
+                #     self.results.deaths[t, node] = deaths_count_by_node[node]
+                self.results.deaths[t] = deaths_count_by_node
+
+        return
 
     def log(self, t):
         pass
@@ -1377,6 +1397,26 @@ class VitalDynamics_ABM:
             plt.savefig(results_path / "cum_births_deaths.png")
         if not save:
             plt.show()
+
+
+@nb.njit(
+    (nb.int32, nb.int32, nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32[:, :], nb.int32[:, :], nb.int32[:], nb.int32[:]),
+    parallel=True,
+    cache=True,
+)
+def get_vital_statistics(num_nodes, num_people, disease_state, node_id, date_of_death, t, tl_alive, tl_dying, num_alive, num_dying):
+    # Iterate in parallel over all people
+    for i in nb.prange(num_people):
+        if disease_state[i] >= 0:  # If they're alive ...
+            tl_alive[nb.get_thread_id(), node_id[i]] += 1  # Count 'em
+            if date_of_death[i] <= t:  # If they're past their due date ...
+                disease_state[i] = -1  # Mark them as deceased
+                tl_dying[nb.get_thread_id(), node_id[i]] += 1  # Count 'em as deceased
+
+    num_alive[:] = tl_alive.sum(axis=0)  # Merge per-thread results
+    num_dying[:] = tl_dying.sum(axis=0)  # Merge per-thread results
+
+    return
 
 
 @nb.njit(parallel=True)
