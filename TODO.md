@@ -7,6 +7,10 @@ CALIBRATION
 - Refine how regional groupings are made for N/S Nigeria
 - Are we at risk of collisions with simulation_results.csv?
 - Update README with usage instructions
+- add git hash
+- add lp version
+- record pkg versions
+- save best trial results & figs
 
 NEW FEATURES
 - Enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
