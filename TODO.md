@@ -1,11 +1,12 @@
 # PRIORITIES
 
 CALIBRATION
+- reduce print statements ('Results saved to' & 'targets=')
 - Seed infections after start date
 - Run calibration (with all the latest changes) on the cluster
-- Refine and simplify the calibration functions
 - Refine how regional groupings are made for N/S Nigeria
 - Are we at risk of collisions with simulation_results.csv?
+- Update README with usage instructions
 
 NEW FEATURES
 - Enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
