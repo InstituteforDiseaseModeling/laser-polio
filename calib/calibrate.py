@@ -24,6 +24,7 @@ model_config_path = lp.root / "calib/model_configs/config_nigeria_popscale0.01.y
 fit_function = "log_likelihood"  # options are "log_likelihood" or "mse"
 results_path = lp.root / "results" / study_name
 actual_data_file = lp.root / "results" / study_name / "actual_data.csv"
+n_replicates = 2  # Number of replicates to run for each trial
 # ---------------------------------------------------
 
 
@@ -52,6 +53,7 @@ def main(model_config, results_path, study_name, fit_function="mse", **kwargs):
 @click.option("--fit-function", default=fit_function, show_default=True)
 @click.option("--results-path", default=str(results_path), show_default=True)
 @click.option("--actual-data-file", default=str(actual_data_file), show_default=True)
+@click.option("--n-replicates", default=n_replicates, show_default=True, type=int)
 def cli(**kwargs):
     main(**kwargs)
 

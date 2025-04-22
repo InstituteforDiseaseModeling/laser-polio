@@ -42,7 +42,7 @@ def calc_calib_targets_paralysis(filename, model_config_path=None, is_actual_dat
     targets = {}
 
     # 1. Total infected (scaled if simulated)
-    targets["total_infected"] = df[case_col].sum() * scale_factor
+    targets["total_infected"] = np.array(df[case_col].sum() * scale_factor)
 
     # 2. Yearly cases
     targets["yearly_cases"] = df.groupby("year")[case_col].sum().values * scale_factor
@@ -198,7 +198,7 @@ def compute_log_likelihood_fit(actual, predicted, method="poisson", dispersion=1
     return log_likelihood
 
 
-def objective(trial, calib_config, model_config_path, fit_function, results_path, actual_data_file):
+def objective(trial, calib_config, model_config_path, fit_function, results_path, actual_data_file, n_replicates=1):
     """Optuna objective function that runs the simulation and evaluates the fit."""
     results_file = results_path / "simulation_results.csv"
     if Path(results_file).exists():
@@ -220,39 +220,46 @@ def objective(trial, calib_config, model_config_path, fit_function, results_path
         else:
             raise TypeError(f"Cannot infer parameter type for '{name}'")
 
-    # # Save parameters to file (used by setup_sim)
-    # with open(params_file, "w") as f:
-    #     json.dump(suggested_params, f, indent=4)
+    # Run the simulation n_replicates times
+    # Load base config
+    with open(model_config_path) as f:
+        model_config = yaml.safe_load(f)
+    # Merge with precedence to Optuna params
+    config = {**model_config, **suggested_params}
+    config["results_path"] = results_path
+    fit_scores = []
+    seeds = []
+    for rep in range(n_replicates):
+        try:
+            # Run sim
+            sim = lp.run_sim(config, verbose=0)
 
-    # Run simulation using subprocess
-    try:
-        # Load base config
-        with open(model_config_path) as f:
-            model_config = yaml.safe_load(f)
+            # Record seed (first rep only)
+            if rep == 0:
+                trial.set_user_attr("rand_seed", sim.pars.seed)
 
-        # Merge with precedence to Optuna params
-        config = {**model_config, **suggested_params}
-        if results_path:
-            config["results_path"] = results_path
+            # Evaluate fit
+            actual = calc_calib_targets_paralysis(actual_data_file, model_config_path, is_actual_data=True)
+            predicted = calc_calib_targets_paralysis(results_file, model_config_path, is_actual_data=False)
+            if fit_function == "log_likelihood":
+                score = -compute_log_likelihood_fit(actual, predicted, method="poisson")  # NEGATE for Optuna
+            else:
+                score = compute_fit(actual, predicted)
 
-        # Run simulation
-        sim = lp.run_sim(config, verbose=1)
+            fit_scores.append(score)
+            seeds.append(sim.pars.seed)
 
-    except Exception as e:
-        print(f"[ERROR] Simulation failed: {e}")
-        return float("inf")
+        except Exception as e:
+            print(f"[ERROR] Simulation failed in replicate {rep}: {e}")
+            fit_scores.append(float("inf"))
 
-    # Save seed to Optuna
-    trial.set_user_attr("rand_seed", sim.pars.seed)  # Save the random seed
+    # Save per-replicate scores & seeds to Optuna
+    trial.set_user_attr("replicates", n_replicates)
+    trial.set_user_attr("replicate_scores", fit_scores)
+    trial.set_user_attr("rand_seed", seeds)
 
-    # Load results and compute fit
-    actual = calc_calib_targets_paralysis(actual_data_file, model_config_path, is_actual_data=True)
-    predicted = calc_calib_targets_paralysis(results_file, model_config_path, is_actual_data=False)
-
-    if fit_function == "log_likelihood":
-        return -compute_log_likelihood_fit(actual, predicted, method="poisson")  # NEGATE: Optuna minimizes
-    else:
-        return compute_fit(actual, predicted)
+    # Return average score
+    return np.mean(fit_scores)
 
 
 def run_worker_main(
@@ -263,6 +270,7 @@ def run_worker_main(
     fit_function=None,
     results_path=None,
     actual_data_file=None,
+    n_replicates=None,
 ):
     """Run Optuna trials to calibrate the model via CLI or programmatically."""
 
@@ -273,6 +281,7 @@ def run_worker_main(
     fit_function = fit_function or "mse"  # options are "log_likelihood" or "mse"
     results_path = results_path or lp.root / "calib/results" / study_name
     actual_data_file = actual_data_file or lp.root / "examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_250.csv"
+    n_replicates = n_replicates or 1
 
     print(f"[INFO] Running study: {study_name} with {num_trials} trials")
     storage_url = calib_db.get_storage()
@@ -298,6 +307,7 @@ def run_worker_main(
         fit_function=fit_function,
         results_path=Path(results_path),
         actual_data_file=Path(actual_data_file),
+        n_replicates=n_replicates,
     )
 
     study.optimize(wrapped_objective, n_trials=num_trials)
