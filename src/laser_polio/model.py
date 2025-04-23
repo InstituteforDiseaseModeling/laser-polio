@@ -1291,53 +1291,55 @@ class VitalDynamics_ABM:
         if t % self.step_size != 0:
             return
 
-        # 1) Vectorized mask of all alive people
-        alive = self.people.disease_state >= 0
+        # 1) Get vital statistics - alive and newly deceased
+        num_nodes = len(self.nodes)
+        tl_alive = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+        tl_dying = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+        alive_count_by_node = np.zeros(num_nodes, dtype=np.int32)
+        deaths_count_by_node = np.zeros(num_nodes, dtype=np.int32)
+        get_vital_statistics(
+            num_nodes,
+            self.people.count,
+            self.people.disease_state,
+            self.people.node_id,
+            self.people.date_of_death,
+            t,
+            tl_alive,
+            tl_dying,
+            alive_count_by_node,
+            deaths_count_by_node,
+        )
 
-        # 2) Count how many alive in each node in one pass
-        node_ids_alive = self.people.node_id[alive]
-        alive_count_by_node = np.bincount(node_ids_alive, minlength=len(self.nodes))
+        # 2) Compute births
+        expected_births = self.step_size * self.birth_rate * alive_count_by_node
+        birth_integer = expected_births.astype(np.int32)
+        birth_fraction = expected_births - birth_integer
+        birth_rand = np.random.binomial(1, birth_fraction)  # Bernoulli draw
+        births = birth_integer + birth_rand
 
-        # 3) Compute births node by node, but without big boolean masks
-        for node in self.nodes:
-            expected_births = self.step_size * self.birth_rate * alive_count_by_node[node]
+        if (total_births := births.sum()) > 0:
+            start, end = self.people.add(total_births)
 
-            # Integer part plus probabilistic fractional part
-            birth_integer = int(expected_births)
-            birth_fraction = expected_births - birth_integer
-            birth_rand = np.random.binomial(1, birth_fraction)  # Bernoulli draw
-            births = birth_integer + birth_rand
+            dobs = self.people.date_of_birth[start:end]
+            dods = self.people.date_of_death[start:end]
 
-            # If births occur, add them to the population
-            if births > 0:
-                start, end = self.people.add(births)
+            dobs[:] = 0  # temporarily
+            dods[:] = self.death_estimator.predict_age_at_death(dobs, max_year=100)
+            dobs[:] = t  # now set to current time
+            self.people.disease_state[start:end] = 0
+            dods[:] += t  # offset by current time
+            # assign node IDs to newborns
+            self.people.node_id[start:end] = np.repeat(np.arange(num_nodes), births)
+            if any(isinstance(component, RI_ABM) for component in self.sim.components):
+                self.people.ri_timer[start:end] = 182
 
-                newborn_ages = np.zeros(births, dtype=np.int32)
-                lifespans = self.death_estimator.predict_age_at_death(newborn_ages, max_year=100)
+            self.results.births[t] = births
 
-                self.people.date_of_birth[start:end] = t
-                self.people.disease_state[start:end] = 0
-                self.people.date_of_death[start:end] = lifespans + t
-                self.people.node_id[start:end] = node
-                if any(isinstance(component, RI_ABM) for component in self.sim.components):
-                    self.people.ri_timer[start:end] = 182
+        # 3) Store the death counts
+        # Actual "death" handled in get_vital_statistics() as we count newly deceased
+        self.results.deaths[t] = deaths_count_by_node
 
-                self.results.births[t, node] = births
-
-        # 4) Now handle deaths, again in a vectorized way
-        #    People die if they're alive and their date_of_death <= t
-        dying = alive & (self.people.date_of_death <= t)
-
-        # Count how many are dying in each node
-        node_ids_dying = self.people.node_id[dying]
-        deaths_count_by_node = np.bincount(node_ids_dying, minlength=len(self.nodes))
-
-        # Mark them dead
-        self.people.disease_state[dying] = -1
-
-        # 5) Store the death counts
-        for node in self.nodes:
-            self.results.deaths[t, node] = deaths_count_by_node[node]
+        return
 
     def log(self, t):
         pass
@@ -1398,6 +1400,26 @@ class VitalDynamics_ABM:
             plt.savefig(results_path / "cum_births_deaths.png")
         if not save:
             plt.show()
+
+
+@nb.njit(
+    (nb.int32, nb.int32, nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32[:, :], nb.int32[:, :], nb.int32[:], nb.int32[:]),
+    parallel=True,
+    cache=True,
+)
+def get_vital_statistics(num_nodes, num_people, disease_state, node_id, date_of_death, t, tl_alive, tl_dying, num_alive, num_dying):
+    # Iterate in parallel over all people
+    for i in nb.prange(num_people):
+        if disease_state[i] >= 0:  # If they're alive ...
+            tl_alive[nb.get_thread_id(), node_id[i]] += 1  # Count 'em
+            if date_of_death[i] <= t:  # If they're past their due date ...
+                disease_state[i] = -1  # Mark them as deceased
+                tl_dying[nb.get_thread_id(), node_id[i]] += 1  # Count 'em as deceased
+
+    num_alive[:] = tl_alive.sum(axis=0)  # Merge per-thread results
+    num_dying[:] = tl_dying.sum(axis=0)  # Merge per-thread results
+
+    return
 
 
 @nb.njit(parallel=True)
