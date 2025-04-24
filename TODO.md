@@ -1,7 +1,7 @@
 # PRIORITIES
 
 CALIBRATION
-- how do I stop a calib that's running? 
+- how do I stop a calib that's running?
 - print number of jobs that are about to start
 - how many jobs can I run? what's the optimal setup?
 - update how calib results path is passed from cloud vs to calibrate - don't think it's working. Can test it when they're unequal.
