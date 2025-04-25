@@ -1540,13 +1540,12 @@ def fast_sia(
     sim_t,
     vx_prob,
     vx_eff,
-    results_vaccinated,
-    results_protected,
-    rand_vals,
     count,
     nodes_to_vaccinate,
     min_age,
     max_age,
+    local_vaccinated,
+    local_protected,
 ):
     """
     Numbified supplemental immunization activity (SIA) vaccination step.
@@ -1566,39 +1565,32 @@ def fast_sia(
         min_age, max_age: Integers, age range eligibility in days.
     """
     num_people = count
-    num_nodes = results_vaccinated.shape[1]
-    num_threads = nb.get_num_threads()
-
-    # Pre-allocate thread-local result arrays
-    local_vaccinated = np.zeros((num_threads, num_nodes), dtype=np.int32)
-    local_protected = np.zeros((num_threads, num_nodes), dtype=np.int32)
 
     for i in nb.prange(num_people):
-        thread_id = nb.get_thread_id()
-        node = node_ids[i]
-
         # Skip if agent is not alive, not in targeted node, or not in age range
         if disease_states[i] < 0:
             continue
-        if node not in nodes_to_vaccinate:
-            continue
+
         age = sim_t - dobs[i]
         if not (min_age <= age <= max_age):
             continue
 
+        node = node_ids[i]
+        if nodes_to_vaccinate[node] == 0:
+            continue
+
+        r = np.random.rand()
         prob_vx = vx_prob[node]
-        r = rand_vals[i]
 
         if r < prob_vx:  # Check probability of vaccination
+            thread_id = nb.get_thread_id()
             local_vaccinated[thread_id, node] += 1  # Increment vaccinated count
             if disease_states[i] == 0:  # If susceptible
                 if r < prob_vx * vx_eff:  # Check probability that vaccine takes/protects
                     disease_states[i] = 3  # Move to Recovered state
                     local_protected[thread_id, node] += 1  # Increment protected count
 
-    # Aggregate thread-local counts into global result arrays
-    results_vaccinated[sim_t] = local_vaccinated.sum(axis=0)
-    results_protected[sim_t] = local_protected.sum(axis=0)
+    return
 
 
 class SIA_ABM:
@@ -1640,14 +1632,16 @@ class SIA_ABM:
             if event["date"] == self.sim.datevec[t]:
                 if self.pars.vx_prob_sia is None:
                     continue
-                nodes_to_vaccinate = np.array(event["nodes"], dtype=np.int32)  # Convert to NumPy array
+                nodes_to_vaccinate = np.zeros(len(self.sim.nodes), np.uint8)
+                nodes_to_vaccinate[event["nodes"]] = 1  # Mark nodes to vaccinate
                 vx_prob_sia = np.array(self.pars["vx_prob_sia"], dtype=np.float32)  # Convert to NumPy array
                 vaccinetype = event["vaccinetype"]
                 vx_eff = self.pars["vx_efficacy"][vaccinetype]
                 min_age, max_age = event["age_range"]
 
                 # Suppose we have num_people individuals
-                rand_vals = np.random.rand(self.people.count)  # this could be done clevererly
+                local_vaccinated = np.zeros((nb.get_num_threads(), len(self.sim.nodes)), dtype=np.int32)
+                local_protected = np.zeros((nb.get_num_threads(), len(self.sim.nodes)), dtype=np.int32)
                 fast_sia(
                     self.people.node_id,
                     self.people.disease_state,
@@ -1655,14 +1649,17 @@ class SIA_ABM:
                     self.sim.t,
                     vx_prob_sia,
                     vx_eff,
-                    self.results.sia_vaccinated,
-                    self.results.sia_protected,
-                    rand_vals,
                     self.people.count,
                     nodes_to_vaccinate,
                     min_age,
                     max_age,
+                    local_vaccinated,
+                    local_protected,
                 )
+                self.results.sia_vaccinated[t] = local_vaccinated.sum(axis=0)
+                self.results.sia_protected[t] = local_protected.sum(axis=0)
+
+        return
 
     # def run_vaccination(self, event):
     #     """
