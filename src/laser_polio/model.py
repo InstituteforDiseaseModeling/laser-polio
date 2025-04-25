@@ -910,7 +910,7 @@ def chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_
     return infected_by_node
 
 
-@nb.njit((nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32), nogil=True, cache=True)
+@nb.njit((nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32), nogil=True)  # , cache=True)
 def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
     """
     Go through each person exactly once and increment counters for their node.
@@ -923,11 +923,13 @@ def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
     Returns: S, E, I, R, P arrays, each length n_nodes
     """
 
-    S = np.zeros(n_nodes, dtype=np.int64)
-    E = np.zeros(n_nodes, dtype=np.int64)
-    I = np.zeros(n_nodes, dtype=np.int64)
-    R = np.zeros(n_nodes, dtype=np.int64)
-    P = np.zeros(n_nodes, dtype=np.int64)
+    n_threads = nb.get_num_threads()
+    # S = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    # E = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    # I = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    # R = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    SEIR = np.zeros((n_threads, n_nodes, 4), dtype=np.int32)  # S, E, I, R
+    P = np.zeros((n_threads, n_nodes), dtype=np.int32)
 
     # Single pass over the entire population
     for i in nb.prange(n_people):
@@ -935,20 +937,24 @@ def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
             nd = node_id[i]
             ds = disease_state[i]
 
-            if ds == 0:  # Susceptible
-                S[nd] += 1
-            elif ds == 1:  # Exposed
-                E[nd] += 1
-            elif ds == 2:  # Infected
-                I[nd] += 1
-            elif ds == 3:  # Recovered
-                R[nd] += 1
+            # if ds == 0:  # Susceptible
+            #     S[nd] += 1
+            # elif ds == 1:  # Exposed
+            #     E[nd] += 1
+            # elif ds == 2:  # Infected
+            #     I[nd] += 1
+            # elif ds == 3:  # Recovered
+            #     R[nd] += 1
+            # NOTE: This only works if disease_state is contiguous, 0..N
+            tid = nb.get_thread_id()
+            SEIR[tid, nd, ds] += 1
 
             # Check paralyzed
             if paralyzed[i] == 1:
-                P[nd] += 1
+                P[tid, nd] += 1
 
-    return S, E, I, R, P
+    # return S, E, I, R, P
+    return SEIR[:, :, 0].sum(axis=0), SEIR[:, :, 1].sum(axis=0), SEIR[:, :, 2].sum(axis=0), SEIR[:, :, 3].sum(axis=0), P.sum(axis=0)
 
 
 @nb.njit(parallel=True)
