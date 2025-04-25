@@ -59,7 +59,7 @@ class SEIR_ABM:
     """
 
     def __init__(self, pars: PropertySet = None, verbose=1):
-        start_time = time.perf_counter()
+        start_time = time.perf_counter_ns()
         self.component_times = defaultdict(float)  # Initialize component times
 
         # Load default parameters and optionally override with user-specified ones
@@ -118,7 +118,7 @@ class SEIR_ABM:
         # Components
         self._components = []
 
-        end_time = time.perf_counter()
+        end_time = time.perf_counter_ns()
         self.component_times[self.__class__.__name__ + ".__init__()"] += end_time - start_time
 
     @property
@@ -164,9 +164,9 @@ class SEIR_ABM:
         self._components = ordered_subset
         self.instances = []
         for cls in ordered_subset:
-            start_time = time.perf_counter()
+            start_time = time.perf_counter_ns()
             self.instances.append(cls(self))
-            end_time = time.perf_counter()
+            end_time = time.perf_counter_ns()
             self.component_times[cls.__name__ + ".__init__()"] += end_time - start_time
 
         if self.verbose >= 2:
@@ -183,9 +183,9 @@ class SEIR_ABM:
                     self.t += 1
                 else:
                     for component in self.instances:
-                        start_time = time.perf_counter()
+                        start_time = time.perf_counter_ns()
                         component.step()
-                        end_time = time.perf_counter()
+                        end_time = time.perf_counter_ns()
                         self.component_times[component.__class__.__name__ + ".step()"] += end_time - start_time
 
                     self.log_results(tick)
@@ -203,11 +203,14 @@ class SEIR_ABM:
         if self.verbose >= 1:
             sc.printcyan("Simulation complete.")
 
+        for k, v in self.component_times.items():
+            logger.info(f"{k}: {v / 1000:,.2f} µsecs")
+
     def log_results(self, t):
         for component in self.instances:
-            start_time = time.perf_counter()
+            start_time = time.perf_counter_ns()
             component.log(t)
-            end_time = time.perf_counter()
+            end_time = time.perf_counter_ns()
             self.component_times[component.__class__.__name__ + ".log()"] += end_time - start_time
 
     def plot(self, save=False, results_path=None):
@@ -250,7 +253,7 @@ class SEIR_ABM:
                 # rotatelabels=True,  # rotate labels (False is the default)
             )
 
-            plt.title(f"Time Spent in Each Component ({sum(self.component_times.values()):.2f} seconds)")
+            plt.title(f"Time Spent in Each Component ({sum(self.component_times.values()) / 1e9:.2f} seconds)")
             if save:
                 plt.savefig(results_path / "perfpie.png")
             if not save:
@@ -1106,7 +1109,7 @@ class Transmission_ABM:
         # 1) Sum up the total amount of infectivity shed by all infectious agents within a node.
         # This is the daily number of infections that these individuals would be expected to generate
         # in a fully susceptible population sans spatial and seasonal factors.
-        # check_time = time.perf_counter()
+        # check_time = time.perf_counter_ns()
         disease_state = self.people.disease_state[: self.people.count]
         node_ids = self.people.node_id[: self.people.count]
         infectivity = self.people.daily_infectivity[: self.people.count]
@@ -1422,7 +1425,7 @@ def get_vital_statistics(num_nodes, num_people, disease_state, node_id, date_of_
     return
 
 
-@nb.njit(parallel=True)
+@nb.njit((nb.int32, nb.int32[:], nb.int32[:], nb.float64[:], nb.int32, nb.float64[:], nb.int32, nb.int32[:, :]), parallel=True, cache=True)
 def fast_ri(
     step_size,
     node_id,
@@ -1430,55 +1433,36 @@ def fast_ri(
     ri_timer,
     sim_t,
     vx_prob_ri,
-    results_ri_vaccinated,
-    rand_vals,
-    count,
+    num_people,
+    local_counts,
 ):
     """
     Optimized vaccination step with thread-local storage and parallel execution.
     """
-    if sim_t % step_size != 0:  # Run only every 14th timestep
-        return
-
-    num_people = count
-    num_nodes = results_ri_vaccinated.shape[1]  # Assuming shape (timesteps, nodes)
-    num_threads = nb.get_num_threads()
-
-    # Allocate per-thread local arrays
-    local_vaccinated = np.zeros((num_threads, num_nodes), dtype=np.int32)
-
-    # for i in np.arange(num_people):
     for i in nb.prange(num_people):
-        thread_id = nb.get_thread_id()
-        node = node_id[i]
-        if disease_state[i] < 0:  # Skip dead or inactive agents
+        state = disease_state[i]
+        if state < 0:  # skip dead or inactive agents
             continue
 
+        node = node_id[i]
         prob_vx = vx_prob_ri[node]
-
-        # if self.verbose >= 2:
-        #     print(f"Agent {i} in disease state {disease_state[i]}")
-        #     print("prob_vx=", prob_vx)
-
-        ri_timer[i] -= step_size
+        timer = ri_timer[i] - step_size
+        ri_timer[i] = timer
         eligible = False
         # If first vx, account for the fact that no components are run on day 0
         if sim_t == step_size:
-            eligible = ri_timer[i] <= 0 and ri_timer[i] >= -step_size
+            eligible = timer <= 0 and timer >= -step_size
         elif sim_t > step_size:
-            eligible = ri_timer[i] <= 0 and ri_timer[i] > -step_size
+            eligible = timer <= 0 and timer > -step_size
 
         if eligible:
-            if rand_vals[i] < prob_vx:  # Check probability of vaccination
-                local_vaccinated[thread_id, node] += 1  # Increment vaccinated count
-                if disease_state[i] == 0:  # If susceptible
+            if np.random.rand() < prob_vx:
+                local_counts[nb.get_thread_id(), node] += 1
+                if state == 0:
                     # We don't check for vx_eff here, since that is already accounted for in the prob_vx file
-                    disease_state[i] = 3  # Move to Recovered state
+                    disease_state[i] = 3
 
-    # Merge per-thread results
-    for thread_id in range(num_threads):
-        for j in range(num_nodes):
-            results_ri_vaccinated[sim_t, j] += local_vaccinated[thread_id, j]
+    return
 
 
 class RI_ABM:
@@ -1510,20 +1494,22 @@ class RI_ABM:
         if np.isscalar(vx_prob_ri):
             vx_prob_ri = np.full(num_nodes, vx_prob_ri, dtype=np.float64)
 
-        # Suppose we have num_people individuals
-        rand_vals = np.random.rand(self.people.count)  # this could be done clevererly
+        if self.sim.t % self.step_size == 0:
+            local_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+            fast_ri(
+                self.step_size,
+                self.people.node_id,
+                self.people.disease_state,
+                self.people.ri_timer,
+                self.sim.t,
+                vx_prob_ri,
+                self.people.count,
+                local_counts,
+            )
+            # Sum up the counts from all threads
+            self.results.ri_vaccinated[self.sim.t] = local_counts.sum(axis=0)
 
-        fast_ri(
-            self.step_size,
-            self.people.node_id,
-            self.people.disease_state,
-            self.people.ri_timer,
-            self.sim.t,
-            vx_prob_ri,
-            self.results.ri_vaccinated,
-            rand_vals,
-            self.people.count,
-        )
+        return
 
     def log(self, t):
         pass
