@@ -663,43 +663,26 @@ def compute_beta_ind_sums(node_ids, daily_infectivity, disease_state, num_nodes)
             node = node_ids[i]
             beta_sums_tls[thread_id, node] += daily_infectivity[i]  # Local accumulation
 
-    # Final reduction step: sum up TLS arrays into a single result
-    beta_sums = np.zeros(num_nodes, dtype=np.float64)
-    for t in range(num_threads):
-        for n in range(num_nodes):
-            beta_sums[n] += beta_sums_tls[t, n]
+    beta_sums = beta_sums_tls.sum(axis=0)  # Sum across threads
 
     return beta_sums
 
 
 @nb.njit(parallel=True)
-def compute_infections_nb(disease_state, node_id, acq_risk_multiplier, beta_per_node):
+def compute_infections_nb(num_nodes, num_people, disease_state, node_id, acq_risk_multiplier):
     """
     Return an array "exposure_sums" where exposure_sums[node] is the sum of
     probabilities for susceptible individuals in that node.
     """
-    num_people = len(disease_state)
-    num_nodes = len(beta_per_node)
 
     # Thread-local storage
-    n_threads = nb.get_num_threads()
-    local_sums = np.zeros((n_threads, num_nodes), dtype=np.float64)
+    tl_sums = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float64)
 
-    # Parallel loop
     for i in nb.prange(num_people):
         if disease_state[i] == 0:  # susceptible
-            nd = node_id[i]
-            # base probability from node-level infection rate
-            prob_infection = beta_per_node[nd] * acq_risk_multiplier[i]
-            # Keep a sum of these probabilities
-            tid = nb.get_thread_id()
-            local_sums[tid, nd] += prob_infection
+            tl_sums[nb.get_thread_id(), node_id[i]] += acq_risk_multiplier[i]
 
-    # Merge
-    exposure_sums = np.zeros(num_nodes, dtype=np.float32)
-    for t in range(n_threads):
-        for nd in range(num_nodes):
-            exposure_sums[nd] += local_sums[t, nd]
+    exposure_sums = tl_sums.sum(axis=0)  # Sum across threads
 
     return exposure_sums
 
@@ -968,6 +951,14 @@ def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
     return S, E, I, R, P
 
 
+@nb.njit(parallel=True)
+def get_exposure_probs(num_people, node_ids, base_prob_infection, risk, exposure_probs):
+    for i in nb.prange(num_people):
+        exposure_probs[i] = base_prob_infection[node_ids[i]] * risk[i]
+
+    return
+
+
 class Transmission_ABM:
     def __init__(self, sim):
         self.sim = sim
@@ -1053,6 +1044,10 @@ class Transmission_ABM:
             self.infect_fn = efsp_infect
         else:
             raise ValueError(f"Unknown infection method: {method}")
+
+        self.exposure_probs = np.zeros(self.people.capacity, dtype=np.float64)
+
+        return
 
     def step(self):
         # Manual debugging of transmission
@@ -1165,17 +1160,20 @@ class Transmission_ABM:
             logger.info(f"Exp inf (sans acq risk): {fmt(num_susceptibles * base_prob_infection, 2)}")
 
         # 5) Calculate infections
-        exposure_sums = compute_infections_nb(disease_state, node_ids, risk, base_prob_infection)
+        num_nodes = len(self.nodes)
+        num_people = self.sim.people.count
+        exposure_sums = compute_infections_nb(num_nodes, num_people, disease_state, node_ids, risk) * base_prob_infection
         new_infections = np.random.poisson(exposure_sums).astype(np.int32)
         if self.verbose >= 3:
             logger.info(f"exposure_sums: {fmt(exposure_sums, 2)}")
             logger.info(f"Expected new exposures: {new_infections}")
 
         # 6) Draw n_expected_exposures for each node according to their exposure_probs
-        exposure_probs = base_prob_infection[node_ids] * risk  # Try adding in node-level force & personal risk
+        # cl exposure_probs = base_prob_infection[node_ids] * risk  # Try adding in node-level force & personal risk
+        get_exposure_probs(num_people, node_ids, base_prob_infection, risk, self.exposure_probs)
         if self.verbose >= 3:
             disease_state_pre_infect = disease_state.copy()
-        new_exposed = self.infect_fn(node_ids, exposure_probs, disease_state, new_infections)
+        new_exposed = self.infect_fn(node_ids, self.exposure_probs, disease_state, new_infections)
         self.sim.results.new_exposed[self.sim.t, :] = new_exposed
         if self.verbose >= 3:
             logger.info(f"Observed new exposures: {new_exposed}")
@@ -1186,6 +1184,8 @@ class Transmission_ABM:
             logger.info(
                 f"Tot exp infections: {total_expected:.2f}, Total pois draw: {tot_poisson_draw}, Tot realized infections: {num_new_exposed}"
             )
+
+        return
 
     def log(self, t):
         # Get the counts for each node in one pass
