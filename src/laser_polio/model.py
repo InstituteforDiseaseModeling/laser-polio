@@ -292,6 +292,37 @@ def step_nb(disease_state, exposure_timer, infection_timer, acq_risk_multiplier,
                 daily_infectivity[i] = 0.0  # Reset infectivity
             infection_timer[i] -= 1  # Decrement infection timer so that they recover on the next timestep
 
+    return
+
+
+@nb.njit(parallel=True, cache=True)
+def set_recovered(num_people, dob, disease_state, threshold_days):
+    threshold_dob = -threshold_days  # People with a dob before (<) this date are considered recovered
+    for i in nb.prange(num_people):
+        if dob[i] < threshold_dob:
+            disease_state[i] = 3  # Set as recovered
+
+    return
+
+
+@nb.njit([(nb.int32, nb.int32[:], nb.boolean[:]), (nb.int64, nb.int32[:], nb.boolean[:])], parallel=True, cache=True)
+def set_filter_mask(num_people, disease_state, filter_mask):
+    for i in nb.prange(num_people):
+        select = (disease_state[i] >= 0) and (disease_state[i] < 3)
+        filter_mask[i] = select
+
+    return
+
+
+@nb.njit(parallel=True)
+def get_node_counts_pre_squash_nb(num_nodes, num_people, filter_mask, node_ids):
+    tl_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)  # Adjust size as needed
+    for i in nb.prange(num_people):
+        if not filter_mask[i]:
+            tl_counts[nb.get_thread_id(), node_ids[i]] += 1  # Local accumulation
+
+    return tl_counts.sum(axis=0)  # Sum across threads to get the final counts
+
 
 class DiseaseState_ABM:
     def __init__(self, sim):
@@ -361,11 +392,15 @@ class DiseaseState_ABM:
 
                 # Assume everyone older than 15 years of age is immune
                 # We EULA-gize the 15+ first to speedup immunity initialization for <15s
-                o15 = (sim.people.date_of_birth * -1) >= 15 * 365
-                sim.people.disease_state[o15] = 3  # Set as recovered
+                # cl o15 = (sim.people.date_of_birth * -1) >= 15 * 365
+                # cl sim.people.disease_state[o15] = 3  # Set as recovered
+                set_recovered(sim.people.count, sim.people.date_of_birth, sim.people.disease_state, 15 * 365)
+
                 active_count_init = sim.people.count  # This gives the active population size
-                valid_agents = self.people.disease_state[:active_count_init] >= 0  # Apply only to active agents
-                filter_mask = (self.people.disease_state[:active_count_init] < 3) & valid_agents  # Now matches active count
+                # cl valid_agents = self.people.disease_state[:active_count_init] >= 0  # Apply only to active agents
+                # cl filter_mask = (self.people.disease_state[:active_count_init] < 3) & valid_agents  # Now matches active count
+                filter_mask = np.empty(sim.people.count, dtype=bool)  # Create a boolean mask for the filter
+                set_filter_mask(sim.people.count, self.people.disease_state, filter_mask)
 
                 def get_node_counts_pre_squash(filter_mask, active_count):
                     # Count up R by node before we squash
@@ -410,7 +445,8 @@ class DiseaseState_ABM:
                     self.results.R[:, :] += (node_counts * np.exp(-mortality_rates * time_range)).astype(np.int32)
 
                 # Get our EULA populations
-                node_counts = get_node_counts_pre_squash(filter_mask, active_count_init)
+                # cl node_counts = get_node_counts_pre_squash(filter_mask, active_count_init)
+                node_counts = get_node_counts_pre_squash_nb(len(self.nodes), self.people.count, filter_mask, self.people.node_id)
                 # Add EULA pops and projected populations over time due to mortality to reported R counts for whole sim
                 prepop_eula(node_counts, pars.life_expectancies)
                 # Now squash
