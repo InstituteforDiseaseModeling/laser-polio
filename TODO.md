@@ -1,6 +1,7 @@
 # PRIORITIES
 
 @Steve
+- Test migration network
 - Make synthetic data & send to Jonathan
 - Stochastic tests
 - New model features
@@ -54,6 +55,7 @@ CALIBRATION
 - Calibration parameter:
     - maybe scalar on nOPV2 efficacy
     - m (scalar) parameter on R0 random effects
+    - max_migr_frac - it's not the max, it's the sum of the network rows!
 - Targets:
     - Stretch: age distribution
 - Levers:

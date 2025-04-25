@@ -1029,6 +1029,7 @@ class Transmission_ABM:
         init_pops = sim.pars.n_ppl
         k, a, b, c = self.pars.gravity_k, self.pars.gravity_a, self.pars.gravity_b, self.pars.gravity_c
         dist_matrix = self.pars.distances
+        # self.network = radiation(init_pops, dist_matrix, k, include_home=False)
         self.network = gravity(init_pops, dist_matrix, k, a, b, c)
         self.network /= np.power(init_pops.sum(), c)  # Normalize
         self.network = row_normalizer(self.network, self.pars.max_migr_frac)

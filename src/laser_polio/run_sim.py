@@ -123,7 +123,7 @@ def run_sim(config=None, verbose=1, **kwargs):
         "sia_schedule": sia_schedule,
         "vx_prob_sia": sia_prob,
         "verbose": verbose,
-        "stop_if_no_cases": True,
+        "stop_if_no_cases": False,
     }
 
     # Dynamic values passed by user/CLI/Optuna

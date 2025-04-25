@@ -39,7 +39,7 @@ default_pars = PropertySet(
         "gravity_a": 1,  # Origin population exponent
         "gravity_b": 1,  # Destination population exponent
         "gravity_c": 2.0,  # Distance exponent
-        "max_migr_frac": 0.1,  # Fraction of population that migrates
+        "max_migr_frac": 0.3,  # Max fraction of population that migrates
         "node_lookup": None,  # Node info (node_id are keys, dict contains dot_name, lat, lon)
         # Interventions
         "vx_prob_ri": None,  # Should include coverage and efficacy from expected number of RI doses
