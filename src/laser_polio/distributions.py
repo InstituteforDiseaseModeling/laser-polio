@@ -1,3 +1,4 @@
+import numba as nb
 import numpy as np
 
 # Add common distributions so they can be imported directly; assigned to a variable since used in help messages
@@ -49,11 +50,27 @@ class Distribution:
         elif self.dist_type == "exponential":
             return np.random.exponential(self.pars.get("scale", 1.0), size)
         elif self.dist_type == "gamma":
-            return np.random.gamma(self.pars.get("shape", 2.0), self.pars.get("scale", 1.0), size)
+            # return np.random.gamma(self.pars.get("shape", 2.0), self.pars.get("scale", 1.0), size)
+            out = np.empty(size, np.float64)
+            nb_gamma(
+                self.pars.get("shape", 2.0),
+                self.pars.get("scale", 1.0),
+                size,
+                out,
+            )
+            return out
         elif self.dist_type == "lognormal":
             return np.random.lognormal(self.pars.get("mean", 1.0), self.pars.get("sigma", 0.5), size)
         elif self.dist_type == "normal":
-            return np.random.normal(self.pars.get("mean", 0.0), self.pars.get("std", 1.0), size)
+            # return np.random.normal(self.pars.get("mean", 0.0), self.pars.get("std", 1.0), size)
+            out = np.empty(size, np.float64)
+            nb_normal(
+                self.pars.get("mean", 0.0),
+                self.pars.get("std", 1.0),
+                size,
+                out,
+            )
+            return out
         elif self.dist_type == "poisson":
             return np.random.poisson(self.pars.get("lam", 5), size)
         elif self.dist_type == "uniform":
@@ -101,3 +118,19 @@ def poisson(lam):
 
 def uniform(min, max):
     return Distribution("uniform", min=min, max=max)
+
+
+@nb.njit((nb.float64, nb.float64, nb.int32, nb.float64[:]), parallel=True)
+def nb_normal(mean, std, size, dest):
+    for i in nb.prange(size):
+        dest[i] = np.random.normal(mean, std)
+
+    return
+
+
+@nb.njit((nb.float64, nb.float64, nb.int32, nb.float64[:]), parallel=True, cache=True)
+def nb_gamma(shape, scale, size, dest):
+    for i in nb.prange(size):
+        dest[i] = np.random.gamma(shape, scale)
+
+    return

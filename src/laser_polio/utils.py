@@ -4,12 +4,16 @@ import datetime
 import datetime as dt
 import json
 import os
+from collections import defaultdict
+from time import perf_counter_ns
 from zoneinfo import ZoneInfo  # Python 3.9+
 
+import numba as nb
 import numpy as np
 import pandas as pd
 
 __all__ = [
+    "TimingStats",
     "calc_r0_scalars_from_rand_eff",
     "calc_sia_prob_from_rand_eff",
     "clean_strings",
@@ -25,6 +29,7 @@ __all__ = [
     "get_tot_pop_and_cbr",
     "get_woy",
     "inv_logit",
+    "pbincount",
     "process_sia_schedule_polio",
     "save_results_to_csv",
 ]
@@ -480,3 +485,99 @@ def create_cumulative_deaths(total_population, max_age_years):
     mortality_rates = base_mortality_rate * (growth_factor ** (ages_years / 10))
     cumulative_deaths = np.cumsum(mortality_rates * total_population).astype(int)
     return cumulative_deaths
+
+
+class TimingStats:
+    def __init__(self):
+        self.stats = defaultdict(int)
+        self.depth = 0
+
+        return
+
+    class Stopwatch:
+        def __init__(self, key: str, stats):
+            self.key = key
+            self.stats = stats
+
+            return
+
+        def __enter__(self):
+            self.start_time = perf_counter_ns()
+
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            self.end_time = perf_counter_ns()
+            elapsed = self.end_time - self.start_time
+            self.stats.stop(self.key, elapsed)
+
+            return
+
+    def start(self, name):
+        key = (" " * (4 * self.depth)) + name
+        self.depth += 1
+        sw = TimingStats.Stopwatch(key, self)
+        self.stats[key] += 0
+
+        return sw
+
+    def stop(self, key, elapsed):
+        self.stats[key] += elapsed
+        self.depth -= 1
+
+        return
+
+    def log(self, logger):
+        width = max(map(len, self.stats.keys()))
+        fmt = f"{{name:<{width}}} : {{value:11,}} µsecs"
+
+        for name, elapsed in self.stats.items():
+            logger.info(fmt.format(name=name, value=round(elapsed / 1000)))
+
+        return
+
+
+def pbincount(bins, num_bins, weights=None, dtype=None):
+    """
+    Parallel version of np.bincount
+    """
+    num_indices = len(bins)
+    if weights is None:
+        tls = np.zeros((nb.get_num_threads(), num_bins), dtype=dtype or bins.dtype)
+        nb_bincount(bins, num_indices, tls)
+    else:
+        tls = np.zeros((nb.get_num_threads(), num_bins), dtype=dtype or weights.dtype)
+        nb_bincount_weighted(bins, num_indices, weights, tls)
+
+    return tls.sum(axis=0)
+
+
+@nb.njit(parallel=True, cache=True)
+def nb_bincount(bins, num_indices, tls):
+    for i in nb.prange(num_indices):
+        tls[nb.get_thread_id(), bins[i]] += 1
+    return
+
+
+@nb.njit(parallel=True, cache=True)
+def nb_bincount_weighted(bins, num_indices, weights, tls):
+    for i in nb.prange(num_indices):
+        tls[nb.get_thread_id(), bins[i]] += weights[i]
+    return
+
+
+# warm up Numba
+def __warmup_numba():
+    # t0 = perf_counter_ns()
+    _bins = np.random.randint(0, 16, size=1_000)
+    for in_type, out_type in [(np.int32, np.int32), (np.int32, np.int64), (np.int64, np.int32), (np.int64, np.int64)]:
+        _ = pbincount(_bins.astype(in_type), num_bins=16, dtype=out_type)
+    _wf64 = np.random.rand(1_000)
+    for in_type, out_type in [(np.float32, np.float32), (np.float32, np.float64), (np.float64, np.float32), (np.float64, np.float64)]:
+        _ = pbincount(_bins, num_bins=16, weights=_wf64.astype(in_type), dtype=out_type)
+    # t1 = perf_counter_ns()
+    # print(f"Numba warmup: {(t1 - t0):15,} ns")
+    return
+
+
+__warmup_numba()
