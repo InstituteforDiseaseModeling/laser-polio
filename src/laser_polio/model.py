@@ -1030,8 +1030,8 @@ class Transmission_ABM:
         self.network = sim.results.network
         init_pops = sim.pars.n_ppl
         # Get the distance matrix
-        if sim.pars.distance_matrix is not None:
-            dist_matrix = self.sim.pars.distance_matrix
+        if sim.pars.distances is not None:
+            dist_matrix = self.sim.pars.distances
         else:
             # Calculate the distance matrix based on the Haversine formula
             node_lookup = self.sim.pars.node_lookup
