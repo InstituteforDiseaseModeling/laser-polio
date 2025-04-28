@@ -47,7 +47,6 @@ def gravity_log(pops, distances, k=1.0, a=1.0, b=1.0, c=2.0):
     pops = np.asarray(pops)
     distances = np.asarray(distances)
 
-    n = len(pops)
     pops_i = pops[:, np.newaxis]
     pops_j = pops[np.newaxis, :]
 
