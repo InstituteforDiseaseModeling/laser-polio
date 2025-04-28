@@ -1049,9 +1049,11 @@ class Transmission_ABM:
             k, a, b, c = self.pars.gravity_k, self.pars.gravity_a, self.pars.gravity_b, self.pars.gravity_c
             self.network = gravity(init_pops, dist_matrix, k, a, b, c)
             self.network /= np.power(init_pops.sum(), c)  # Normalize
-        if self.pars.migration_method.lower() == "radiation":
+        elif self.pars.migration_method.lower() == "radiation":
             k = self.pars.radiation_k
             self.network = radiation(init_pops, dist_matrix, k, include_home=False)
+        else:
+            raise ValueError(f"Unknown migration method: {self.pars.migration_method}")
         # Normalize so that each row sums to a max of max_migr_frac, else uses the unnormalized values
         self.network = row_normalizer(self.network, self.pars.max_migr_frac)
 
