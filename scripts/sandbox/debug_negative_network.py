@@ -75,7 +75,7 @@ max_migr_frac = 0.3
 net = gravity(pops, dist, k, a, b, c)  # k * (pop^a * pop^b) / dist^c
 net_log = gravity_log(pops, dist, k, a, b, c)  # Log version
 
-assert np.all(net == net_log), "The two methods should yield the same result"
+assert np.allclose(net, net_log), "The two methods should yield the same result"
 
 i = 0
 j = 2
