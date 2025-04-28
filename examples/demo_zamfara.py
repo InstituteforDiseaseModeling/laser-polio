@@ -14,6 +14,7 @@ init_prev = 0.001
 r0 = 14
 migration_method = "radiation"
 radiation_k = 0.5
+max_migr_frac = 1.0
 results_path = "results/demo_zamfara"
 
 ######### END OF USER PARS ########
@@ -35,6 +36,7 @@ sim = lp.run_sim(
     r0=r0,
     migration_method=migration_method,
     radiation_k=radiation_k,
+    max_migr_frac=max_migr_frac,
     infection_method="fast",
 )
 
