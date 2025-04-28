@@ -4,6 +4,11 @@ from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
 
+# The purpose of this script is to reproduce the error in laser_polio where
+# negative migration values were being generated due to overflow in the
+# gravity function.
+
+
 # ----------- Reproduce negative values manually -------------
 
 pops = np.array([99510, 595855, 263884])
@@ -35,7 +40,7 @@ sim.components = [lp.DiseaseState_ABM, lp.Transmission_ABM]
 sim.run()
 
 
-# ----------- Gravity function with logs -------------
+# ----------- Use logs in the gravity fn to prevent overflows -------------
 
 
 def gravity_log(pops, distances, k=1.0, a=1.0, b=1.0, c=2.0):
@@ -76,52 +81,3 @@ i = 0
 j = 2
 pops = pops / 1e3
 k * (pops[i] ** a * pops[j] ** b) / dist[i, j] ** c  # Check one entry
-
-
-# Use logs to stablize calculations
-
-
-# # Do a manual check
-
-
-# network /= np.power(pops.sum(), c)  # Normalize
-# network = row_normalizer(network, max_migr_frac)
-
-# migration_out_rates = []
-# stay_home_rates = []
-
-# for i in range(len(pops)):
-#     outflow = np.sum(network[i, :])
-#     migration_out_rate = outflow / pops[i]
-#     stay_home_rate = 1 - migration_out_rate
-#     migration_out_rates.append(migration_out_rate)
-#     stay_home_rates.append(stay_home_rate)
-
-# print("Migration-out rates:", migration_out_rates)
-# print("Stay-at-home rates:", stay_home_rates)
-
-
-# # Seems like max k is 3ish
-# # np.any(radiation(init_pops, dist_matrix, 3, include_home=False) < 0)
-
-
-# # # ----------- Diff approach to networks from GPT -------------
-# # # Example gravity-based migration matrix (unnormalized)
-# # network = np.array([[0, 5, 10], [2, 0, 3], [1, 4, 0]])
-
-# # # Zero diagonal (optional)
-# # np.fill_diagonal(network, 0)
-
-# # # Normalize rows
-# # row_sums = network.sum(axis=1, keepdims=True)
-# # row_sums = np.where(row_sums == 0, 1, row_sums)  # Prevent div by zero
-# # normalized_network = network / row_sums
-
-# # # Set migration fraction
-# # migration_fraction = 0.1  # 10% leak
-
-# # # Final transmission matrix
-# # transmission_matrix = (1 - migration_fraction) * np.eye(3) + migration_fraction * normalized_network
-
-# # print("Transmission matrix:")
-# # print(transmission_matrix)
