@@ -35,6 +35,8 @@ default_pars = PropertySet(
         "p_paralysis": 1 / 2000,  # Probability of paralysis
         # Migration
         "distances": np.array([[0, 100], [100, 0]]),  # Distance in km between nodes
+        "migration_method": "radiation",  # Migration method: "gravity" or "radiation"
+        "radiation_k": 0.5,  # Radiation model scaling constant. Based on testing, this value should be between 0.0 and ~3 for Nigeria.
         "gravity_k": 0.5,  # Gravity scaling constant
         "gravity_a": 1,  # Origin population exponent
         "gravity_b": 1,  # Destination population exponent
