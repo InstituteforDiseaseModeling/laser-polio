@@ -4,6 +4,7 @@ n_days: 365
 pop_scale: 0.01
 init_region: "ANKA"
 init_prev: 0.05
+migration_method: "radiation"
 results_path: "results/demo_zamfara"
 save_plots: false
 save_data: true
