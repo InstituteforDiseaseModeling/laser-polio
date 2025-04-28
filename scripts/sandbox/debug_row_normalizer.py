@@ -17,11 +17,8 @@ print("Gravity Network:\n", gnet)
 print("Radiation Network:\n", rnet)
 
 rnet = row_normalizer(rnet, max_migr_frac)  # Normalize rows to sum to max_migr_frac
-rnet
 
 # ----- Reproduce the issue with row_normalizer -----
-import numpy as np
-from laser_core.migration import row_normalizer
 
 network = np.array([[0, 6, 2], [10, 0, 13], [15, 10, 0]])
 max_rowsum = 0.3
@@ -36,8 +33,6 @@ network[rows_to_renorm] = network[rows_to_renorm] * max_rowsum / rowsums[rows_to
 print("Renormalized Network:\n", network)
 
 # ----- Fix by promoting array to float -----
-import numpy as np
-from laser_core.migration import row_normalizer
 
 network = np.array([[0, 6, 2], [10, 0, 13], [15, 10, 0]])
 network = network.astype(float)  # Ensure the array is of type float

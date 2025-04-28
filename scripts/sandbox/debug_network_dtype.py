@@ -13,13 +13,12 @@ max_migr_frac = 0.3
 k_values = np.linspace(0, 5, 100)  # Sweep k from 10 to 1000 over 100 points
 
 # Track networks
-nets = np.zeros((len(k_values), 3, 3))  # k sweep × 3×3 matrix
-
+nets = np.zeros((len(k_values), 3, 3))
 for idx, k in enumerate(k_values):
     net = radiation(pops, dist, k=k, include_home=False)
     net = net.astype(float)
     net = row_normalizer(net, max_migr_frac)
-    nets[idx] = net  # Save the full 3x3 network for this k
+    nets[idx] = net  # Save the full network for this k
 
 # Plotting
 fig, axs = plt.subplots(3, 3, figsize=(15, 15), constrained_layout=True)
@@ -46,13 +45,13 @@ max_migr_frac = 0.3
 k_values = np.linspace(0, 5, 100)  # Sweep k from 10 to 1000 over 100 points
 
 # Track networks
-nets = np.zeros((len(k_values), 3, 3))  # k sweep × 3×3 matrix
+nets = np.zeros((len(k_values), 3, 3))
 
 for idx, k in enumerate(k_values):
     net = radiation(pops, dist, k=k, include_home=False)
     net = net.astype(float)
     net = row_normalizer(net, max_migr_frac)
-    nets[idx] = net  # Save the full 3x3 network for this k
+    nets[idx] = net  # Save the full network for this k
 
 # Plotting
 fig, axs = plt.subplots(3, 3, figsize=(15, 15), constrained_layout=True)

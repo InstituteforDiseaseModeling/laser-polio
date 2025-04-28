@@ -35,12 +35,12 @@ for i in range(n_nodes):
 # print(np.round(dist_matrix, 2))
 
 # Sweep across k values
-nets = np.zeros((len(k_values), n_nodes, n_nodes))  # # Track networks: k sweep × 3×3 matrix
+nets = np.zeros((len(k_values), n_nodes, n_nodes))  # Track networks
 for idx, k in enumerate(k_values):
     net = radiation(pop, dist_matrix, k=k, include_home=False)
     net = net.astype(float)
     net = row_normalizer(net, max_migr_frac)
-    nets[idx] = net  # Save the full 3x3 network for this k
+    nets[idx] = net  # Save the full network for this k
 
 # # Plotting
 # # Setup grid

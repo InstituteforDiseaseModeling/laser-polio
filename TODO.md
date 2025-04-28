@@ -1,7 +1,6 @@
 # PRIORITIES
 
 @Steve
-- Test migration network
 - Make synthetic data & send to Jonathan
 - Stochastic tests
 - New model features
@@ -76,7 +75,6 @@ MIGRATION
 - John G recommends Finite Radiation model as default assumption
 - Work with John G to put bounds on gravity model pars??
 - Use KM's gravity model scaling approach
-- Switch to radiation model (easier to explain cuz the numbers are %within vs %without)
 - Do we need sub-adm2 resolution? And if so, how do we handle the distance matrix to minimize file size? Consider making values nan if over some threshold?
 
 QUALITY OF LIFE
