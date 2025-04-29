@@ -3,11 +3,11 @@ import os
 from pathlib import Path
 
 import click
+import h5py
 import numpy as np
 import pandas as pd
 import sciris as sc
 import yaml
-import h5py
 from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
@@ -136,7 +136,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, **kwargs):
 
     # Run sim
     def from_file( init_pop_file ):
-        sim = lp.SEIR_ABM.init_from_file( init_pop_file, pars) 
+        sim = lp.SEIR_ABM.init_from_file( init_pop_file, pars)
         disease_state = lp.DiseaseState_ABM.init_from_file( sim )
         vd = lp.VitalDynamics_ABM.init_from_file( sim )
         sia = lp. SIA_ABM.init_from_file( sim )
