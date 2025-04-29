@@ -8,15 +8,15 @@ import laser_polio as lp
 
 regions = ["ZAMFARA"]
 start_year = 2018
-n_days = 60
-pop_scale = 1 / 10
-init_region = "ANKA"  # TODO set as BIRINIWA
+n_days = 365
+pop_scale = 1 / 1
+init_region = "ANKA"
 init_prev = 0.01
 r0 = 14
 migration_method = "radiation"
 radiation_k = 0.5
 max_migr_frac = 1.0
-results_path = "results/synth_data_nigeria"
+results_path = "results/synth_data_zamfara"
 
 ######### END OF USER PARS ########
 ###################################
