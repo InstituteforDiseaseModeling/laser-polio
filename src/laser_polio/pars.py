@@ -35,11 +35,13 @@ default_pars = PropertySet(
         "p_paralysis": 1 / 2000,  # Probability of paralysis
         # Migration
         "distances": np.array([[0, 100], [100, 0]]),  # Distance in km between nodes
+        "migration_method": "radiation",  # Migration method: "gravity" or "radiation"
+        "radiation_k": 0.5,  # Radiation model scaling constant. Based on testing, this value should be between 0.0 and ~3 for Nigeria.
         "gravity_k": 0.5,  # Gravity scaling constant
         "gravity_a": 1,  # Origin population exponent
         "gravity_b": 1,  # Destination population exponent
         "gravity_c": 2.0,  # Distance exponent
-        "max_migr_frac": 0.1,  # Fraction of population that migrates
+        "max_migr_frac": 0.3,  # Max fraction of population that migrates
         "node_lookup": None,  # Node info (node_id are keys, dict contains dot_name, lat, lon)
         # Interventions
         "vx_prob_ri": None,  # Should include coverage and efficacy from expected number of RI doses
@@ -67,7 +69,7 @@ default_pars = PropertySet(
         # Verbosity
         "verbose": 1,  # 0 = silent, 1 = info, 2 = debug, 3 = validate with special logging features
         # Stopping rules
-        "stop_if_no_cases": False,  # Stop if no E, I, or seed_schedules remain
+        "stop_if_no_cases": True,  # Stop if no E, I, or seed_schedules remain
     }
 )
 

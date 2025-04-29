@@ -21,6 +21,7 @@ def setup_sim(dur=30, n_ppl=None, vx_prob_ri=0.5, cbr=None, r0=14, new_pars=None
             "dur_exp": lp.constant(value=2),  # Duration of the exposed state
             "dur_inf": lp.constant(value=1),  # Duration of the infectious state
             "vx_prob_ri": vx_prob_ri,  # Routine immunization probability
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
         }
     )
     pars += new_pars if new_pars is not None else {}

@@ -1,11 +1,13 @@
 regions: ["ZAMFARA"]
-start_year: 2019
+start_year: 2018
 n_days: 365
-pop_scale: 0.01
+pop_scale: 1.0
 init_region: "ANKA"
-init_prev: 0.05
+init_prev: 0.01
 migration_method: "radiation"
+max_migr_frac: 1.0
 results_path: "results/demo_zamfara"
+actual_data: "results/synth_data_zamfara/synth_data_nigeria_r014_k0.5.h5"
 save_plots: false
 save_data: true
 summary_config:

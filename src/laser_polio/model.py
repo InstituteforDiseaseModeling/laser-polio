@@ -17,7 +17,9 @@ from laser_core.demographics.kmestimator import KaplanMeierEstimator
 from laser_core.demographics.pyramid import AliasedDistribution
 from laser_core.demographics.pyramid import load_pyramid_csv
 from laser_core.laserframe import LaserFrame
+from laser_core.migration import distance
 from laser_core.migration import gravity
+from laser_core.migration import radiation
 from laser_core.migration import row_normalizer
 from laser_core.propertyset import PropertySet
 from laser_core.random import seed as set_seed
@@ -1235,13 +1237,36 @@ class Transmission_ABM:
 
     def _initialize_common(self):
         """Initialize shared network and timers."""
-        self.sim.results.add_vector_property("network", length=len(self.sim.nodes), dtype=np.float32)
-        init_pops = self.pars.n_ppl
-        k, a, b, c = self.pars.gravity_k, self.pars.gravity_a, self.pars.gravity_b, self.pars.gravity_c
-        dist_matrix = self.pars.distances
-
-        self.network = gravity(init_pops, dist_matrix, k, a, b, c)
-        self.network /= np.power(init_pops.sum(), c)
+        # Compute the infection migration network
+        sim.results.add_vector_property("network", length=len(sim.nodes), dtype=np.float32)
+        self.network = sim.results.network
+        init_pops = sim.pars.n_ppl
+        # Get the distance matrix
+        if sim.pars.distances is not None:
+            dist_matrix = self.sim.pars.distances
+        else:
+            # Calculate the distance matrix based on the Haversine formula
+            node_lookup = self.sim.pars.node_lookup
+            n_nodes = len(sim.nodes)
+            node_ids = sorted(node_lookup.keys())
+            node_lookup = sim.pars.node_lookup
+            lats = np.array([node_lookup[i]["lat"] for i in node_ids])
+            lons = np.array([node_lookup[i]["lon"] for i in node_ids])
+            dist_matrix = np.zeros((n_nodes, n_nodes))
+            for i in range(n_nodes):
+                for j in range(n_nodes):
+                    dist_matrix[i, j] = distance(lats[i], lons[i], lats[j], lons[j])
+        # Setup the network
+        if self.pars.migration_method.lower() == "gravity":
+            k, a, b, c = self.pars.gravity_k, self.pars.gravity_a, self.pars.gravity_b, self.pars.gravity_c
+            self.network = gravity(init_pops, dist_matrix, k, a, b, c)
+            self.network /= np.power(init_pops.sum(), c)  # Normalize
+        elif self.pars.migration_method.lower() == "radiation":
+            k = self.pars.radiation_k
+            self.network = radiation(init_pops, dist_matrix, k, include_home=False)
+        else:
+            raise ValueError(f"Unknown migration method: {self.pars.migration_method}")
+        # Normalize so that each row sums to a max of max_migr_frac, else uses the unnormalized values
         self.network = row_normalizer(self.network, self.pars.max_migr_frac)
 
         self.beta_sum_time = 0

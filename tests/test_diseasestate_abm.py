@@ -25,6 +25,7 @@ def setup_sim():
             "dur_exp": lp.normal(mean=3, std=1),  # Duration of the exposed state
             "dur_inf": lp.gamma(shape=4.51, scale=5.32),  # Duration of the infectious state
             "p_paralysis": 1 / 2000,  # 1% paralysis probability
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
         }
     )
     sim = lp.SEIR_ABM(pars)
@@ -74,6 +75,7 @@ def test_progression_without_transmission():
             "dur_exp": lp.constant(value=1),  # Duration of the exposed state
             "dur_inf": lp.constant(value=1),  # Duration of the infectious state
             "p_paralysis": 1 / 2000,  # 1% paralysis probability
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
         }
     )
     sim = lp.SEIR_ABM(pars)
@@ -121,6 +123,7 @@ def test_progression_with_transmission():
             "gravity_b": 1,  # Destination population exponent
             "gravity_c": 2.0,  # Distance exponent
             "max_migr_frac": 0.01,  # Fraction of population that migrates
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
         }
     )
     sim = lp.SEIR_ABM(pars)
@@ -241,6 +244,7 @@ def test_paralysis_probability():
             "dur_exp": lp.constant(value=1),  # Duration of the exposed state
             "dur_inf": lp.constant(value=1),  # Duration of the infectious state
             "p_paralysis": 1 / 2000,  # 1% paralysis probability
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
         }
     )
     sim = lp.SEIR_ABM(pars)
@@ -299,6 +303,7 @@ def test_seed_schedule():
         vx_prob_sia=None,  # No vaccination
         seed_schedule=seed_schedule,
         age_pyramid_path=str(data_path / "Nigeria_age_pyramid_2024.csv"),
+        stop_if_no_cases=False,  # Prevent early stopping for testing
     )
 
     # Test that all nodes except AKNA have 0 infections on day 0

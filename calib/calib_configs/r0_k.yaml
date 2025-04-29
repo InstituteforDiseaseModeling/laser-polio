@@ -5,12 +5,6 @@ parameters:
   radiation_k:
     low: 0.0
     high: 3.0
-  seasonal_factor:
-    low: 0.0
-    high: 0.4
-  seasonal_phase:
-    low: 120
-    high: 240
 
 metadata:
   scoring_fn: compute_log_likelihood_fit
