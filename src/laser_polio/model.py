@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 
-import h5py
 import matplotlib.pyplot as plt
 import numba as nb
 import numpy as np
@@ -192,8 +191,8 @@ class SEIR_ABM:
 
         # initialize model
         model = cls.__new__(cls)
-        #model.pars = deepcopy(lp.default_pars)
-        #if pars is not None:
+        # model.pars = deepcopy(lp.default_pars)
+        # if pars is not None:
         #    model.pars += pars
         model.common_init(pars, verbose=2)  # TBD: add nasty verbose param
         # model.nt = model.pars["dur"] + 1
