@@ -1,4 +1,5 @@
 import logging
+import numbers
 import time
 from collections import defaultdict
 from copy import deepcopy
@@ -498,10 +499,13 @@ class DiseaseState_ABM:
             for node, prev in tqdm(
                 enumerate(pars.init_prev), total=len(pars.init_prev), desc="Seeding infections in nodes", disable=self.verbose < 2
             ):
-                if isinstance(prev, float):
-                    num_infected = int(pars.n_ppl[node] * prev)
-                elif isinstance(prev, int):
-                    num_infected = min(prev, pars.n_ppl[node])
+                if isinstance(prev, numbers.Real):
+                    if 0 < prev < 1:
+                        # interpret as a fraction
+                        num_infected = int(pars.n_ppl[node] * prev)
+                    else:
+                        # interpret as an integer count
+                        num_infected = min(int(prev), pars.n_ppl[node])
                 else:
                     raise ValueError(f"Unsupported value in init_prev list at node {node}: {prev}")
 
