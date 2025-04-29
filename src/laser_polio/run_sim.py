@@ -135,24 +135,23 @@ def run_sim(config=None, init_pop_file=None, verbose=1, **kwargs):
     # sc.pp(pars.to_dict())
 
     # Run sim
-    def from_file( init_pop_file ):
-        sim = lp.SEIR_ABM.init_from_file( init_pop_file, pars)
-        disease_state = lp.DiseaseState_ABM.init_from_file( sim )
-        vd = lp.VitalDynamics_ABM.init_from_file( sim )
-        sia = lp. SIA_ABM.init_from_file( sim )
-        ri = lp.RI_ABM.init_from_file( sim )
-        tx = lp.Transmission_ABM.init_from_file( sim )
+    def from_file(init_pop_file):
+        sim = lp.SEIR_ABM.init_from_file(init_pop_file, pars)
+        disease_state = lp.DiseaseState_ABM.init_from_file(sim)
+        vd = lp.VitalDynamics_ABM.init_from_file(sim)
+        sia = lp.SIA_ABM.init_from_file(sim)
+        ri = lp.RI_ABM.init_from_file(sim)
+        tx = lp.Transmission_ABM.init_from_file(sim)
         sim._components = [type(vd), type(disease_state), type(tx), type(ri), type(sia)]
         sim.instances = [vd, disease_state, tx, ri, sia]
         # reload results.R
         # lots of questionable ad-hod decision-making here for now
-        eula_pop_file = init_pop_file.replace( "init", "eula" )
-        if not os.path.exists( eula_pop_file ):
-            raise ValueError( f"Unable to find required eula pop file: {eula_pop_file}" )
-        with h5py.File(eula_pop_file, 'r') as hdf:
+        eula_pop_file = init_pop_file.replace("init", "eula")
+        if not os.path.exists(eula_pop_file):
+            raise ValueError(f"Unable to find required eula pop file: {eula_pop_file}")
+        with h5py.File(eula_pop_file, "r") as hdf:
             sim.results.R = hdf["results_R"][:]
         return sim
-
 
     def regular():
         sim = lp.SEIR_ABM(pars)
@@ -162,17 +161,19 @@ def run_sim(config=None, init_pop_file=None, verbose=1, **kwargs):
         if pars.vx_prob_sia is not None:
             components.append(lp.SIA_ABM)
         sim.components = components
+
         def save():
-            sim.people.save( "nigeria_init_pop.h5" )
-            with h5py.File("nigeria_eula_pop.h5", 'w') as hdf:
-                hdf.create_dataset('results_R', data=sim.results.R)
-        #save()
+            sim.people.save("nigeria_init_pop.h5")
+            with h5py.File("nigeria_eula_pop.h5", "w") as hdf:
+                hdf.create_dataset("results_R", data=sim.results.R)
+
+        # save()
         return sim
+
     if init_pop_file:
-        sim = from_file( init_pop_file )
+        sim = from_file(init_pop_file)
     else:
         sim = regular()
-
 
     sim.run()
 
@@ -245,7 +246,7 @@ def main(model_config, params_file, results_path, extra_pars, init_pop_file):
         config.update(json.loads(extra_pars))
 
     # Run the sim
-    run_sim(config=config,init_pop_file=init_pop_file)
+    run_sim(config=config, init_pop_file=init_pop_file)
 
 
 # ---------------------------- CLI ENTRY ----------------------------
