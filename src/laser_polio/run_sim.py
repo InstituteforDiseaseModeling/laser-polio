@@ -44,7 +44,7 @@ def run_sim(config=None, verbose=1, **kwargs):
     n_days = configs.pop("n_days", 365)
     pop_scale = configs.pop("pop_scale", 0.01)
     init_region = configs.pop("init_region", "ANKA")
-    init_prev = float(configs.pop("init_prev", 0.01))
+    init_prev = configs.pop("init_prev", 0.01)
     results_path = configs.pop("results_path", "results/demo")
     actual_data = configs.pop("actual_data", "data/epi_africa_20250421.h5")
     save_plots = configs.pop("save_plots", False)
@@ -66,6 +66,9 @@ def run_sim(config=None, verbose=1, **kwargs):
     if not prev_indices:
         raise ValueError(f"No nodes found containing '{init_region}'")
     init_prevs[prev_indices] = init_prev
+    # Make dtype match init_prev type
+    if isinstance(init_prev, int):
+        init_prevs = init_prevs.astype(int)
     if verbose >= 2:
         print(f"Seeding infection in {len(prev_indices)} nodes at {init_prev:.3f} prevalence.")
 

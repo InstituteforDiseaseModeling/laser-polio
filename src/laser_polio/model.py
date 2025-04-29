@@ -478,26 +478,41 @@ class DiseaseState_ABM:
         do_init_imm()
 
         # Seed infections - (potentially overwrites immunity, e.g., if an individual is drawn as both immune (during immunity initialization above) and infected (below), they will be infected)
+        # The specification is flexible and can handle a fixed number OR fraction
+        infected_indices = []
         if isinstance(pars.init_prev, float):
+            # Interpret as fraction of total population
             num_infected = int(sum(pars.n_ppl) * pars.init_prev)
             infected_indices = np.random.choice(sum(pars.n_ppl), size=num_infected, replace=False)
-        elif isinstance(pars.init_prev, list) and len(pars.init_prev) == 1:
-            num_infected = int(sum(pars.n_ppl) * pars.init_prev[0])
+        elif isinstance(pars.init_prev, int):
+            # Interpret as absolute number
+            num_infected = min(pars.init_prev, sum(pars.n_ppl))  # Don't exceed population
             infected_indices = np.random.choice(sum(pars.n_ppl), size=num_infected, replace=False)
-        else:
-            # Seed infections by node
-            infected_indices = []
+        elif isinstance(pars.init_prev, (list, np.ndarray)):
+            # Ensure that the length of init_prev matches the number of nodes
+            if len(pars.init_prev) != len(pars.n_ppl):
+                raise ValueError(f"Length mismatch: init_prev has {len(pars.init_prev)} entries, expected {len(pars.n_ppl)} nodes.")
+            # Interpret as per-node infection seeding
             node_ids = self.people.node_id[: self.people.count]
             disease_states = self.people.disease_state[: self.people.count]
             for node, prev in tqdm(
                 enumerate(pars.init_prev), total=len(pars.init_prev), desc="Seeding infections in nodes", disable=self.verbose < 2
             ):
-                num_infected = int(pars.n_ppl[node] * prev)
+                if isinstance(prev, float):
+                    num_infected = int(pars.n_ppl[node] * prev)
+                elif isinstance(prev, int):
+                    num_infected = min(prev, pars.n_ppl[node])
+                else:
+                    raise ValueError(f"Unsupported value in init_prev list at node {node}: {prev}")
+
                 alive_in_node = (node_ids == node) & (disease_states >= 0)
                 alive_in_node_indices = np.where(alive_in_node)[0]
                 num_infections_to_draw = min(num_infected, len(alive_in_node_indices))
                 infected_indices_node = np.random.choice(alive_in_node_indices, size=num_infections_to_draw, replace=False)
                 infected_indices.extend(infected_indices_node)
+        else:
+            raise ValueError(f"Unsupported init_prev type: {type(pars.init_prev)}")
+        # Create the infections
         num_infected = len(infected_indices)
         sim.people.disease_state[infected_indices] = 2
 
