@@ -187,12 +187,12 @@ class SEIR_ABM:
                         self.t += 1
 
                         # Early stopping rule
-                        # if self.should_stop:
-                        #     if self.verbose >= 1:
-                        #         sc.printyellow(
-                        #             f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events. This stops all components (e.g., no births, deaths, or vaccination)"
-                        #         )
-                        #     break
+                        if self.should_stop:
+                            if self.verbose >= 1:
+                                sc.printyellow(
+                                    f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events. This stops all components (e.g., no births, deaths, or vaccination)"
+                                )
+                            break
 
                     bar()  # Update the progress bar
             if self.verbose >= 1:
