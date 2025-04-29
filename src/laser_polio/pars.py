@@ -69,7 +69,7 @@ default_pars = PropertySet(
         # Verbosity
         "verbose": 1,  # 0 = silent, 1 = info, 2 = debug, 3 = validate with special logging features
         # Stopping rules
-        "stop_if_no_cases": False,  # Stop if no E, I, or seed_schedules remain
+        "stop_if_no_cases": True,  # Stop if no E, I, or seed_schedules remain
     }
 )
 
