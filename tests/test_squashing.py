@@ -127,7 +127,6 @@ def setup_sim():
 def test_squash():
     """Ensure disease state properties are correctly initialized."""
     sim = setup_sim()
-    # sim = lp.run_sim(dur=60, init_prev=0.0, vx_prob_ri=None, vx_prob_sia=None)
 
     age = sim.people.date_of_birth[: sim.people.count] * -1
     assert np.all(age / 365 <= 15), "No >15yo should be present in the sim since we're assuming they're Rs."
