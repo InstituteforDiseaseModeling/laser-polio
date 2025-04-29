@@ -74,5 +74,5 @@ def plot_stuff(study_name, storage_url, output_dir=None):
     fig3.write_html(output_dir / "plot_slice.html")
 
     # Contour plot — feel free to customize parameters
-    fig4 = vis.plot_contour(study, params=["r0", "gravity_k"])
+    fig4 = vis.plot_contour(study, params=["r0", "radiation_k"])
     fig4.write_html(output_dir / "plot_contour.html")
