@@ -159,54 +159,50 @@ class SEIR_ABM:
         # Store and instantiate
         self._components = ordered_subset
         self.instances = []
-        with self.perf_stats.start("initialize components"):
-            for cls in ordered_subset:
-                with self.perf_stats.start(cls.__name__ + ".__init__()"):
-                    self.instances.append(cls(self))
-        self.perf_stats.stats["initialize components"] += self.perf_stats.stats["SEIR_ABM.__init__()"]  # Include _this_ object's init time
+        for cls in ordered_subset:
+            with self.perf_stats.start(cls.__name__ + ".__init__()"):
+                self.instances.append(cls(self))
 
         if self.verbose >= 2:
             print(f"Initialized components: {self.instances}")
 
     def run(self):
-        with self.perf_stats.start(self.__class__.__name__ + ".run()"):
-            if self.verbose >= 1:
-                sc.printcyan("Initialization complete. Running simulation...")
-            with alive_bar(self.nt, title="Simulation progress:", disable=self.verbose < 1) as bar:
-                for tick in range(self.nt):
-                    if tick == 0:
-                        # Just record the initial state on t=0 & don't run any components
-                        self.log_results(tick)
-                        self.t += 1
-                    else:
-                        for component in self.instances:
-                            with self.perf_stats.start(component.__class__.__name__ + ".step()"):
-                                component.step()
+        if self.verbose >= 1:
+            sc.printcyan("Initialization complete. Running simulation...")
+        with alive_bar(self.nt, title="Simulation progress:", disable=self.verbose < 1) as bar:
+            for tick in range(self.nt):
+                if tick == 0:
+                    # Just record the initial state on t=0 & don't run any components
+                    self.log_results(tick)
+                    self.t += 1
+                else:
+                    for component in self.instances:
+                        with self.perf_stats.start(component.__class__.__name__ + ".step()"):
+                            component.step()
 
-                        self.log_results(tick)
-                        self.t += 1
+                    self.log_results(tick)
+                    self.t += 1
 
-                        # Early stopping rule
-                        if self.should_stop:
-                            if self.verbose >= 1:
-                                sc.printyellow(
-                                    f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events. This stops all components (e.g., no births, deaths, or vaccination)"
-                                )
-                            break
+                    # Early stopping rule
+                    if self.should_stop:
+                        if self.verbose >= 1:
+                            sc.printyellow(
+                                f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events. This stops all components (e.g., no births, deaths, or vaccination)"
+                            )
+                        break
 
-                    bar()  # Update the progress bar
-            if self.verbose >= 1:
-                sc.printcyan("Simulation complete.")
+                bar()  # Update the progress bar
+        if self.verbose >= 1:
+            sc.printcyan("Simulation complete.")
 
         self.perf_stats.log(logger)
 
         return
 
     def log_results(self, t):
-        with self.perf_stats.start("logging"):
-            for component in self.instances:
-                with self.perf_stats.start(component.__class__.__name__ + ".log()"):
-                    component.log(t)
+        for component in self.instances:
+            with self.perf_stats.start(component.__class__.__name__ + ".log()"):
+                component.log(t)
 
         return
 
