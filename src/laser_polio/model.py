@@ -516,8 +516,6 @@ class DiseaseState_ABM:
         num_infected = len(infected_indices)
         sim.people.disease_state[infected_indices] = 2
 
-        from collections import defaultdict
-
         # Schedule additional infections (time → list of (node_id, prevalence))
         self.seed_schedule = defaultdict(list)
         if self.pars.seed_schedule is not None:
