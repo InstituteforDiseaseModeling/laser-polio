@@ -290,8 +290,7 @@ def step_nb(disease_state, exposure_timer, infection_timer, acq_risk_multiplier,
 
 
 @nb.njit(parallel=True, cache=True)
-def set_recovered_by_age(num_people, dob, disease_state, threshold_days):
-    threshold_dob = -threshold_days  # People with a dob before (<) this date are considered recovered
+def set_recovered_by_dob(num_people, dob, disease_state, threshold_dob):
     for i in nb.prange(num_people):
         if dob[i] < threshold_dob:
             disease_state[i] = 3  # Set as recovered
@@ -352,12 +351,9 @@ def set_recovered_by_probability(num_people, eligible, recovery_probs, node_ids,
 
 
 @nb.njit(parallel=True, cache=True)
-def get_eligible_mask(num_people, alive_mask, age, age_min, age_max, eligible_mask):
+def set_eligible_mask(num_people, alive_mask, age, age_min, age_max, eligible_mask):
     for i in nb.prange(num_people):
-        if alive_mask[i] and (age[i] >= age_min) and (age[i] < age_max):
-            eligible_mask[i] = True
-        else:
-            eligible_mask[i] = False
+        eligible_mask[i] = alive_mask[i] and (age[i] >= age_min) and (age[i] < age_max)
 
     return
 
@@ -432,7 +428,8 @@ class DiseaseState_ABM:
                 # We EULA-gize the 15+ first to speedup immunity initialization for <15s
                 # cl o15 = (sim.people.date_of_birth * -1) >= 15 * 365
                 # cl sim.people.disease_state[o15] = 3  # Set as recovered
-                set_recovered_by_age(sim.people.count, sim.people.date_of_birth, sim.people.disease_state, 15 * 365)
+                threshold_dob = -15 * 365  # People with a dob before (<) this date are considered recovered
+                set_recovered_by_dob(sim.people.count, sim.people.date_of_birth, sim.people.disease_state, threshold_dob)
 
                 active_count_init = sim.people.count  # This gives the active population size
                 # cl valid_agents = self.people.disease_state[:active_count_init] >= 0  # Apply only to active agents
@@ -506,7 +503,7 @@ class DiseaseState_ABM:
                     # Mask for eligible individuals
                     # eligible_mask = alive_mask & (age >= age_min) & (age < age_max)
                     eligible_mask = np.empty(sim.people.count, dtype=bool)
-                    get_eligible_mask(sim.people.count, alive_mask, age, age_min, age_max, eligible_mask)
+                    set_eligible_mask(sim.people.count, alive_mask, age, age_min, age_max, eligible_mask)
 
                     # Count eligible individuals per node
                     ## TODO - consider using this to save creating the eligible_mask above
@@ -1024,16 +1021,16 @@ def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
             nd = node_id[i]
             ds = disease_state[i]
 
-            # if ds == 0:  # Susceptible
-            #     S[nd] += 1
-            # elif ds == 1:  # Exposed
-            #     E[nd] += 1
-            # elif ds == 2:  # Infected
-            #     I[nd] += 1
-            # elif ds == 3:  # Recovered
-            #     R[nd] += 1
-            # NOTE: This only works if disease_state is contiguous, 0..N
             tid = nb.get_thread_id()
+            # if ds == 0:  # Susceptible
+            #     S[tid, nd] += 1
+            # elif ds == 1:  # Exposed
+            #     E[tid, nd] += 1
+            # elif ds == 2:  # Infected
+            #     I[tid, nd] += 1
+            # elif ds == 3:  # Recovered
+            #     R[tid, nd] += 1
+            # NOTE: This only works if disease_state is contiguous, 0..N
             SEIR[tid, nd, ds] += 1
 
             # Check paralyzed
