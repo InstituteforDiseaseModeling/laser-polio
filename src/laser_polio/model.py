@@ -34,16 +34,18 @@ __all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "Transmission_AB
 
 ### START WITH LOGGER SETUP
 
+
 # Let's color-code our log messages based on level.
 # Note that this just does the log level and module name, not the whole message
 class LogColors:
     RESET = "\033[0m"
-    BROWN = "\033[38;5;94m"   # Approximate brown using 256-color mode
+    BROWN = "\033[38;5;94m"  # Approximate brown using 256-color mode
     BLUE = "\033[34m"
     GREEN = "\033[32m"
     YELLOW = "\033[33m"
     RED = "\033[31m"
     MAGENTA = "\033[35m"
+
 
 # Let's add a whole new log level that logging doesn't know about
 # We do this in the middle of color-coding since our new level will need a color too.
@@ -67,19 +69,21 @@ class ColorFormatter(logging.Formatter):
         record.name = f"{color}{record.name}{LogColors.RESET}"
         return super().format(record)
 
+
 def valid(self, message, *args, **kwargs):
     if self.isEnabledFor(VALID):
         self._log(VALID, message, args, **kwargs)
 
+
 logging.Logger.valid = valid
 
 # Actually get the logger singleton by module-name
-logger = logging.getLogger( "laser-polio")
+logger = logging.getLogger("laser-polio")
 # Prevents double/multiple logging
 logger.propagate = False
 
 console_handler = logging.StreamHandler()
-console_handler.setFormatter(ColorFormatter('[%(levelname)s] %(name)s: %(message)s'))
+console_handler.setFormatter(ColorFormatter("[%(levelname)s] %(name)s: %(message)s"))
 logger.addHandler(console_handler)
 
 ### DONE WITH LOGGER SETUP
@@ -149,7 +153,7 @@ class SEIR_ABM:
 
     def __init__(self, pars: PropertySet = None, verbose=1):
         start_time = time.perf_counter()
-        self.common_init( pars, verbose )
+        self.common_init(pars, verbose)
 
         pars.n_ppl = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
         if (pars.cbr is not None) & (len(pars.cbr) == 1):
@@ -166,15 +170,15 @@ class SEIR_ABM:
 
         # Setup spatial component with node IDs
         self.people.add_scalar_property("node_id", dtype=np.int32, default=0)
-        if pars.node_lookup is None:
-            self.nodes = np.arange(len(np.atleast_1d(pars.n_ppl)))
-            node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_ppl)])
-            self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids  # Assign node IDs to initial people
-        else:
+        if hasattr(pars, "node_lookup") and pars.node_lookup is not None:
             ordered_node_ids = list(pars.node_lookup.keys())
             self.nodes = np.array(ordered_node_ids)
             node_ids = np.concatenate([np.full(count, node_id) for node_id, count in zip(ordered_node_ids, pars.n_ppl, strict=False)])
             self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids
+        else:
+            self.nodes = np.arange(len(np.atleast_1d(pars.n_ppl)))
+            node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_ppl)])
+            self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids  # Assign node IDs to initial people
 
         # Components
         self._components = []
@@ -191,15 +195,15 @@ class SEIR_ABM:
         model.pars = deepcopy(lp.default_pars)
         if pars is not None:
             model.pars += pars
-        model.common_init( pars, verbose=2 ) # TBD: add nasty verbose param
-        #model.nt = model.pars["dur"] + 1
-        #model.datevec = lp.daterange(model.pars["start_date"], days=model.nt)
+        model.common_init(pars, verbose=2)  # TBD: add nasty verbose param
+        # model.nt = model.pars["dur"] + 1
+        # model.datevec = lp.daterange(model.pars["start_date"], days=model.nt)
 
         # Use LaserFrameIO to load people
         model.people = LaserFrameIO.load(filename)
 
         # Setup node list
-        model.nodes = np.unique(model.people.node_id[:model.people.count])
+        model.nodes = np.unique(model.people.node_id[: model.people.count])
 
         # Results holder
         model.results = LaserFrameIO(capacity=1)
@@ -214,7 +218,7 @@ class SEIR_ABM:
         logger.info(f"Initializing SEIR_ABM from file: {filename}")
         with h5py.File(filename, "r") as f:
             capacity = int(f.attrs["capacity"])
-            print( "TBD: Don't use saved capacity. That would miss the point. Recalculate capacity based on total pop and cbr." )
+            print("TBD: Don't use saved capacity. That would miss the point. Recalculate capacity based on total pop and cbr.")
             count = int(f.attrs["count"])
             # initialize model
             model = cls.__new__(cls)
@@ -233,7 +237,7 @@ class SEIR_ABM:
             for key in f.keys():
                 data = f[key][:]
                 dtype = data.dtype
-                print( f"Recovering property {key}." )
+                print(f"Recovering property {key}.")
                 model.people.add_scalar_property(name=key, dtype=dtype, default=0)
                 model.people.__dict__[key][:count] = data  # Fill the data manually
 
@@ -329,7 +333,7 @@ class SEIR_ABM:
 
                 bar()  # Update the progress bar
 
-        #logger.info("Simulation complete.") # cyan
+        # logger.info("Simulation complete.") # cyan
         if self.verbose >= 1:
             sc.printcyan("Simulation complete.")
 
@@ -349,7 +353,7 @@ class SEIR_ABM:
                 results_path = Path(results_path)  # Ensure results_path is a Path object
                 results_path.mkdir(parents=True, exist_ok=True)
 
-            #logger.info("Saving plots in " + str(results_path)) # cyan?
+            # logger.info("Saving plots in " + str(results_path)) # cyan?
             if self.verbose >= 1:
                 sc.printcyan("Saving plots in " + str(results_path))
 
@@ -358,7 +362,7 @@ class SEIR_ABM:
         self.plot_node_pop(save=save, results_path=results_path)
 
         if self.component_times:
-            #logger.debug(f"{self.instances=}")
+            # logger.debug(f"{self.instances=}")
             if self.verbose >= 2:
                 print(f"{self.instances=}")
             plt.figure(figsize=(12, 12))
@@ -464,7 +468,7 @@ class DiseaseState_ABM:
         self.results.add_array_property("paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
 
     def __init__(self, sim):
-        self._common_init( sim )
+        self._common_init(sim)
         self._initialize_results_arrays()
         self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
@@ -478,8 +482,9 @@ class DiseaseState_ABM:
         sim.people.infection_timer[:] = self.pars.dur_inf(self.people.capacity)
 
         pars = self.pars
+
         def do_init_imm():
-            #logger.debug(f"Before immune initialization, we have {sim.people.count} active agents.")
+            # logger.debug(f"Before immune initialization, we have {sim.people.count} active agents.")
             if self.verbose >= 2:
                 print(f"Before immune initialization, we have {sim.people.count} active agents.")
 
@@ -634,7 +639,7 @@ class DiseaseState_ABM:
                 deletions = active_count - new_active_count
                 sim.people.true_capacity -= deletions
 
-                #logger.debug(f"After immune initialization and EULA-gizing, we have {sim.people.count} active agents.")
+                # logger.debug(f"After immune initialization and EULA-gizing, we have {sim.people.count} active agents.")
                 if self.verbose >= 2:
                     print(f"After immune initialization and EULA-gizing, we have {sim.people.count} active agents.")
                 # viz()
@@ -664,7 +669,6 @@ class DiseaseState_ABM:
                 infected_indices.extend(infected_indices_node)
         num_infected = len(infected_indices)
         sim.people.disease_state[infected_indices] = 2
-
 
     def step(self):
         # Add these if they don't exist from the Transmission_ABM component (e.g., if running DiseaseState_ABM alone for testing)
@@ -1116,6 +1120,7 @@ def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
 
     return S, E, I, R, P
 
+
 class Transmission_ABM:
     def __init__(self, sim):
         self.sim = sim
@@ -1168,7 +1173,7 @@ class Transmission_ABM:
 
         # Record new exposure counts aka incidence
         # Pretty sure this code from after merge belongs somewhere else. This is NOT for init_from_file. Think...
-        #self.sim.results.add_array_property("new_exposed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        # self.sim.results.add_array_property("new_exposed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
 
         # Pre-compute individual risk of acquisition and infectivity with correlated sampling
         # Step 0: Add properties to people
@@ -1212,9 +1217,7 @@ class Transmission_ABM:
 
         z = np.random.normal(size=(n, 2)) @ L.T
         self.people.acq_risk_multiplier[:n] = np.exp(mu_ln + sigma_ln * z[:, 0])
-        self.people.daily_infectivity[:n] = stats.gamma.ppf(
-            stats.norm.cdf(z[:, 1]), a=1, scale=scale_gamma
-        )
+        self.people.daily_infectivity[:n] = stats.gamma.ppf(stats.norm.cdf(z[:, 1]), a=1, scale=scale_gamma)
 
     def _initialize_common(self):
         """Initialize shared network and timers."""
@@ -1330,8 +1333,8 @@ class Transmission_ABM:
         node_ids = self.people.node_id[: self.people.count]
         infectivity = self.people.daily_infectivity[: self.people.count]
         risk = self.people.acq_risk_multiplier[: self.people.count]
-        #node_beta_sums = fast_beta()
-        #logger.valid(f"node_beta_sums={np.array2string(node_beta_sums, separator=',', max_line_width=9999)}")
+        # node_beta_sums = fast_beta()
+        # logger.valid(f"node_beta_sums={np.array2string(node_beta_sums, separator=',', max_line_width=9999)}")
         node_beta_sums = compute_beta_ind_sums(node_ids, infectivity, disease_state, len(self.nodes))
         if self.verbose >= 3:
             n_infected = []
@@ -1353,7 +1356,7 @@ class Transmission_ABM:
         node_beta_sums += transfer.sum(axis=1) - transfer.sum(axis=0)
         node_beta_sums = np.maximum(node_beta_sums, 0)  # Prevent negative contagion
 
-        #logger.valid(f"node_beta_sums [post-migration]={np.array2string(node_beta_sums, separator=',', max_line_width=9999)}")
+        # logger.valid(f"node_beta_sums [post-migration]={np.array2string(node_beta_sums, separator=',', max_line_width=9999)}")
         if self.verbose >= 3:
             logger.info(f"Node beta sums (post-transfer): {fmt(node_beta_sums, 2)}")
             logger.info(f"Total Node beta sums (post-transfer): {fmt(node_beta_sums.sum(), 2)}")
@@ -1361,7 +1364,7 @@ class Transmission_ABM:
         # 3) Apply seasonal & geographic modifiers
         beta_seasonality = lp.get_seasonality(self.sim)
         beta = node_beta_sums * beta_seasonality * self.r0_scalars  # Total node infection rate
-        #logger.valid( f"{beta=}" )
+        # logger.valid( f"{beta=}" )
         if self.verbose >= 3:
             logger.info(f"beta_seasonality: {fmt(beta_seasonality, 2)}")
             logger.info(f"R0 scalars: {fmt(self.r0_scalars, 2)}")
@@ -1380,7 +1383,7 @@ class Transmission_ABM:
         per_agent_infection_rate = beta / np.clip(alive_counts, 1, None)
         base_prob_infection = 1 - np.exp(-per_agent_infection_rate)
 
-        #logger.valid( f"{base_prob_infection=}" )
+        # logger.valid( f"{base_prob_infection=}" )
         if self.verbose >= 3:
             logger.info(f"Alive counts: {fmt(alive_counts, 2)}")
             logger.info(f"Per agent infection rate: {fmt(per_agent_infection_rate, 2)}")
@@ -1390,7 +1393,7 @@ class Transmission_ABM:
         # 5) Calculate infections
         exposure_sums = compute_infections_nb(disease_state, node_ids, risk, base_prob_infection)
         new_infections = np.random.poisson(exposure_sums).astype(np.int32)
-        #logger.valid( f"{new_infections=}" )
+        # logger.valid( f"{new_infections=}" )
         if self.verbose >= 3:
             logger.info(f"exposure_sums: {fmt(exposure_sums, 2)}")
             logger.info(f"Expected new exposures: {new_infections}")
@@ -1443,6 +1446,7 @@ class Transmission_ABM:
         print( f"{self.do_ni_time=}" )
         """
 
+
 class VitalDynamics_ABM:
     def __init__(self, sim):
         self._common_init(sim)
@@ -1488,7 +1492,7 @@ class VitalDynamics_ABM:
                 ages[mask] = np.random.randint(bin_min[i], bin_max[i], mask.sum())
 
             ages[ages == 0] = 1
-            self.people.date_of_birth[:self.people.count] = -ages
+            self.people.date_of_birth[: self.people.count] = -ages
 
     def _initialize_deaths(self):
         pars = self.pars
@@ -1502,13 +1506,13 @@ class VitalDynamics_ABM:
 
             # Only compute lifespans if date_of_birth was initialized
             if "date_of_birth" in self.people.__dict__:
-                ages = -self.people.date_of_birth[:self.people.count]
+                ages = -self.people.date_of_birth[: self.people.count]
                 lifespans = self.death_estimator.predict_age_at_death(ages, max_year=100)
                 dods = lifespans - ages
-                self.people.date_of_death[:self.people.count] = dods
+                self.people.date_of_death[: self.people.count] = dods
 
                 # Compute life expectancies per node
-                node_ids = self.people.node_id[:self.people.count]
+                node_ids = self.people.node_id[: self.people.count]
                 _, indices = np.unique(node_ids, return_inverse=True)
                 weighted = np.bincount(indices, weights=lifespans / 365)
                 counts = np.bincount(indices)
@@ -1517,7 +1521,7 @@ class VitalDynamics_ABM:
                 life_expectancies = np.zeros(n_nodes)
                 with np.errstate(divide="ignore", invalid="ignore"):
                     mean_lifespans = np.divide(weighted, counts, out=np.zeros_like(weighted), where=counts > 0)
-                life_expectancies[:len(mean_lifespans)] = mean_lifespans
+                life_expectancies[: len(mean_lifespans)] = mean_lifespans
                 pars.life_expectancies = life_expectancies
 
     def _initialize_birth_rates(self):
@@ -1729,6 +1733,7 @@ def fast_ri(
     for thread_id in range(num_threads):
         for j in range(num_nodes):
             results_ri_vaccinated[sim_t, j] += local_vaccinated[thread_id, j]
+
 
 class RI_ABM:
     def __init__(self, sim):
