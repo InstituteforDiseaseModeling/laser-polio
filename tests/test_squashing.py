@@ -131,8 +131,8 @@ def test_squash():
     age = sim.people.date_of_birth[: sim.people.count] * -1
     assert np.all(age / 365 <= 15), "No >15yo should be present in the sim since we're assuming they're Rs."
 
-    # disease_state = sim.people.disease_state[: sim.people.count]
-    # assert np.all(disease_state < 3), "No one should be in the recovered state since they should be squashed out."
+    disease_state = sim.people.disease_state[: sim.people.count]
+    assert np.all(disease_state < 3), "No one should be in the recovered state since they should be squashed out."
 
     exp_pop = np.sum(sim.pars.n_ppl)
     obs_pop = sim.people.count + sim.results.R[0].sum()
