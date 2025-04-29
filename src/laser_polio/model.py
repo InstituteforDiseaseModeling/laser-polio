@@ -4,8 +4,9 @@ from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-import h5py
+from typing import ClassVar
 
+import h5py
 import matplotlib.pyplot as plt
 import numba as nb
 import numpy as np
@@ -25,7 +26,6 @@ from laser_core.propertyset import PropertySet
 from laser_core.random import seed as set_seed
 from laser_core.utils import calc_capacity
 from tqdm import tqdm
-import logging
 
 import laser_polio as lp
 from laser_polio.laserframeio import LaserFrameIO
@@ -50,8 +50,9 @@ class LogColors:
 VALID = 15
 logging.addLevelName(VALID, "VALID")
 
+
 class ColorFormatter(logging.Formatter):
-    LEVEL_COLORS = {
+    LEVEL_COLORS: ClassVar[dict[int, str]] = {
         logging.DEBUG: LogColors.BROWN,
         logging.INFO: LogColors.GREEN,
         logging.WARNING: LogColors.YELLOW,
@@ -82,25 +83,6 @@ console_handler.setFormatter(ColorFormatter('[%(levelname)s] %(name)s: %(message
 logger.addHandler(console_handler)
 
 ### DONE WITH LOGGER SETUP
-
-@nb.njit(
-    (nb.int32, nb.int32, nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32[:, :], nb.int32[:, :], nb.int32[:], nb.int32[:]),
-    parallel=True,
-    cache=True,
-)
-def get_vital_statistics(num_nodes, num_people, disease_state, node_id, date_of_death, t, tl_alive, tl_dying, num_alive, num_dying):
-    # Iterate in parallel over all people
-    for i in nb.prange(num_people):
-        if disease_state[i] >= 0:  # If they're alive ...
-            tl_alive[nb.get_thread_id(), node_id[i]] += 1  # Count 'em
-            if date_of_death[i] <= t:  # If they're past their due date ...
-                disease_state[i] = -1  # Mark them as deceased
-                tl_dying[nb.get_thread_id(), node_id[i]] += 1  # Count 'em as deceased
-
-    num_alive[:] = tl_alive.sum(axis=0)  # Merge per-thread results
-    num_dying[:] = tl_dying.sum(axis=0)  # Merge per-thread results
-
-    return
 
 # Configure the logger once
 logging.basicConfig(
@@ -203,7 +185,7 @@ class SEIR_ABM:
     @classmethod
     def init_from_file(cls, filename: str, pars: PropertySet = None):
         logger.info(f"Initializing SEIR_ABM from file: {filename}")
-        
+
         # initialize model
         model = cls.__new__(cls)
         model.pars = deepcopy(lp.default_pars)
@@ -1246,9 +1228,9 @@ class Transmission_ABM:
         else:
             # Calculate the distance matrix based on the Haversine formula
             node_lookup = self.sim.pars.node_lookup
-            n_nodes = len(sim.nodes)
+            n_nodes = len(self.sim.nodes)
             node_ids = sorted(node_lookup.keys())
-            node_lookup = sim.pars.node_lookup
+            node_lookup = self.sim.pars.node_lookup
             lats = np.array([node_lookup[i]["lat"] for i in node_ids])
             lons = np.array([node_lookup[i]["lon"] for i in node_ids])
             dist_matrix = np.zeros((n_nodes, n_nodes))
