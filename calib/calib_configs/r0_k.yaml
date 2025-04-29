@@ -1,0 +1,11 @@
+parameters:
+  r0:
+    low: 5.0
+    high: 50.0
+  radiation_k:
+    low: 0.0
+    high: 3.0
+
+metadata:
+  scoring_fn: compute_log_likelihood_fit
+  target_fn: calc_calib_targets_paralysis
