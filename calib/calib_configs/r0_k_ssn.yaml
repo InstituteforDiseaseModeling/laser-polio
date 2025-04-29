@@ -1,0 +1,17 @@
+parameters:
+  r0:
+    low: 5.0
+    high: 50.0
+  gravity_k:
+    low: 1.0
+    high: 5000.0
+  seasonal_factor:
+    low: 0.0
+    high: 0.4
+  seasonal_phase:
+    low: 120
+    high: 240
+
+metadata:
+  scoring_fn: compute_log_likelihood_fit
+  target_fn: calc_calib_targets_paralysis

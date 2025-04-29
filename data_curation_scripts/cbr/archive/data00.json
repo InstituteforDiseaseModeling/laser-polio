@@ -1,0 +1,38 @@
+{
+    "TotalPages": 1,
+    "Data": [
+        {
+            "DataId": 187107,
+            "SurveyId": "NG2018DHS",
+            "Indicator": "Crude birth rate",
+            "IsPreferred": 1,
+            "Value": 38.3,
+            "SDRID": "FEFRTRWCBR",
+            "Precision": 1,
+            "RegionId": "",
+            "SurveyYearLabel": "2018",
+            "SurveyType": "DHS",
+            "SurveyYear": 2018,
+            "IndicatorOrder": 11763110,
+            "DHS_CountryCode": "NG",
+            "CILow": "",
+            "CountryName": "Nigeria",
+            "IndicatorType": "I",
+            "CharacteristicId": 1000,
+            "CharacteristicCategory": "Total",
+            "IndicatorId": "FE_FRTR_W_CBR",
+            "CharacteristicOrder": 0,
+            "CharacteristicLabel": "Total",
+            "ByVariableLabel": "",
+            "DenominatorUnweighted": "",
+            "DenominatorWeighted": "",
+            "CIHigh": "",
+            "IsTotal": 1,
+            "ByVariableId": 0,
+            "LevelRank": ""
+        }
+    ],
+    "RecordsReturned": 1,
+    "Page": "1",
+    "RecordCount": 1
+}

@@ -21,9 +21,11 @@ uv.lock
 *.tif
 
 # Calibration & results files
+*local_storage.yaml
 *params.json
 *simulation_results.csv
 results/
+*local_storage.yaml
 
 # Large files
 *shape0.gpkg
@@ -65,3 +67,6 @@ docs/_build
 
 # Tox
 .tox/
+
+# Logs
+*simulation_log*.txt

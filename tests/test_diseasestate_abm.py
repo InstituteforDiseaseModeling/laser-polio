@@ -1,7 +1,13 @@
+from pathlib import Path
+from unittest.mock import patch
+
 import numpy as np
 from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
+
+test_dir = Path(__file__).parent
+data_path = test_dir / "data"
 
 
 def setup_sim():
@@ -118,7 +124,7 @@ def test_progression_with_transmission():
         }
     )
     sim = lp.SEIR_ABM(pars)
-    sim.components = [lp.DiseaseState_ABM, lp.Transmission_ABM]
+    sim.components = [lp.DiseaseState_ABM, lp.Transmission_ABM, lp.VitalDynamics_ABM]
 
     # Test the initalized counts
     disease_state = sim.people.disease_state[: sim.people.count]  # Filter to the active individuals
@@ -245,10 +251,87 @@ def test_paralysis_probability():
     assert 0 < np.sum(sim.people.paralyzed == 1) <= exp_paralysis * 2  # Added some leeway for randomness
 
 
+@patch("laser_polio.root", Path("tests/"))
+def test_run_sim():
+    sim = lp.run_sim(pop_scale=1 / 1000, n_days=3, verbose=0)
+    assert isinstance(sim, lp.SEIR_ABM), "The simulation should be an instance of SEIR_ABM"
+    assert hasattr(sim, "results"), "The simulation should have results"
+    assert hasattr(sim, "pars"), "The simulation should have parameters"
+    assert hasattr(sim, "people"), "The simulation should have people"
+    assert hasattr(sim, "components"), "The simulation should have components"
+    assert hasattr(sim, "run"), "The simulation should have a run method"
+    assert hasattr(sim, "plot"), "The simulation should have a plot method"
+    assert sim.results.S.shape[0] == sim.pars.dur + 1, "The results should have the same number of timesteps as the duration"
+    assert sim.results.S.shape[1] == len(sim.pars.n_ppl), "The results should have the same number of nodes as the population"
+    assert sim.results.I[0, 0] > 0  # Check that the initial infected count is greater than 0
+
+
+@patch("laser_polio.root", Path("tests/"))
+def test_seed_schedule():
+    """Test infection seeding using dot_name + date via run_sim()."""
+
+    regions = ["ZAMFARA"]
+    start_year = 2019
+    n_days = 30
+    pop_scale = 1 / 100
+    init_region = "ANKA"
+    init_prev = 0.01
+    r0 = 0  # Prevent transmission
+    seed_schedule = [
+        {"date": "2019-01-02", "dot_name": "AFRO:NIGERIA:ZAMFARA:BAKURA", "prevalence": 0.1},  # day 1
+        {"date": "2019-01-03", "dot_name": "AFRO:NIGERIA:ZAMFARA:GUMMI", "prevalence": 0.1},  # day 2
+        {"timestep": 3, "node_id": 13, "prevalence": 0.05},  # day 3
+    ]
+
+    sim = lp.run_sim(
+        regions=regions,
+        start_year=start_year,
+        n_days=n_days,
+        pop_scale=pop_scale,
+        init_region=init_region,
+        init_prev=init_prev,
+        results_path=None,
+        save_plots=False,
+        save_data=False,
+        verbose=0,
+        r0=r0,
+        vx_prob_ri=None,  # No vaccination
+        vx_prob_sia=None,  # No vaccination
+        seed_schedule=seed_schedule,
+        age_pyramid_path=str(data_path / "Nigeria_age_pyramid_2024.csv"),
+    )
+
+    # Test that all nodes except AKNA have 0 infections on day 0
+    assert np.sum(sim.results.I[0, 1:]) == 0, "There should be no infections on day 0"
+
+    # Check infections seeded on day 1 in BAKURA (node 1)
+    dot_name = seed_schedule[0]["dot_name"]
+    node_id = 1  # next((nid for nid, info in sim.pars.node_lookup.items() if info["dot_name"] == dot_name), None)
+    t = 1
+    n_inf_seed_schedule1 = sim.results.I[t, node_id]
+    assert n_inf_seed_schedule1 > 0, f"No infections seeded with seed_schedule in {dot_name} at t={t}"
+
+    # Check infections seeded on day 2 in GUMMI (node 5)
+    dot_name = seed_schedule[1]["dot_name"]
+    node_id = 5  # next((nid for nid, info in sim.pars.node_lookup.items() if info["dot_name"] == dot_name), None)
+    t = 2
+    n_inf_seed_schedule2 = sim.results.I[t, node_id]
+    assert n_inf_seed_schedule2 > 0, f"No infections seeded with seed_schedule in {dot_name} at t={t}"
+
+    # Check infections seeded on day 3 in node 13 ()
+    dot_name = sim.pars.node_lookup[13]["dot_name"]
+    node_id = 13  # next((nid for nid, info in sim.pars.node_lookup.items() if info["dot_name"] == dot_name), None)
+    t = 3
+    n_inf_seed_schedule3 = sim.results.I[t, node_id]
+    assert n_inf_seed_schedule3 > 0, f"No infections seeded with seed_schedule in {dot_name} at t={t}"
+
+
 if __name__ == "__main__":
-    # test_disease_state_initialization()
-    # test_initial_population_counts()
-    # test_progression_without_transmission()
-    # test_progression_with_transmission()
+    test_disease_state_initialization()
+    test_initial_population_counts()
+    test_progression_without_transmission()
+    test_progression_with_transmission()
     test_paralysis_probability()
+    test_run_sim()
+    test_seed_schedule()
     print("All disease state tests passed!")

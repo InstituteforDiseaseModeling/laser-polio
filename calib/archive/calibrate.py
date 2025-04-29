@@ -10,8 +10,8 @@ import click
 import numpy as np
 import optuna
 import yaml
-from logic import compute_fit  # <-- User-configurable logic
-from logic import process_data  # <-- User-configurable logic
+from calib.archive.logic import compute_fit  # <-- User-configurable logic
+from calib.archive.logic import process_data  # <-- User-configurable logic
 
 import laser_polio as lp
 

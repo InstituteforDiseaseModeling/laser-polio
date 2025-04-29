@@ -17,7 +17,8 @@ RUN dnf install -y \
     wget \
     screen \
     procps \
-    vim && \
+    vim \
+    git && \
     dnf clean all
 
 # Set default python3 and pip3 to use 3.10 explicitly
@@ -32,32 +33,23 @@ WORKDIR /app
 
 # Install Python dependencies
 RUN pip3 install --upgrade pip
-RUN pip3 install --pre -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio
+# Put latest laser-polio wheel link below
+RUN dnf install -y git
+RUN pip3 install https://github.com/InstituteforDiseaseModeling/laser-polio/releases/download/v0.1.2/laser_polio-0.1.2-py3-none-any.whl
+# RUN pip3 install --pre -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio
 RUN pip3 install optuna mysqlclient
 RUN pip3 install pipdeptree && pipdeptree -p laser-polio > /app/laser_polio_deps.txt
 
 # Copy your application and data files (same as before)
-COPY calib/logic.py .
-COPY calib/calibrate.py .
-COPY calib/calib_db.py .
-COPY calib/setup_sim.py ./calib/setup_sim.py
-COPY calib/cloud/check_study.sh .
-COPY calib/calib_configs/r0_k_seasonality.yaml ./calib/calib_configs/r0_k_seasonality.yaml
-COPY calib/model_configs/config_nigeria_popscale0.0001.yaml ./calib/model_configs/config_nigeria_popscale0.0001.yaml
-COPY data/node_lookup.json /app/data/node_lookup.json
-RUN chmod a+x ./check_study.sh
-COPY data/init_immunity_0.5coverage_january.h5 /app/data/
-COPY data/distance_matrix_africa_adm2.h5 /app/data/
-COPY ./data/Nigeria_age_pyramid_2024.csv /app/data/
-COPY ./data/sia_scenario_1.csv /app/data/
-COPY ./data/compiled_cbr_pop_ri_sia_underwt_africa.csv /app/data/
-COPY ./data/age_africa.csv /app/data/
-COPY ./data/sia_historic_schedule.csv /app/data/
-COPY ./data/epi_africa_20250408.h5 /app/data/epi_africa_20250408.h5
-COPY ./calib/results/calib_nigeria_smpop_r0_k_seasonality/actual_data.csv /app/examples/calib/results/calib_nigeria_smpop_r0_k_seasonality/actual_data.csv
+COPY calib/ .
+COPY calib/calib_configs/ ./calib/calib_configs/
+COPY calib/model_configs/ ./calib/model_configs/
+RUN chmod a+x cloud/check_study.sh
+COPY ./data/ /app/data/
 
 ENV POLIO_ROOT=/app
 ENV NUMBA_CPU_NAME=generic
+ENV HEADLESS=1
 
 # Final cleanup
 RUN pip3 cache purge

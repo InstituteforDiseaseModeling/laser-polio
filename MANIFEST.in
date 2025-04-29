@@ -23,11 +23,11 @@ recursive-include examples *
 
 exclude TODO.md
 exclude .vscode/settings.json
+recursive-exclude calib *
 recursive-exclude data *
+recursive-exclude data_curation_scripts *
 recursive-exclude results *
 recursive-exclude scripts *
-recursive-exclude calib *
-recursive-exclude results *
 
 recursive-exclude .devcontainer *
 global-exclude *.py[cod] __pycache__/* *.so *.dylib

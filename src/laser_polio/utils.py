@@ -1,9 +1,10 @@
+import calendar
 import csv
+import datetime
 import datetime as dt
 import json
 import os
 from zoneinfo import ZoneInfo  # Python 3.9+
-import logging
 
 import numpy as np
 import pandas as pd
@@ -15,6 +16,7 @@ __all__ = [
     "create_cumulative_deaths",
     "date",
     "daterange",
+    "find_latest_end_of_month",
     "find_matching_dot_names",
     "get_distance_matrix",
     "get_epi_data",
@@ -27,12 +29,6 @@ __all__ = [
     "save_results_to_csv",
 ]
 
-logger = logging.Logger( "laser-polio")
-# Set up the root logger to log to the console
-logging.basicConfig(
-    level=logging.INFO,  # Or DEBUG, WARNING, ERROR, etc.
-    format='[%(levelname)s] %(name)s: %(message)s'
-)
 
 def calc_r0_scalars_from_rand_eff(rand_eff=None, R0=14, R_min=3.41, R_max=16.7, emod_scale=2.485, emod_center=-1.050):
     """
@@ -139,6 +135,25 @@ def daterange(start_date, days):
     return date_range
 
 
+def find_latest_end_of_month(dates=None):
+    """
+    Return the latest date that is the last day of its month.
+
+    Parameters:
+        dates (List[datetime.date]): A list of datetime.date objects.
+
+    Returns:
+        datetime.date or None: The most recent end-of-month date, or None if none found.
+    """
+
+    def is_end_of_month(d: datetime.date) -> bool:
+        return d.day == calendar.monthrange(d.year, d.month)[1]
+
+    end_of_month_dates = [d for d in dates if is_end_of_month(d)]
+
+    return max(end_of_month_dates) if end_of_month_dates else None
+
+
 def find_matching_dot_names(patterns, ref_file, verbose=2):
     """
     Finds and returns dot_names from a CSV file that contain the input string patterns.
@@ -174,9 +189,10 @@ def find_matching_dot_names(patterns, ref_file, verbose=2):
     adm2 = set(matched_dot_names)
 
     # Print summary
-    logger.debug( 
+    if verbose >= 2:
+        print(
             f"The input pattern(s) {patterns} matched dot_names for {len(regions)} region(s), {len(adm0)} admin0, {len(adm1)} admin1, {len(adm2)} admin2 "
-    )
+        )
 
     return matched_dot_names
 
@@ -222,7 +238,8 @@ def get_node_lookup(node_lookup_path, dot_names):
     :return: A dictionary with integer node_ids as keys and filtered node_lookup values.
     """
     # Load the full node_lookup dictionary
-    full_node_lookup = json.load(open(node_lookup_path))
+    with open(node_lookup_path) as stream:
+        full_node_lookup = json.load(stream)
 
     # Filter by dot_names
     node_lookup = {key: full_node_lookup[key] for key in dot_names}
@@ -410,7 +427,7 @@ def save_results_to_csv(sim, filename="simulation_results.csv"):
     :param filename: The name of the CSV file to save.
     """
 
-    timesteps = sim.t
+    timesteps = sim.nt
     datevec = sim.datevec
     nodes = len(sim.nodes)
     results = sim.results
@@ -419,16 +436,26 @@ def save_results_to_csv(sim, filename="simulation_results.csv"):
         writer = csv.writer(file)
 
         # Write header
-        writer.writerow(["timestep", "date", "node", "S", "E", "I", "R", "P"])
+        writer.writerow(["timestep", "date", "node", "S", "E", "I", "R", "P", "new_exposed"])
 
         # Write data
         for t in range(timesteps):
             for n in range(nodes):
                 writer.writerow(
-                    [t, datevec[t], n, results.S[t, n], results.E[t, n], results.I[t, n], results.R[t, n], results.paralyzed[t, n]]
+                    [
+                        t,
+                        datevec[t],
+                        n,
+                        results.S[t, n],
+                        results.E[t, n],
+                        results.I[t, n],
+                        results.R[t, n],
+                        results.paralyzed[t, n],
+                        results.new_exposed[t, n],
+                    ]
                 )
 
-    logger.info(f"Results saved to {filename}")
+    print(f"Results saved to {filename}")
 
 
 def create_cumulative_deaths(total_population, max_age_years):

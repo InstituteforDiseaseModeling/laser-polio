@@ -1,46 +1,41 @@
-import yaml
+import cloud_calib_config as cfg
 from kubernetes import client
 from kubernetes import config
 
-# Load local kubeconfig (assumes users have kubectl set up)
+# Load kubeconfig
 config.load_kube_config()
-
-# Kubernetes API client
 batch_v1 = client.BatchV1Api()
 
-# Load the manifest YAML file
-yaml_file = "laser-worker-highcpu-deploy-manifests.yaml"
+# Define the container
+container = client.V1Container(
+    name=cfg.job_name,
+    image=cfg.image,
+    image_pull_policy="Always",
+    command=["python3", "calibrate.py", "--study-name", cfg.study_name, "--num-trials", str(cfg.num_trials)],
+    env=[client.V1EnvVar(name="NUMBA_NUM_THREADS", value="8")],
+    env_from=[client.V1EnvFromSource(secret_ref=client.V1SecretEnvSource(name="mysql-secrets"))],
+    resources=client.V1ResourceRequirements(requests={"cpu": "6"}, limits={"cpu": "8"}),
+)
 
-with open(yaml_file) as f:
-    manifest = yaml.safe_load(f)
+# Pod spec
+template = client.V1PodTemplateSpec(
+    spec=client.V1PodSpec(
+        containers=[container],
+        restart_policy="OnFailure",
+        image_pull_secrets=[client.V1LocalObjectReference(name="idmodregcred3")],
+        node_selector={"agentpool": "general"},
+    )
+)
 
-env_vars = {
-    "STUDY_NAME": "laser_polio_calib_fixed",
-    "NUM_TRIALS": "50",
-    "STORAGE_URL": "mysql+pymysql://optuna:superSecretPassword@optuna-mysql:3306/optunaDatabase",
-}
+# Job spec
+job_spec = client.V1JobSpec(template=template, parallelism=cfg.parallelism, completions=cfg.completions, ttl_seconds_after_finished=120)
 
+# Job object
+job = client.V1Job(api_version="batch/v1", kind="Job", metadata=client.V1ObjectMeta(name=cfg.job_name), spec=job_spec)
 
-def replace_env_vars(obj):
-    """Recursively replace placeholders with environment variables."""
-    if isinstance(obj, dict):
-        return {k: replace_env_vars(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [replace_env_vars(i) for i in obj]
-    elif isinstance(obj, str):
-        for key, val in env_vars.items():
-            obj = obj.replace(f"${{{key}}}", val)
-        return obj
-    return obj
-
-
-manifest = replace_env_vars(manifest)
-
-# Apply the Job
-namespace = "default"  # Change if using a different namespace
-
+# Apply the job
 try:
-    response = batch_v1.create_namespaced_job(namespace=namespace, body=manifest)
-    print(f"Job {response.metadata.name} created successfully.")
-except client.ApiException as e:
-    print(f"Error applying the job: {e}")
+    response = batch_v1.create_namespaced_job(namespace=cfg.namespace, body=job)
+    print(f"✅ Job {response.metadata.name} created successfully.")
+except client.exceptions.ApiException as e:
+    print(f"❌ Error applying the job: {e}")
