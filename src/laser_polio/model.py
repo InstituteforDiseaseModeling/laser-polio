@@ -192,9 +192,9 @@ class SEIR_ABM:
 
         # initialize model
         model = cls.__new__(cls)
-        model.pars = deepcopy(lp.default_pars)
-        if pars is not None:
-            model.pars += pars
+        #model.pars = deepcopy(lp.default_pars)
+        #if pars is not None:
+        #    model.pars += pars
         model.common_init(pars, verbose=2)  # TBD: add nasty verbose param
         # model.nt = model.pars["dur"] + 1
         # model.datevec = lp.daterange(model.pars["start_date"], days=model.nt)
@@ -210,45 +210,6 @@ class SEIR_ABM:
 
         # Components container
         model.components = []
-
-        return model
-
-    @classmethod
-    def __init_from_file_dep(cls, filename: str, pars: PropertySet = None):
-        logger.info(f"Initializing SEIR_ABM from file: {filename}")
-        with h5py.File(filename, "r") as f:
-            capacity = int(f.attrs["capacity"])
-            print("TBD: Don't use saved capacity. That would miss the point. Recalculate capacity based on total pop and cbr.")
-            count = int(f.attrs["count"])
-            # initialize model
-            model = cls.__new__(cls)
-            model.pars = deepcopy(lp.default_pars)
-            if pars is not None:
-                model.pars += pars
-            model.verbose = model.pars["verbose"] if "verbose" in model.pars else 1
-            model.t = 0
-            model.nt = model.pars["dur"] + 1
-            model.datevec = lp.daterange(model.pars["start_date"], days=model.nt)
-
-            # Allocate the LaserFrame with given capacity and count
-            model.people = LaserFrame(capacity=capacity, initial_count=count)
-
-            # Add scalar properties from the HDF5 structure
-            for key in f.keys():
-                data = f[key][:]
-                dtype = data.dtype
-                print(f"Recovering property {key}.")
-                model.people.add_scalar_property(name=key, dtype=dtype, default=0)
-                model.people.__dict__[key][:count] = data  # Fill the data manually
-
-            # Setup node list
-            model.nodes = np.unique(model.people.node_id[:count])
-
-            # Results holder
-            model.results = LaserFrame(capacity=1)
-
-            # Components container
-            model.components = []
 
         return model
 
@@ -1924,7 +1885,7 @@ class SIA_ABM:
         self.results.add_array_property("sia_protected", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
 
     def _load_schedule(self):
-        self.sia_schedule = self.pars["sia_schedule"] if "sia_schedule" in self.pars else []
+        self.sia_schedule = [] if "sia_schedule" not in self.pars or self.pars["sia_schedule"] is None else self.pars["sia_schedule"]
         for event in self.sia_schedule:
             event["date"] = lp.date(event["date"])
 

@@ -7,7 +7,7 @@ import laser_polio as lp
 # Fixture to set up the simulation environment
 def setup_sim(dur=30, n_ppl=None, vx_prob_ri=0.5, cbr=None, r0=14, new_pars=None):
     if n_ppl is None:
-        n_ppl = [50000, 50000]
+        n_ppl = np.array([50000, 50000])
     if cbr is None:
         cbr = np.array([30, 25])
     pars = PropertySet(

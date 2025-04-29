@@ -12,7 +12,7 @@ import laser_polio as lp
 
 def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=None, init_immun=0.8, init_prev=0.01):
     if n_ppl is None:
-        n_ppl = [10000, 10000]
+        n_ppl = np.array( [10000, 10000] )
     if r0_scalars is None:
         r0_scalars = [0.5, 2.0]
     # if dur_exp is None:
