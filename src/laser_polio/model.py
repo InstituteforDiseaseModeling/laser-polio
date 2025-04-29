@@ -482,7 +482,6 @@ class DiseaseState_ABM:
         self.results.add_array_property("paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
 
     def __init__(self, sim):
-        print( "Creating DiseaseState_ABM" )
         self._common_init( sim )
         self._initialize_results_arrays()
         self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
@@ -1238,11 +1237,11 @@ class Transmission_ABM:
     def _initialize_common(self):
         """Initialize shared network and timers."""
         # Compute the infection migration network
-        sim.results.add_vector_property("network", length=len(sim.nodes), dtype=np.float32)
-        self.network = sim.results.network
-        init_pops = sim.pars.n_ppl
+        self.sim.results.add_vector_property("network", length=len(self.sim.nodes), dtype=np.float32)
+        self.network = self.sim.results.network
+        init_pops = self.sim.pars.n_ppl
         # Get the distance matrix
-        if sim.pars.distances is not None:
+        if self.sim.pars.distances is not None:
             dist_matrix = self.sim.pars.distances
         else:
             # Calculate the distance matrix based on the Haversine formula
