@@ -116,6 +116,7 @@ def setup_sim():
             "vx_prob_ri": ri,  # Probability of routine vaccination
             "sia_schedule": sia_schedule,  # Schedule of SIAs
             "vx_prob_sia": sia_prob,  # Effectiveness of SIAs
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
         }
     )
     sim = lp.SEIR_ABM(pars)
