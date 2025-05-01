@@ -15,6 +15,7 @@ r0 = 14
 migration_method = "radiation"
 radiation_k = 0.5
 max_migr_frac = 1.0
+verbose = 3
 results_path = "results/demo_zamfara"
 
 ######### END OF USER PARS ########
@@ -31,13 +32,12 @@ sim = lp.run_sim(
     results_path=results_path,
     save_plots=True,
     save_data=False,
-    verbose=3,
+    verbose=verbose,
     seed=1,
     r0=r0,
     migration_method=migration_method,
     radiation_k=radiation_k,
     max_migr_frac=max_migr_frac,
-    infection_method="fast",
 )
 
 sc.printcyan("Done.")
