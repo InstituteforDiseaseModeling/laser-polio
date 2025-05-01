@@ -1,5 +1,6 @@
 import logging
 import numbers
+import os
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
@@ -10,6 +11,7 @@ import matplotlib.pyplot as plt
 import numba as nb
 import numpy as np
 import pandas as pd
+import pytz
 import scipy.stats as stats
 import sciris as sc
 from alive_progress import alive_bar
@@ -33,11 +35,16 @@ from laser_polio.utils import pbincount
 __all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "Transmission_ABM", "VitalDynamics_ABM"]
 
 
-# Configure the logger once
+# Configure the logger
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+local_tz = pytz.timezone("America/Seattle")  # Replace with your local timezone
+timestamp = datetime.now(local_tz).strftime("%Y%m%d-%H%M%S")
+log_file = os.path.join(log_dir, f"simulation_log-{timestamp}.txt")
 logging.basicConfig(
-    filename=f"logs/simulation_log-{datetime.now():%Y%m%d-%H%M%S}.txt",  # or use .log or .csv depending on how you want to consume it  # noqa: DTZ005
+    filename=log_file,
     level=logging.INFO,
-    format="%(asctime)s [T=%(message)s]",
+    format="%(asctime)s %(levelname)s: %(message)s",
     filemode="w",  # Overwrite each time you run; use "a" to append
 )
 logger = logging.getLogger(__name__)
