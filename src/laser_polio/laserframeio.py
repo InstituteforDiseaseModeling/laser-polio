@@ -26,6 +26,21 @@ class LaserFrameIO(LaserFrame):
                         data = value[: self._count]
                         hdf.create_dataset(key, data=data)
 
+    @staticmethod
+    def save_to_group(frame, group):
+        """
+        Save LaserFrameIO properties to an existing HDF5 group (not a file).
+        """
+        group.attrs["count"] = frame._count
+        group.attrs["capacity"] = frame._capacity
+
+        for key in dir(frame):
+            if not key.startswith("_"):
+                value = getattr(frame, key)
+                if isinstance(value, np.ndarray):
+                    data = value[: frame._count]
+                    group.create_dataset(key, data=data)
+
     @classmethod
     def load(cls, filename: str, capacity=None):
         """Load a LaserFrameIO object from an HDF5 file."""
@@ -49,3 +64,23 @@ class LaserFrameIO(LaserFrame):
                 getattr(frame, key)[:saved_count] = data  # Fill values up to saved count
 
             return frame
+
+    @staticmethod
+    def load_from_group(group):
+        """
+        Load a LaserFrameIO object from an HDF5 group.
+        """
+        saved_count = int(group.attrs["count"])
+        saved_capacity = int(group.attrs["capacity"])
+        saved_capacity = int(1.1 * saved_count)  # same "hack"
+
+        frame = LaserFrameIO(capacity=saved_capacity, initial_count=saved_count)
+
+        for key in group.keys():
+            data = group[key][:]
+            dtype = data.dtype
+            frame.add_scalar_property(name=key, dtype=dtype, default=0)
+            setattr(frame, key, np.zeros(frame._capacity, dtype=dtype))  # Preallocate
+            getattr(frame, key)[:saved_count] = data
+
+        return frame

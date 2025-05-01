@@ -11,6 +11,7 @@ import yaml
 from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
+from laser_polio.laserframeio import LaserFrameIO
 
 __all__ = ["run_sim"]
 
@@ -19,7 +20,7 @@ if os.getenv("POLIO_ROOT"):
     lp.root = Path(os.getenv("POLIO_ROOT"))
 
 
-def run_sim(config=None, init_pop_file=None, verbose=1, **kwargs):
+def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False, **kwargs):
     """
     Set up simulation from config file (YAML + overrides) or kwargs.
 
@@ -134,7 +135,6 @@ def run_sim(config=None, init_pop_file=None, verbose=1, **kwargs):
     # TODO: make this optional
     # sc.pp(pars.to_dict())
 
-    # Run sim
     def from_file(init_pop_file):
         sim = lp.SEIR_ABM.init_from_file(init_pop_file, pars)
         disease_state = lp.DiseaseState_ABM.init_from_file(sim)
@@ -162,28 +162,28 @@ def run_sim(config=None, init_pop_file=None, verbose=1, **kwargs):
             components.append(lp.SIA_ABM)
         sim.components = components
 
-        def save():
-            sim.people.save("nigeria_init_pop.h5")
-            with h5py.File("nigeria_eula_pop.h5", "w") as hdf:
-                hdf.create_dataset("results_R", data=sim.results.R)
+        if save_pop:
+            with h5py.File(results_path / "init_pop.h5", "w") as f:
+                LaserFrameIO.save_to_group(sim.people, f.create_group("people"))  # Save the people frame
+                f.create_dataset("recovered", data=sim.results.R[:])  # Save the R result array
 
-        # save()
         return sim
 
+    # Either initialize the sim from file or create a new one
     if init_pop_file:
         sim = from_file(init_pop_file)
     else:
         sim = regular()
 
-    sim.run()
-
-    # Save results
-    if save_plots:
-        Path(results_path).mkdir(parents=True, exist_ok=True)
-        sim.plot(save=True, results_path=results_path)
-    if save_data:
-        Path(results_path).mkdir(parents=True, exist_ok=True)
-        lp.save_results_to_csv(sim, filename=results_path / "simulation_results.csv")
+    # Run sim
+    if run:
+        sim.run()
+        if save_plots:
+            Path(results_path).mkdir(parents=True, exist_ok=True)
+            sim.plot(save=True, results_path=results_path)
+        if save_data:
+            Path(results_path).mkdir(parents=True, exist_ok=True)
+            lp.save_results_to_csv(sim, filename=results_path / "simulation_results.csv")
 
     return sim
 
