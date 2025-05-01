@@ -298,28 +298,29 @@ class SEIR_ABM:
     def run(self):
         if self.verbose >= 1:
             sc.printcyan("Initialization complete. Running simulation...")
-
+        step_stats = TimingStats()
         with alive_bar(self.nt, title="Simulation progress:", disable=self.verbose < 1) as bar:
             for tick in range(self.nt):
-                if tick == 0:
-                    # Just record the initial state on t=0 & don't run any components
-                    self.log_results(tick)
-                    self.t += 1
-                else:
-                    for component in self.instances:
-                        with self.perf_stats.start(component.__class__.__name__ + ".step()"):
-                            component.step()
+                with step_stats.start(f"t={tick}"):
+                    if tick == 0:
+                        # Just record the initial state on t=0 & don't run any components
+                        self.log_results(tick)
+                        self.t += 1
+                    else:
+                        for component in self.instances:
+                            with self.perf_stats.start(component.__class__.__name__ + ".step()"):
+                                component.step()
 
-                    self.log_results(tick)
-                    self.t += 1
+                        self.log_results(tick)
+                        self.t += 1
 
-                    # Early stopping rule
-                    if self.should_stop:
-                        if self.verbose >= 1:
-                            sc.printyellow(
-                                f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events. This stops all components (e.g., no births, deaths, or vaccination)"
-                            )
-                        break
+                        # Early stopping rule
+                        if self.should_stop:
+                            if self.verbose >= 1:
+                                sc.printyellow(
+                                    f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events. This stops all components (e.g., no births, deaths, or vaccination)"
+                                )
+                            break
 
                 bar()  # Update the progress bar
 
@@ -328,6 +329,7 @@ class SEIR_ABM:
             sc.printcyan("Simulation complete.")
 
         self.perf_stats.log(logger)
+        step_stats.log(logger)
 
         return
 
