@@ -44,7 +44,7 @@ def main(model_config, results_path, study_name, fit_function="mse", **kwargs):
     save_study_results(study, Path(results_path))
     if not os.getenv("HEADLESS"):
         plot_stuff(study_name, storage_url, output_dir=Path(results_path))
-        plot_targets(study, model_config_path=model_config, output_dir=Path(results_path))
+        plot_targets(study, output_dir=Path(results_path))
 
     sc.printcyan("✅ Calibration complete. Results saved.")
 
