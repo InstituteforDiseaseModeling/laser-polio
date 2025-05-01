@@ -51,6 +51,9 @@ def run_worker_main(
     with open(calib_config) as f:
         calib_config_dict = yaml.safe_load(f)
     study.set_user_attr("parameter_spec", calib_config_dict.get("parameters", {}))
+    with open(model_config) as f:
+        model_config_dict = yaml.safe_load(f)
+    study.set_user_attr("model_config", model_config_dict)
     for k, v in calib_config_dict.get("metadata", {}).items():
         study.set_user_attr(k, v)
     metadata = calib_config_dict.get("metadata", {})
