@@ -1,9 +1,6 @@
 # PRIORITIES
 
 @Steve
-- Update run sim to save pop (run=T, save_pop=F)
-- report_calib_aks.py needs port forwarding
-- Look into frequency of sim logging
 - Stochastic tests
 - New model features
 - Run logger with radiation_k and validate
@@ -71,8 +68,8 @@ CALIBRATION
 - Record pkg versions
 
 DEBUGGING
-- Ask AI why my model might deviate from KM
-- Look for other checks on transmission probability in addition to Kermack and McKendrick relation
+- Add tests for migration
+- Check why RI seems to stop after certain date
 - Add transmission tests with run_sim() using real data
 - Plot all data inputs for visual checks
 - Plot expected births?

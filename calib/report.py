@@ -107,7 +107,7 @@ def plot_targets(study, output_dir=None):
     plt.legend()
     plt.tight_layout()
     plt.savefig(output_dir / "plot_best_total_infected_comparison.png")
-    plt.show()
+    # plt.show()
 
     # Yearly Cases
     years = list(range(2018, 2018 + len(actual["yearly_cases"])))
@@ -121,7 +121,7 @@ def plot_targets(study, output_dir=None):
     plt.legend()
     plt.tight_layout()
     plt.savefig(output_dir / "plot_best_yearly_cases_comparison.png")
-    plt.show()
+    # plt.show()
 
     # Monthly Cases
     months = list(range(1, 1 + len(actual["monthly_cases"])))
@@ -135,7 +135,7 @@ def plot_targets(study, output_dir=None):
     plt.legend()
     plt.tight_layout()
     plt.savefig(output_dir / "plot_best_monthly_cases_comparison.png")
-    plt.show()
+    # plt.show()
 
     # Regional Cases (bar plot)
     x = np.arange(len(region_labels))
@@ -150,7 +150,7 @@ def plot_targets(study, output_dir=None):
     plt.legend()
     plt.tight_layout()
     plt.savefig(output_dir / "plot_best_regional_cases_comparison.png")
-    plt.show()
+    # plt.show()
 
 
 def load_region_group_labels(model_config_path):
