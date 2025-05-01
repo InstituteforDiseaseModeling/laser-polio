@@ -20,9 +20,9 @@ if os.getenv("POLIO_ROOT"):
 
 # ------------------- USER CONFIG -------------------
 num_trials = 2
-study_name = "calib_zamfara2"
+study_name = "calib_nigeria_radiation_20250501"
 calib_config_path = lp.root / "calib/calib_configs/r0_k.yaml"
-model_config_path = lp.root / "calib/model_configs/config_zamfara.yaml"
+model_config_path = lp.root / "calib/model_configs/config_nigeria.yaml"
 fit_function = "log_likelihood"  # options are "log_likelihood" or "mse"
 results_path = lp.root / "results" / study_name
 actual_data_file = lp.root / "results" / study_name / "actual_data.csv"
