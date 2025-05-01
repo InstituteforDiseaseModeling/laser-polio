@@ -35,7 +35,7 @@ __all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "Transmission_AB
 
 # Configure the logger once
 logging.basicConfig(
-    filename=f"simulation_log-{datetime.now():%Y%m%d-%H%M%S}.txt",  # or use .log or .csv depending on how you want to consume it  # noqa: DTZ005
+    filename=f"logs/simulation_log-{datetime.now():%Y%m%d-%H%M%S}.txt",  # or use .log or .csv depending on how you want to consume it  # noqa: DTZ005
     level=logging.INFO,
     format="%(asctime)s [T=%(message)s]",
     filemode="w",  # Overwrite each time you run; use "a" to append
