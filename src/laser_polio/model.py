@@ -38,7 +38,7 @@ __all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "Transmission_AB
 # Configure the logger
 log_dir = "logs"
 os.makedirs(log_dir, exist_ok=True)
-local_tz = pytz.timezone("America/Seattle")  # Replace with your local timezone
+local_tz = pytz.timezone("America/Los_Angeles")  # Replace with your local timezone
 timestamp = datetime.now(local_tz).strftime("%Y%m%d-%H%M%S")
 log_file = os.path.join(log_dir, f"simulation_log-{timestamp}.txt")
 logging.basicConfig(
