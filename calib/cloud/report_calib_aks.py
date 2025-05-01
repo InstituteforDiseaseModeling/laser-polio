@@ -8,6 +8,7 @@ import optuna
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from report import plot_stuff
+from report import plot_targets  # or wherever it's defined
 from report import save_study_results
 
 
@@ -34,6 +35,9 @@ def main():
 
         print("📈 Plotting results...")
         plot_stuff(cfg.study_name, study.storage_url, output_dir=results_path)
+
+        print("📊 Plotting target comparisons...")
+        plot_targets(study, output_dir=results_path)
 
     finally:
         print("🧹 Cleaning up port forwarding...")
