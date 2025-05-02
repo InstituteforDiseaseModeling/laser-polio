@@ -154,11 +154,6 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         tx = lp.Transmission_ABM.init_from_file(sim)
         sim._components = [type(vd), type(disease_state), type(tx), type(ri), type(sia)]
         sim.instances = [vd, disease_state, tx, ri, sia]
-        # reload results.R
-        # lots of questionable ad-hod decision-making here for now
-        # eula_pop_file = init_pop_file.replace("init", "eula")
-        # if not os.path.exists(eula_pop_file):
-        #     raise ValueError(f"Unable to find required eula pop file: {eula_pop_file}")
         with h5py.File(init_pop_file, "r") as hdf:
             sim.results.R = hdf["recovered"][:]
         return sim
@@ -175,9 +170,8 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     # Either initialize the sim from file or create a sim from scratch
     if init_pop_file:
-        # # Manual checks
-        with h5py.File(init_pop_file, "r") as f:
-            print(f.keys())
+        if "people" not in h5py.File(init_pop_file, "r").keys() or "recovered" not in h5py.File(init_pop_file, "r").keys():
+            raise ValueError(f"Invalid init_pop_file: {init_pop_file} must contain 'people' and 'recovered' datasets.")
         sim = from_file(init_pop_file)
     else:
         sim = regular()
