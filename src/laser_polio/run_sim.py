@@ -11,6 +11,7 @@ import yaml
 from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
+from laser_polio.laserframeio import LaserFrameIO
 
 __all__ = ["run_sim"]
 
@@ -19,7 +20,7 @@ if os.getenv("POLIO_ROOT"):
     lp.root = Path(os.getenv("POLIO_ROOT"))
 
 
-def run_sim(config=None, init_pop_file=None, verbose=1, **kwargs):
+def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False, **kwargs):
     """
     Set up simulation from config file (YAML + overrides) or kwargs.
 
@@ -41,9 +42,9 @@ def run_sim(config=None, init_pop_file=None, verbose=1, **kwargs):
 
     # Extract simulation setup parameters with defaults or overrides
     regions = configs.pop("regions", ["ZAMFARA"])
-    start_year = configs.pop("start_year", 2019)
+    start_year = configs.pop("start_year", 2018)
     n_days = configs.pop("n_days", 365)
-    pop_scale = configs.pop("pop_scale", 0.01)
+    pop_scale = configs.pop("pop_scale", 1)
     init_region = configs.pop("init_region", "ANKA")
     init_prev = float(configs.pop("init_prev", 0.01))
     results_path = configs.pop("results_path", "results/demo")
@@ -134,7 +135,6 @@ def run_sim(config=None, init_pop_file=None, verbose=1, **kwargs):
     # TODO: make this optional
     # sc.pp(pars.to_dict())
 
-    # Run sim
     def from_file(init_pop_file):
         sim = lp.SEIR_ABM.init_from_file(init_pop_file, pars)
         disease_state = lp.DiseaseState_ABM.init_from_file(sim)
@@ -146,11 +146,11 @@ def run_sim(config=None, init_pop_file=None, verbose=1, **kwargs):
         sim.instances = [vd, disease_state, tx, ri, sia]
         # reload results.R
         # lots of questionable ad-hod decision-making here for now
-        eula_pop_file = init_pop_file.replace("init", "eula")
-        if not os.path.exists(eula_pop_file):
-            raise ValueError(f"Unable to find required eula pop file: {eula_pop_file}")
-        with h5py.File(eula_pop_file, "r") as hdf:
-            sim.results.R = hdf["results_R"][:]
+        # eula_pop_file = init_pop_file.replace("init", "eula")
+        # if not os.path.exists(eula_pop_file):
+        #     raise ValueError(f"Unable to find required eula pop file: {eula_pop_file}")
+        with h5py.File(init_pop_file, "r") as hdf:
+            sim.results.R = hdf["recovered"][:]
         return sim
 
     def regular():
@@ -161,29 +161,36 @@ def run_sim(config=None, init_pop_file=None, verbose=1, **kwargs):
         if pars.vx_prob_sia is not None:
             components.append(lp.SIA_ABM)
         sim.components = components
-
-        def save():
-            sim.people.save("nigeria_init_pop.h5")
-            with h5py.File("nigeria_eula_pop.h5", "w") as hdf:
-                hdf.create_dataset("results_R", data=sim.results.R)
-
-        # save()
         return sim
 
+    # Either initialize the sim from file or create a sim from scratch
     if init_pop_file:
+        # # Manual checks
+        with h5py.File(init_pop_file, "r") as f:
+            print(f.keys())
         sim = from_file(init_pop_file)
     else:
         sim = regular()
+        if save_pop:
+            with h5py.File(results_path / "init_pop.h5", "w") as f:
+                people_group = f.create_group("people")
+                LaserFrameIO.save_to_group(sim.people, people_group)  # Save to 'people' group
+                f.create_dataset("recovered", data=sim.results.R[:])  # Save the R result array
 
-    sim.run()
+    # Safety checks
+    print(f"sim.people.count: {sim.people.count}")
+    print(f"disease state counts: {np.bincount(sim.people.disease_state[: sim.people.count])}")
+    print(f"infected: {np.where(sim.people.disease_state[: sim.people.count] == 2)}")
 
-    # Save results
-    if save_plots:
-        Path(results_path).mkdir(parents=True, exist_ok=True)
-        sim.plot(save=True, results_path=results_path)
-    if save_data:
-        Path(results_path).mkdir(parents=True, exist_ok=True)
-        lp.save_results_to_csv(sim, filename=results_path / "simulation_results.csv")
+    # Run sim
+    if run:
+        sim.run()
+        if save_plots:
+            Path(results_path).mkdir(parents=True, exist_ok=True)
+            sim.plot(save=True, results_path=results_path)
+        if save_data:
+            Path(results_path).mkdir(parents=True, exist_ok=True)
+            lp.save_results_to_csv(sim, filename=results_path / "simulation_results.csv")
 
     return sim
 

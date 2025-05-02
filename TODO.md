@@ -1,10 +1,8 @@
 # PRIORITIES
 
 @Steve
-- Make synthetic data & send to Jonathan
 - Stochastic tests
 - New model features
-- Make option for init_prev to be ints, maybe call it init_inf?
 
 CALIBRATION
 - print number of jobs that are about to start
