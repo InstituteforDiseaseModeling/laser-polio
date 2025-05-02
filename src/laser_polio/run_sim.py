@@ -42,9 +42,9 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     # Extract simulation setup parameters with defaults or overrides
     regions = configs.pop("regions", ["ZAMFARA"])
-    start_year = configs.pop("start_year", 2019)
+    start_year = configs.pop("start_year", 2018)
     n_days = configs.pop("n_days", 365)
-    pop_scale = configs.pop("pop_scale", 0.01)
+    pop_scale = configs.pop("pop_scale", 1)
     init_region = configs.pop("init_region", "ANKA")
     init_prev = float(configs.pop("init_prev", 0.01))
     results_path = configs.pop("results_path", "results/demo")
@@ -161,19 +161,17 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         if pars.vx_prob_sia is not None:
             components.append(lp.SIA_ABM)
         sim.components = components
-
-        if save_pop:
-            with h5py.File(results_path / "init_pop.h5", "w") as f:
-                LaserFrameIO.save_to_group(sim.people, f.create_group("people"))  # Save the people frame
-                f.create_dataset("recovered", data=sim.results.R[:])  # Save the R result array
-
         return sim
 
-    # Either initialize the sim from file or create a new one
+    # Either initialize the sim from file or create a sim from scratch
     if init_pop_file:
         sim = from_file(init_pop_file)
     else:
         sim = regular()
+        if save_pop:
+            with h5py.File(results_path / "init_pop.h5", "w") as f:
+                LaserFrameIO.save_to_group(sim.people, f.create_group("people"))  # Save the people frame
+                f.create_dataset("recovered", data=sim.results.R[:])  # Save the R result array
 
     # Run sim
     if run:

@@ -17,6 +17,7 @@ radiation_k = 0.5
 max_migr_frac = 1.0
 results_path = "results/demo_zamfara"
 verbose = 1
+init_pop_file = results_path + "/init_pop.h5"  # Path to initial population file
 
 ######### END OF USER PARS ########
 ###################################
@@ -38,7 +39,7 @@ sim = lp.run_sim(
     migration_method=migration_method,
     radiation_k=radiation_k,
     max_migr_frac=max_migr_frac,
-    save_pop=True,
+    init_pop_file=init_pop_file,
 )
 
 sc.printcyan("Done.")
