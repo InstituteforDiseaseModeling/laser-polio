@@ -187,10 +187,6 @@ class SEIR_ABM:
         # Setup early stopping option - controlled in DiseaseState_ABM component
         self.should_stop = False
 
-        # Initialize the population
-        if self.verbose >= 1:
-            sc.printcyan("Initializing simulation...")
-
     def __init__(self, pars: PropertySet = None, verbose=1):
         self.perf_stats = TimingStats()
         with self.perf_stats.start(self.__class__.__name__ + ".__init__()"):
@@ -360,7 +356,7 @@ class SEIR_ABM:
             component.plot(save=save, results_path=results_path)
         self.plot_node_pop(save=save, results_path=results_path)
 
-        if self.component_times:
+        if self.perf_stats and self.perf_stats.stats:
             # logger.debug(f"{self.instances=}")
             if self.verbose >= 2:
                 print(f"{self.instances=}")
@@ -1996,13 +1992,13 @@ class RI_ABM:
         if self.sim.t % self.step_size == 0:
             local_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
             fast_ri(
-                self.step_size,
+                np.int32(self.step_size),
                 self.people.node_id,
                 self.people.disease_state,
-                self.people.ri_timer,
-                self.sim.t,
+                self.people.ri_timer.astype(np.int32),
+                np.int32(self.sim.t),
                 vx_prob_ri,
-                self.people.count,
+                np.int32(self.people.count),
                 local_counts,
             )
             # Sum up the counts from all threads
