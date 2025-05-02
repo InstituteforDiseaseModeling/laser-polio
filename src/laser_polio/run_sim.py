@@ -188,9 +188,10 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
                 f.create_dataset("recovered", data=sim.results.R[:])  # Save the R result array
 
     # Safety checks
-    print(f"sim.people.count: {sim.people.count}")
-    print(f"disease state counts: {np.bincount(sim.people.disease_state[: sim.people.count])}")
-    print(f"infected: {np.where(sim.people.disease_state[: sim.people.count] == 2)}")
+    if verbose >= 3:
+        print(f"sim.people.count: {sim.people.count}")
+        print(f"disease state counts: {np.bincount(sim.people.disease_state[: sim.people.count])}")
+        print(f"infected: {np.where(sim.people.disease_state[: sim.people.count] == 2)}")
 
     # Run sim
     if run:
