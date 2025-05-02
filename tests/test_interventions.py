@@ -157,12 +157,12 @@ def test_sia_schedule():
 
 
 if __name__ == "__main__":
-    # test_ri_initialization()
-    # test_ri_manually_seeded()
-    # test_ri_on_births()
-    # test_ri_zero()
-    # test_ri_vx_prob()
-    # test_ri_no_effect_on_non_susceptibles()
-    # test_sia_schedule()
+    test_ri_initialization()
+    test_ri_manually_seeded()
+    test_ri_on_births()
+    test_ri_zero()
+    test_ri_vx_prob()
+    test_ri_no_effect_on_non_susceptibles()
+    test_sia_schedule()
 
     print("All initialization tests passed.")
