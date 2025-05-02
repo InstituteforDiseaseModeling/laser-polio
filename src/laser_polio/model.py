@@ -1968,7 +1968,7 @@ class RI_ABM:
         self.people.add_scalar_property("ri_timer", dtype=np.int32, default=-1)
         dob = self.people.date_of_birth[: self.people.count]
         days_from_birth_to_ri = np.random.uniform(42, 98, self.people.count)
-        self.people.ri_timer[: self.people.count] = dob + days_from_birth_to_ri
+        self.people.ri_timer[: self.people.count] = (dob + days_from_birth_to_ri).astype(np.int32)
 
     def _initialize_common(self):
         """Initialize common result arrays."""
@@ -1995,7 +1995,7 @@ class RI_ABM:
                 np.int32(self.step_size),
                 self.people.node_id,
                 self.people.disease_state,
-                self.people.ri_timer.astype(np.int32),
+                self.people.ri_timer,
                 np.int32(self.sim.t),
                 vx_prob_ri,
                 np.int32(self.people.count),
