@@ -1966,9 +1966,9 @@ class RI_ABM:
 
         # Calc date of RI (assume single point in time between 1st and 3rd dose)
         self.people.add_scalar_property("ri_timer", dtype=np.int32, default=-1)
-        dob = self.people.date_of_birth
-        days_from_birth_to_ri = np.random.uniform(42, 98, len(self.people.ri_timer))
-        self.people.ri_timer = dob + days_from_birth_to_ri
+        dob = self.people.date_of_birth[: self.people.count]
+        days_from_birth_to_ri = np.random.uniform(42, 98, self.people.count)
+        self.people.ri_timer[: self.people.count] = dob + days_from_birth_to_ri
 
     def _initialize_common(self):
         """Initialize common result arrays."""
