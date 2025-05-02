@@ -1,7 +1,7 @@
 parameters:
   r0:
     low: 5.0
-    high: 50.0
+    high: 20.0
   radiation_k:
     low: 0.0
     high: 3.0

@@ -3,6 +3,9 @@
 @Steve
 - Stochastic tests
 - New model features
+- Run logger with radiation_k and validate
+- Are pops reproducible from seeds? Does popw with run seed=1 & sim seed=1 produce the same as a sim with seed of 1 without init_pop
+- Write a test for init_pops to produce similar results or at least run
 
 CALIBRATION
 - print number of jobs that are about to start
@@ -15,6 +18,8 @@ CALIBRATION
 - Save best trial results & figs
 
 CLOUD
+- Numba target architecture configuration (core setup for VM - JB had to add an env variable to use basic core setup, can't remember why)
+- How do I check on resource usage of cluster?
 - Talk to JB about mapping calib directory during Docker run (kind of like a network drive)
 - might be able to connect aks to kubernetes app in VS code so I can interact with each node
 - think there's an aks python library that might provide a link or option for inspecting nodes to see which are running
@@ -37,7 +42,6 @@ ESSENTIAL NEW FEATURES
 - Fix death rates
 
 STRETCH NEW FEATURES
-- Rethink distance matrix - could we reduce precision to reduce memory? Or would jut uploading lats and longs be faster?
 - Is there a way to only load data & initialize sims once during calibration? How much speedup could we get?
 - Add rule for blackouts (e.g., limiting number of campaigns / year) of maybe 1-2 years
 - Count number of Sabin2 or nOPV2 transmissions
@@ -49,6 +53,7 @@ STRETCH NEW FEATURES
 - Add IPV to RI
 
 CALIBRATION
+- Chat with Jeremy about databricks
 - Calibrate the m (scalar) parameter on the R0 random effect
 - Calibration parameter:
     - maybe scalar on nOPV2 efficacy
@@ -63,8 +68,8 @@ CALIBRATION
 - Record pkg versions
 
 DEBUGGING
-- Ask AI why my model might deviate from KM
-- Look for other checks on transmission probability in addition to Kermack and McKendrick relation
+- Add tests for migration
+- Check why RI seems to stop after certain date
 - Add transmission tests with run_sim() using real data
 - Plot all data inputs for visual checks
 - Plot expected births?
@@ -89,6 +94,7 @@ CLEANUP
 STRETCH
 - Add correlation in vx coverage so it's not random???
 - Age-specific R0???
+- Try running calibration on a variety of resources/methods (aks, COMPS, databricks) & write up report
 
 TESTING
 - Make stochastic tests more robust

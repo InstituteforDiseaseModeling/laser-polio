@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 import click
+import geopandas as gpd
 import h5py
 import numpy as np
 import pandas as pd
@@ -46,7 +47,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     n_days = configs.pop("n_days", 365)
     pop_scale = configs.pop("pop_scale", 1)
     init_region = configs.pop("init_region", "ANKA")
-    init_prev = float(configs.pop("init_prev", 0.01))
+    init_prev = configs.pop("init_prev", 0.01)
     results_path = configs.pop("results_path", "results/demo")
     actual_data = configs.pop("actual_data", "data/epi_africa_20250421.h5")
     save_plots = configs.pop("save_plots", False)
@@ -55,7 +56,12 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     # Geography
     dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", verbose=verbose)
     node_lookup = lp.get_node_lookup("data/node_lookup.json", dot_names)
-    dist_matrix = lp.get_distance_matrix(lp.root / "data/distance_matrix_africa_adm2.h5", dot_names)
+    # dist_matrix = lp.get_distance_matrix(lp.root / "data/distance_matrix_africa_adm2.h5", dot_names)
+    shp = gpd.read_file(filename="data/shp_africa_low_res.gpkg", layer="adm2")
+    shp = shp[shp["dot_name"].isin(dot_names)]
+    # Sort the GeoDataFrame by the order of dot_names
+    shp.set_index("dot_name", inplace=True)
+    shp = shp.loc[dot_names].reset_index()
 
     # Immunity
     init_immun = pd.read_hdf(lp.root / "data/init_immunity_0.5coverage_january.h5", key="immunity")
@@ -68,6 +74,9 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     if not prev_indices:
         raise ValueError(f"No nodes found containing '{init_region}'")
     init_prevs[prev_indices] = init_prev
+    # Make dtype match init_prev type
+    if isinstance(init_prev, int):
+        init_prevs = init_prevs.astype(int)
     if verbose >= 2:
         print(f"Seeding infection in {len(prev_indices)} nodes at {init_prev:.3f} prevalence.")
 
@@ -96,7 +105,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     # print(f"{r0_scalars[-14:]}")
 
     # Validate all arrays match
-    assert all(len(arr) == len(dot_names) for arr in [dist_matrix, init_immun, node_lookup, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
+    assert all(len(arr) == len(dot_names) for arr in [shp, init_immun, node_lookup, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
 
     # Setup results path
     if results_path is None:
@@ -119,7 +128,8 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         "init_immun": init_immun,
         "init_prev": init_prevs,
         "r0_scalars": r0_scalars,
-        "distances": dist_matrix,
+        "distances": None,
+        "shp": shp,
         "node_lookup": node_lookup,
         "vx_prob_ri": ri,
         "sia_schedule": sia_schedule,

@@ -116,6 +116,7 @@ def setup_sim():
             "vx_prob_ri": ri,  # Probability of routine vaccination
             "sia_schedule": sia_schedule,  # Schedule of SIAs
             "vx_prob_sia": sia_prob,  # Effectiveness of SIAs
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
         }
     )
     sim = lp.SEIR_ABM(pars)
@@ -134,14 +135,14 @@ def test_squash():
     disease_state = sim.people.disease_state[: sim.people.count]
     assert np.all(disease_state < 3), "No one should be in the recovered state since they should be squashed out."
 
-    exp_pop = np.sum(pop)
+    exp_pop = np.sum(sim.pars.n_ppl)
     obs_pop = sim.people.count + sim.results.R[0].sum()
     assert np.isclose(exp_pop, obs_pop, atol=100), f"Expected population size {exp_pop}, but got {obs_pop}."
 
     # Check the number of recovered in results. I did a really rough calc for <15yo immunity since it's broken up by age bins
     exp_o15 = exp_pop * 0.43
     exclude_cols = ["guid", "period", "serotype", "dpt1", "dpt3"]
-    mean_immun = np.mean(init_immun.drop(columns=exclude_cols))
+    mean_immun = np.mean(sim.pars.init_immun.drop(columns=exclude_cols))
     exp_u15 = exp_pop - exp_o15
     exp_u15_r = exp_u15 * mean_immun
     exp_r = exp_o15 + exp_u15_r

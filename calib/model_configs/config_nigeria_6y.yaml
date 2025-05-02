@@ -1,6 +1,6 @@
 regions: ["NIGERIA"]
 start_year: 2018
-n_days: 365
+n_days: 2190
 pop_scale: 1
 init_region: "BIRINIWA"
 init_prev: 500

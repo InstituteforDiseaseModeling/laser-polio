@@ -3,10 +3,10 @@ from pathlib import Path
 
 import yaml
 
-study_name = "calib_nigeria_20250423_fullpop"
+study_name = "calib_nigeria_radiation_2y_20250502"
 num_trials = 1
 parallelism = 4
-completions = 20  # The total number of pods (i.e., jobs) that need to successfully complete before the job is considered "done"
+completions = 24  # The total number of pods (i.e., jobs) that need to successfully complete before the job is considered "done"
 namespace = "default"
 job_name = "laser-polio-worker-sk"
 image = "idm-docker-staging.packages.idmod.org/laser/laser-polio:latest"

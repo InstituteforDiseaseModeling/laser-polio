@@ -4,12 +4,16 @@ import datetime
 import datetime as dt
 import json
 import os
+from collections import defaultdict
+from time import perf_counter_ns
 from zoneinfo import ZoneInfo  # Python 3.9+
 
+import numba as nb
 import numpy as np
 import pandas as pd
 
 __all__ = [
+    "TimingStats",
     "calc_r0_scalars_from_rand_eff",
     "calc_sia_prob_from_rand_eff",
     "clean_strings",
@@ -25,6 +29,7 @@ __all__ = [
     "get_tot_pop_and_cbr",
     "get_woy",
     "inv_logit",
+    "pbincount",
     "process_sia_schedule_polio",
     "save_results_to_csv",
 ]
@@ -480,3 +485,254 @@ def create_cumulative_deaths(total_population, max_age_years):
     mortality_rates = base_mortality_rate * (growth_factor ** (ages_years / 10))
     cumulative_deaths = np.cumsum(mortality_rates * total_population).astype(int)
     return cumulative_deaths
+
+
+class TimingStats:
+    """
+    This is a lightweight hierarchical timing tool that can be used to time code sections (even nested blocks) and log the time spent.
+    - .start("Some step") creates a Stopwatch object.
+        - The Stopwatch records start_time on entering a `with` (context) block.
+        - On exiting the `with` (context) block, it records end_time, computes elapsed time, and calls stats._stop(...) to accumulate stats.
+    - .log(logger) formats and prints out timing data nicely.
+    """
+
+    def __init__(self):
+        """
+        Initializes an instance of the class.
+        Attributes:
+            stats (defaultdict): A dictionary with default integer values to track statistics.
+            depth (int): An integer representing the current "indentation" depth, initialized to 0.
+        """
+
+        self.stats = defaultdict(int)
+        self.depth = 0
+
+        return
+
+    class Stopwatch:
+        def __init__(self, key: str, stats):
+            """
+            Initialize an instance with a key and associated statistics.
+            Args:
+                key (str): A unique identifier for the instance.
+                stats: The TimingStats object accumulating statistics.
+            """
+
+            self.key = key
+            self.stats = stats
+
+            return
+
+        def __enter__(self):
+            """
+            Enter the runtime context for the object and start a timer.
+            This method is called when the runtime context is entered using the
+            'with' statement. It initializes and records the start time in
+            nanoseconds for measuring the duration of the context.
+            Returns:
+                self: The instance of the class, allowing access to its attributes
+                and methods within the context.
+            """
+
+            self.start_time = perf_counter_ns()
+
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            """
+            Exit the runtime context and perform cleanup actions.
+            This method is called when the context manager is exited. It records
+            the end time, calculates the elapsed time, and updates the statistics
+            with the elapsed duration for the given key.
+            Args:
+                exc_type (type): The exception type, if an exception was raised.
+                exc_value (Exception): The exception instance, if an exception was raised.
+                traceback (TracebackType): The traceback object, if an exception was raised.
+            Returns:
+                None
+            """
+
+            self.end_time = perf_counter_ns()
+            elapsed = self.end_time - self.start_time
+            self.stats._stop(self.key, elapsed)
+
+            return
+
+    def start(self, label):
+        """
+        Starts a new timing session with the given label.
+        This method creates a new key based on the current depth and the provided label,
+        increments the depth, and initializes a new Stopwatch instance associated with
+        the key. The key is also added to the stats dictionary with an initial value of 0.
+        Args:
+            label (str): A descriptive label for the timing session.
+        Returns:
+            TimingStats.Stopwatch: An instance of the Stopwatch class associated with the
+            given label and timing session.
+        """
+
+        key = (" " * (4 * self.depth)) + label
+        self.depth += 1
+        sw = TimingStats.Stopwatch(key, self)
+        self.stats[key] += 0
+
+        return sw
+
+    def _stop(self, key, elapsed):
+        """
+        Stops the timer for a given key, updates the elapsed time in the stats,
+        and decreases the depth counter.
+        Args:
+            key (str): The identifier for the timer being stopped.
+            elapsed (float): The elapsed time to add to the stats for the given key.
+        Returns:
+            None
+        """
+
+        self.stats[key] += elapsed
+        self.depth -= 1
+
+        return
+
+    def log(self, logger):
+        """
+        Logs the elapsed time statistics stored in the `self.stats` dictionary.
+        Each entry in `self.stats` is formatted and logged using the provided logger.
+        The elapsed time is converted from nanoseconds to microseconds and rounded
+        before being logged.
+        Args:
+            logger (logging.Logger): The logger instance used to log the formatted
+                elapsed time statistics.
+        Returns:
+            None
+        """
+
+        width = max(map(len, self.stats.keys()))
+        fmt = f"{{label:<{width}}} : {{value:11,}} µsecs"
+
+        for label, elapsed in self.stats.items():
+            logger.info(fmt.format(label=label, value=round(elapsed / 1000)))
+
+        return
+
+
+def pbincount(bins, num_bins, weights=None, dtype=None):
+    """
+    Compute the histogram of a set of data in parallel, similar to `numpy.bincount`.
+
+    This function is a parallelized version of `numpy.bincount`, which counts the
+    occurrences of integers in an array. It supports optional weighting of the counts
+    and allows specifying the data type of the output.
+
+    Parameters:
+    ----------
+    bins : array-like
+        An array of non-negative integers to be counted. Each value in `bins` represents
+        an index in the histogram.
+    num_bins : int
+        The number of bins (size of the histogram). This determines the length of the
+        output array.
+    weights : array-like, optional
+        An array of weights, of the same shape as `bins`. Each value in `weights` is
+        added to the corresponding bin instead of incrementing by 1. If `None`, each
+        bin is incremented by 1 for each occurrence in `bins`. Default is `None`.
+    dtype : data-type, optional
+        The desired data type for the output array. If not specified, the data type is
+        inferred from `bins` if `weights` is `None`, or from `weights` otherwise.
+
+    Returns:
+    -------
+    numpy.ndarray
+        A 1D array of length `num_bins` containing the counts or weighted sums for
+        each bin. The counts are computed in parallel for improved performance.
+
+    Notes:
+    -----
+    - This function uses thread-local storage to compute the counts in parallel, and
+      then aggregates the results across threads.
+    - The input `bins` must contain non-negative integers, as they are used as indices
+      in the histogram.
+    - If `weights` is provided, it must have the same shape as `bins`.
+
+    Example:
+    -------
+    >>> import numpy as np
+    >>> bins = np.array([0, 1, 1, 2, 2, 2])
+    >>> num_bins = 4
+    >>> pbincount(bins, num_bins)
+    array([1, 2, 3, 0])
+
+    >>> weights = np.array([0.5, 1.0, 1.5, 2.0, 2.5, 3.0])
+    >>> pbincount(bins, num_bins, weights=weights)
+    array([0.5, 2.5, 7.5, 0.0])
+    """
+
+    num_indices = len(bins)
+    return_type = dtype or (bins.dtype if weights is None else weights.dtype)
+    tls = np.zeros((nb.get_num_threads(), num_bins), dtype=return_type)
+
+    if weights is None:
+        nb_bincount(bins, num_indices, tls)
+    else:
+        nb_bincount_weighted(bins, num_indices, weights, tls)
+
+    return tls.sum(axis=0)
+
+
+# Perform a parallel bincount operation using Numba.
+# Args:
+#     bins (np.ndarray): Array of bin indices.
+#     num_indices (int): Number of elements in the bins array.
+#     tls (np.ndarray): Thread-local storage array for counting.
+# Returns:
+#     None: The results are stored in the tls array.
+@nb.njit(parallel=True, cache=True)
+def nb_bincount(bins, num_indices, tls):
+    for i in nb.prange(num_indices):
+        tls[nb.get_thread_id(), bins[i]] += 1
+    return
+
+
+# Perform a parallel, weighted bincount operation using Numba.
+# Args:
+#     bins (np.ndarray): Array of bin indices.
+#     num_indices (int): Number of elements in the bins array.
+#     weights (np.ndarray): Array of weights corresponding to the bins.
+#     tls (np.ndarray): Thread-local storage array for counting.
+# Returns:
+#     None: The results are stored in the tls array.
+@nb.njit(parallel=True, cache=True)
+def nb_bincount_weighted(bins, num_indices, weights, tls):
+    for i in nb.prange(num_indices):
+        tls[nb.get_thread_id(), bins[i]] += weights[i]
+    return
+
+
+# warm up Numba
+def __warmup_numba():
+    """
+    Warm up the Numba JIT compiler by executing a series of operations
+    involving the `pbincount` function with various input and output data types.
+    This function performs the following steps:
+    1. Generates random integer bins and random floating-point weights.
+    2. Calls `pbincount` with different combinations of integer input and output types.
+    3. Calls `pbincount` with different combinations of floating-point input and output types,
+       including weighted bin counting.
+    The purpose of this function is to ensure that the Numba JIT compiler has precompiled
+    the necessary code paths for the `pbincount` function, reducing runtime overhead
+    during subsequent calls.
+    Note:
+        This function is intended for internal use only and does not return any value.
+    """
+
+    _bins = np.random.randint(0, 16, size=1_000)
+    for in_type, out_type in [(np.int32, np.int32), (np.int32, np.int64), (np.int64, np.int32), (np.int64, np.int64)]:
+        _ = pbincount(_bins.astype(in_type), num_bins=16, dtype=out_type)
+    _wf64 = np.random.rand(1_000)
+    for in_type, out_type in [(np.float32, np.float32), (np.float32, np.float64), (np.float64, np.float32), (np.float64, np.float64)]:
+        _ = pbincount(_bins, num_bins=16, weights=_wf64.astype(in_type), dtype=out_type)
+
+    return
+
+
+__warmup_numba()

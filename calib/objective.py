@@ -39,6 +39,7 @@ def objective(
     config["results_path"] = results_path
     fit_scores = []
     seeds = []
+    predictions = []
     for rep in range(n_replicates):
         try:
             # Run sim
@@ -54,15 +55,23 @@ def objective(
             score = scoring_fn(actual, predicted, method="poisson")
             fit_scores.append(score)
             seeds.append(sim.pars.seed)
+            predictions.append(predicted)
 
         except Exception as e:
             print(f"[ERROR] Simulation failed in replicate {rep}: {e}")
             fit_scores.append(float("inf"))
 
     # Save per-replicate scores & seeds to Optuna
-    trial.set_user_attr("replicates", n_replicates)
-    trial.set_user_attr("replicate_scores", fit_scores)
+    trial.set_user_attr("actual", json_friendly(actual))
+    trial.set_user_attr("predicted", [json_friendly(p) for p in predictions])
+    trial.set_user_attr("n_reps", n_replicates)
+    trial.set_user_attr("rep_scores", fit_scores)
     trial.set_user_attr("rand_seed", seeds)
 
     # Return average score
     return np.mean(fit_scores)
+
+
+def json_friendly(d):
+    """Convert a dict of arrays to plain Python types."""
+    return {k: v.tolist() if isinstance(v, np.ndarray) else v for k, v in d.items()}
