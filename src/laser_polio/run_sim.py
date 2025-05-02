@@ -146,11 +146,11 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         sim.instances = [vd, disease_state, tx, ri, sia]
         # reload results.R
         # lots of questionable ad-hod decision-making here for now
-        eula_pop_file = init_pop_file.replace("init", "eula")
-        if not os.path.exists(eula_pop_file):
-            raise ValueError(f"Unable to find required eula pop file: {eula_pop_file}")
-        with h5py.File(eula_pop_file, "r") as hdf:
-            sim.results.R = hdf["results_R"][:]
+        # eula_pop_file = init_pop_file.replace("init", "eula")
+        # if not os.path.exists(eula_pop_file):
+        #     raise ValueError(f"Unable to find required eula pop file: {eula_pop_file}")
+        with h5py.File(init_pop_file, "r") as hdf:
+            sim.results.R = hdf["recovered"][:]
         return sim
 
     def regular():
@@ -165,13 +165,22 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     # Either initialize the sim from file or create a sim from scratch
     if init_pop_file:
+        # # Manual checks
+        with h5py.File(init_pop_file, "r") as f:
+            print(f.keys())
         sim = from_file(init_pop_file)
     else:
         sim = regular()
         if save_pop:
             with h5py.File(results_path / "init_pop.h5", "w") as f:
-                LaserFrameIO.save_to_group(sim.people, f.create_group("people"))  # Save the people frame
+                people_group = f.create_group("people")
+                LaserFrameIO.save_to_group(sim.people, people_group)  # Save to 'people' group
                 f.create_dataset("recovered", data=sim.results.R[:])  # Save the R result array
+
+    # Safety checks
+    print(f"sim.people.count: {sim.people.count}")
+    print(f"disease state counts: {np.bincount(sim.people.disease_state[: sim.people.count])}")
+    print(f"infected: {np.where(sim.people.disease_state[: sim.people.count] == 2)}")
 
     # Run sim
     if run:

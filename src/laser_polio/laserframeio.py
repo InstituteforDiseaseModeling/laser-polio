@@ -4,36 +4,34 @@ from laser_core.laserframe import LaserFrame
 
 
 class LaserFrameIO(LaserFrame):
-    def save(self, filename: str, initial_populations=None, age_distribution=None, cumulative_deaths=None, eula_age=None) -> None:
-        """Save LaserFrame properties to an HDF5 file."""
-        with h5py.File(filename, "w") as hdf:
-            hdf.attrs["count"] = self._count
-            hdf.attrs["capacity"] = self._capacity
-
-            if initial_populations is not None:
-                hdf.attrs["init_pops"] = initial_populations
-            if age_distribution is not None:
-                hdf.attrs["age_dist"] = age_distribution
-            if cumulative_deaths is not None:
-                hdf.attrs["cumulative_deaths"] = cumulative_deaths
-            if eula_age is not None:
-                hdf.attrs["eula_age"] = eula_age
-
-            for key in dir(self):
-                if not key.startswith("_"):
-                    value = getattr(self, key)
-                    if isinstance(value, np.ndarray):
-                        data = value[: self._count]
-                        hdf.create_dataset(key, data=data)
-
     @staticmethod
-    def save_to_group(frame, group):
+    def save_to_group(frame, group, initial_populations=None, age_distribution=None, cumulative_deaths=None, eula_age=None):
         """
-        Save LaserFrameIO properties to an existing HDF5 group (not a file).
+        Save LaserFrameIO properties to an existing HDF5 group.
+
+        Parameters:
+            frame: The LaserFrame object to save
+            group: An h5py.Group object
+            initial_populations: Optional array to save as attribute
+            age_distribution: Optional array to save as attribute
+            cumulative_deaths: Optional array to save as attribute
+            eula_age: Optional value to save as attribute
         """
+        # Core frame attributes
         group.attrs["count"] = frame._count
         group.attrs["capacity"] = frame._capacity
 
+        # Optional metadata
+        if initial_populations is not None:
+            group.attrs["init_pops"] = initial_populations
+        if age_distribution is not None:
+            group.attrs["age_dist"] = age_distribution
+        if cumulative_deaths is not None:
+            group.attrs["cumulative_deaths"] = cumulative_deaths
+        if eula_age is not None:
+            group.attrs["eula_age"] = eula_age
+
+        # Save all np.ndarray properties
         for key in dir(frame):
             if not key.startswith("_"):
                 value = getattr(frame, key)
@@ -43,10 +41,14 @@ class LaserFrameIO(LaserFrame):
 
     @classmethod
     def load(cls, filename: str, capacity=None):
-        """Load a LaserFrameIO object from an HDF5 file."""
+        """Load a LaserFrameIO object from the 'people' group inside an HDF5 file."""
         with h5py.File(filename, "r") as hdf:
-            saved_count = int(hdf.attrs["count"])
-            saved_capacity = int(hdf.attrs["capacity"])
+            if "people" not in hdf:
+                raise ValueError(f"No 'people' group found in {filename}")
+            group = hdf["people"]
+
+            saved_count = int(group.attrs["count"])
+            saved_capacity = int(group.attrs["capacity"])
             saved_capacity = int(1.1 * saved_count)  # hack
 
             # Allow user override of capacity
@@ -56,31 +58,11 @@ class LaserFrameIO(LaserFrame):
             frame = cls(capacity=final_capacity, initial_count=saved_count)
 
             # Recover properties
-            for key in hdf.keys():
-                data = hdf[key][:]
+            for key in group.keys():
+                data = group[key][:]
                 dtype = data.dtype
                 frame.add_scalar_property(name=key, dtype=dtype, default=0)
                 setattr(frame, key, np.zeros(frame._capacity, dtype=dtype))  # Preallocate
                 getattr(frame, key)[:saved_count] = data  # Fill values up to saved count
 
             return frame
-
-    @staticmethod
-    def load_from_group(group):
-        """
-        Load a LaserFrameIO object from an HDF5 group.
-        """
-        saved_count = int(group.attrs["count"])
-        saved_capacity = int(group.attrs["capacity"])
-        saved_capacity = int(1.1 * saved_count)  # same "hack"
-
-        frame = LaserFrameIO(capacity=saved_capacity, initial_count=saved_count)
-
-        for key in group.keys():
-            data = group[key][:]
-            dtype = data.dtype
-            frame.add_scalar_property(name=key, dtype=dtype, default=0)
-            setattr(frame, key, np.zeros(frame._capacity, dtype=dtype))  # Preallocate
-            getattr(frame, key)[:saved_count] = data
-
-        return frame
