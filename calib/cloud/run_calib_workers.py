@@ -3,12 +3,12 @@ from kubernetes import client
 from kubernetes import config
 
 # Load kubeconfig
-# If you change the config_file, it's recommend you set the KUBECONFIG env var using cmd: set KUBECONFIG=C:\Users\stevekr\.kube\cditest3.yaml
+# If you change the config_file, it's recommend you set the KUBECONFIG env var using cmd, e.g. set KUBECONFIG=C:\Users\stevekr\.kube\cditest3.yaml
 # Then test with: kubectl config get-contexts
 # # Alt is to Set the KUBECONFIG environment variable for this script (temporarily)
 # os.environ["KUBECONFIG"] = r"C:\Users\stevekr\.kube\cditest3.yaml"  # Set KUBECONFIG for this script
 # subprocess.run(["kubectl", "config", "get-contexts"])  # Run a kubectl command using that config
-config.load_kube_config(config_file="~/.kube/cditest3.yaml")  # default = "~/.kube/config"
+config.load_kube_config(config_file="~/.kube/config")  # default = "~/.kube/config"
 batch_v1 = client.BatchV1Api()
 
 # Define the container

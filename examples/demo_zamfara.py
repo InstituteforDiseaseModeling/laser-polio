@@ -39,6 +39,7 @@ sim = lp.run_sim(
     radiation_k=radiation_k,
     max_migr_frac=max_migr_frac,
     save_pop=True,
+    vx_prob_ri=None,
 )
 
 sc.printcyan("Done.")

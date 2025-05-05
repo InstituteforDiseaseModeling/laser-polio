@@ -303,28 +303,29 @@ class SEIR_ABM:
     def run(self):
         if self.verbose >= 1:
             sc.printcyan("Initialization complete. Running simulation...")
-
+        step_stats = TimingStats()
         with alive_bar(self.nt, title="Simulation progress:", disable=self.verbose < 1) as bar:
             for tick in range(self.nt):
-                if tick == 0:
-                    # Just record the initial state on t=0 & don't run any components
-                    self.log_results(tick)
-                    self.t += 1
-                else:
-                    for component in self.instances:
-                        with self.perf_stats.start(component.__class__.__name__ + ".step()"):
-                            component.step()
+                with step_stats.start(f"t={tick}"):
+                    if tick == 0:
+                        # Just record the initial state on t=0 & don't run any components
+                        self.log_results(tick)
+                        self.t += 1
+                    else:
+                        for component in self.instances:
+                            with self.perf_stats.start(component.__class__.__name__ + ".step()"):
+                                component.step()
 
-                    self.log_results(tick)
-                    self.t += 1
+                        self.log_results(tick)
+                        self.t += 1
 
-                    # Early stopping rule
-                    if self.should_stop:
-                        if self.verbose >= 1:
-                            sc.printyellow(
-                                f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events. This stops all components (e.g., no births, deaths, or vaccination)"
-                            )
-                        break
+                        # Early stopping rule
+                        if self.should_stop:
+                            if self.verbose >= 1:
+                                sc.printyellow(
+                                    f"[SEIR_ABM] Early stopping at t={self.t}: no E/I and no future seed_schedule events. This stops all components (e.g., no births, deaths, or vaccination)"
+                                )
+                            break
 
                 bar()  # Update the progress bar
 
@@ -333,6 +334,7 @@ class SEIR_ABM:
             sc.printcyan("Simulation complete.")
 
         self.perf_stats.log(logger)
+        step_stats.log(logger)
 
         return
 
@@ -424,8 +426,8 @@ def step_nb(disease_state, exposure_timer, infection_timer, acq_risk_multiplier,
         if disease_state[i] == 2:  # Infected
             if infection_timer[i] <= 0:
                 disease_state[i] = 3  # Become recovered
-                acq_risk_multiplier[i] = 0.0  # Reset risk
-                daily_infectivity[i] = 0.0  # Reset infectivity
+                # acq_risk_multiplier[i] = 0.0  # Reset risk
+                # daily_infectivity[i] = 0.0  # Reset infectivity
             infection_timer[i] -= 1  # Decrement infection timer so that they recover on the next timestep
 
     return
@@ -809,9 +811,20 @@ class DiseaseState_ABM:
                     raise ValueError(f"Unsupported seed value type: {type(value)}")
                 if n_seed > 0:
                     selected = np.random.choice(candidates, size=n_seed, replace=False)
-                    self.people.disease_state[selected] = 2  # Set to infectious
+                    self.people.disease_state[selected] = 2  # Set to infectious regardless of current state
+                    # If people were previously infected, we'll need to give them an infection timer again
+                    inf_timer = self.people.infection_timer[selected]
+                    inds_zero_timers = selected[np.where(inf_timer <= 0)]
+                    self.sim.people.infection_timer[inds_zero_timers] = self.pars.dur_inf(len(inds_zero_timers))
                     if self.verbose >= 1:
                         print(f"[DiseaseState_ABM] t={t}: Seeded {n_seed} infections in node {node_id}")
+                        # daily_infectivity = self.people.daily_infectivity[selected]
+                        # inf_timer = self.people.infection_timer[selected]
+                        # len(selected)
+                        # daily_infectivity.min()
+                        # daily_infectivity.mean()
+                        # inf_timer.min()
+                        # inf_timer.mean()
 
         # Optional early stopping rule if no cases or seed_schedule events remain
         if self.pars["stop_if_no_cases"]:

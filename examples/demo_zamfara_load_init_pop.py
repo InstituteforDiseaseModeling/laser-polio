@@ -10,14 +10,19 @@ start_year = 2018
 n_days = 365
 pop_scale = 1 / 1
 init_region = "ANKA"
-init_prev = 500
-r0 = 140
+init_prev = 200
+r0 = 14
 migration_method = "radiation"
 radiation_k = 0.5
 max_migr_frac = 1.0
 results_path = "results/demo_zamfara"
 verbose = 1
 init_pop_file = results_path + "/init_pop.h5"  # Path to initial population file
+# seed_schedule = [
+#     {"date": "2018-01-02", "dot_name": "AFRO:NIGERIA:ZAMFARA:BAKURA", "prevalence": 200},  # day 1
+#     {"date": "2018-11-07", "dot_name": "AFRO:NIGERIA:ZAMFARA:GUMMI", "prevalence": 200},  # day 2
+# ]
+
 
 ######### END OF USER PARS ########
 ###################################
@@ -40,6 +45,7 @@ sim = lp.run_sim(
     radiation_k=radiation_k,
     max_migr_frac=max_migr_frac,
     init_pop_file=init_pop_file,
+    # seed_schedule=seed_schedule,
 )
 
 sc.printcyan("Done.")

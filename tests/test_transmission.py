@@ -51,10 +51,18 @@ def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=N
 
 
 # Test default transmission scenario
-def test_trans_default():
-    sim = setup_sim()
-    sim.run()
-    assert sim.results.E[1:].sum() > 0, "There should be some exposures after the simulation runs."
+def test_trans_default(n_reps=10):
+    exposures = []
+    for _ in range(n_reps):
+        sim = setup_sim()
+        sim.run()
+        exposures.append(sim.results.E[1:].sum())
+    exposures = np.array(exposures)  # ← Fix
+    mean_obs_E = np.mean(exposures)
+
+    # sim = setup_sim()
+    # sim.run()
+    assert np.all(exposures > 0), "There should be some exposures after the simulation runs."
 
     # Check if the number of exposures matches the expected value
     R0 = sim.pars["r0"]
@@ -73,8 +81,9 @@ def test_trans_default():
     p_inf = 1 - np.exp(-per_agent_rate)
     exp_E = np.sum(S * p_inf)
 
-    obs_E = sim.results.E[1:].sum()
-    assert np.isclose(obs_E, exp_E, atol=15), "The number of exposures does not match the expected value."
+    # Compare to binomial CIs
+    stderr = np.sqrt(S * p_inf * (1 - p_inf)).sum()
+    assert abs(mean_obs_E - exp_E) < 2 * stderr, "The mean number of exposures is not within 2 standard errors of the expected values."
 
 
 # Test ZERO transmission scenarios
@@ -96,44 +105,41 @@ def test_zero_trans():
 
 
 # Test DOUBLE transmission scenarios
-def test_double_trans():
-    # Default scenario
+def test_double_trans(n_reps=10):
     init_immun = 0.0
     r0 = 5
     r0_scalars = np.array([1.0, 1.0])
     init_prev = 0.01
-    sim_default = setup_sim(init_immun=init_immun, r0=r0, r0_scalars=r0_scalars, init_prev=init_prev)
-    sim_default.run()
 
-    # Double r0
-    sim_r0_2x = setup_sim(init_immun=init_immun, r0=r0 * 2, r0_scalars=r0_scalars, init_prev=init_prev)
-    sim_r0_2x.run()
+    def run_exposures(r0_val, r0_scalars_val, init_prev_val):
+        exposures = []
+        for _ in range(n_reps):
+            sim = setup_sim(init_immun=init_immun, r0=r0_val, r0_scalars=r0_scalars_val, init_prev=init_prev_val)
+            sim.run()
+            exposures.append(sim.results.E[1:].sum())
+        return np.array(exposures)
 
-    # Double r0_scalars
-    sim_r0_scalars_2x = setup_sim(init_immun=init_immun, r0=r0, r0_scalars=r0_scalars * 2, init_prev=init_prev)
-    sim_r0_scalars_2x.run()
+    # Collect replicate exposures
+    E_default = run_exposures(r0, r0_scalars, init_prev)
+    E_r0_2x = run_exposures(r0 * 2, r0_scalars, init_prev)
+    E_r0_scalars_2x = run_exposures(r0, r0_scalars * 2, init_prev)
+    E_init_prev_2x = run_exposures(r0, r0_scalars, init_prev * 2)
 
-    # Double init_prev
-    sim_init_prev_2x = setup_sim(init_immun=init_immun, r0=r0, r0_scalars=r0_scalars, init_prev=init_prev * 2)
-    sim_init_prev_2x.run()
+    # Means and ratios
+    mean_E_default = E_default.mean()
+    tol = 0.2  # Accept 20% deviation from 2x ratio
 
-    # Compare results
-    n_e_t1_default = sim_default.results.E[1:].sum()
-    n_e_t1_r0_2x = sim_r0_2x.results.E[1:].sum()
-    n_e_t1_r0_scalars_2x = sim_r0_scalars_2x.results.E[1:].sum()
-    n_e_t1_init_prev_2x = sim_init_prev_2x.results.E[1:].sum()
-    atol = n_e_t1_default * 0.9  # Allow for some tolerance in the comparison
-    assert np.isclose(n_e_t1_default * 2, n_e_t1_r0_2x, atol=atol), "Doubling r0 should approximately double the number of exposures."
-    assert np.isclose(n_e_t1_default * 2, n_e_t1_r0_scalars_2x, atol=atol), (
-        "Doubling r0_scalars should approximately double the number of exposures."
-    )
-    assert np.isclose(n_e_t1_default * 2, n_e_t1_init_prev_2x, atol=atol), (
-        "Doubling init_prev should approximately double the number of exposures."
-    )
+    def check_ratio(name, doubled, label):
+        ratio = doubled.mean() / mean_E_default
+        assert np.isclose(ratio, 2.0, rtol=tol), f"Doubling {label} should approximately double exposures (got ratio={ratio:.2f})."
+
+    check_ratio("r0", E_r0_2x, "r0")
+    check_ratio("r0_scalars", E_r0_scalars_2x, "r0_scalars")
+    check_ratio("init_prev", E_init_prev_2x, "init_prev")
 
 
 if __name__ == "__main__":
-    # test_trans_default()
-    # test_zero_trans()
-    # test_double_trans()
+    test_trans_default()
+    test_zero_trans()
+    test_double_trans()
     print("All transmission tests passed!")
