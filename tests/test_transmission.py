@@ -51,9 +51,9 @@ def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=N
 
 
 # Test default transmission scenario
-def test_trans_default():
+def test_trans_default(n_reps=10):
     exposures = []
-    for _ in range(10):
+    for _ in range(n_reps):
         sim = setup_sim()
         sim.run()
         exposures.append(sim.results.E[1:].sum())

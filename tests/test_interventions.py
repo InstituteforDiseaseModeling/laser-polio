@@ -79,22 +79,38 @@ def test_ri_zero():
     assert np.sum(sim_zero_ri_prob.results.ri_vaccinated) == 0, "RI vaccinations occurred, but there should've been zero."
 
 
-def test_ri_vx_prob():
-    """Ensure that the vaccination probability is respected when no births are scheduled."""
+def test_ri_vx_prob(n_reps=10):
+    """Ensure that the RI vaccination probability is respected in the absence of births."""
     n_ppl = np.array([50, 50])
-    n_vx = np.sum(n_ppl)
+    total_agents = np.sum(n_ppl)
     dur = 28
     vx_prob_ri = 0.65
-    sim = setup_sim(n_ppl=n_ppl, dur=dur, vx_prob_ri=vx_prob_ri, cbr=np.array([0, 0]))
-    sim.people.ri_timer[:n_vx] = np.random.randint(0, dur, n_vx)  # Set timers to trigger vaccination
-    sim.run()
+    vx_counts = []
+    r_counts = []
 
-    n_exp = n_vx * vx_prob_ri
-    n_vx = np.sum(sim.results.ri_vaccinated)
-    n_r = np.sum(sim.results.R[-1])
+    for _ in range(n_reps):
+        sim = setup_sim(n_ppl=n_ppl, dur=dur, vx_prob_ri=vx_prob_ri, cbr=np.array([0, 0]))
+        sim.people.ri_timer[:total_agents] = np.random.randint(0, dur, total_agents)
+        sim.run()
+        vx_counts.append(np.sum(sim.results.ri_vaccinated))
+        r_counts.append(np.sum(sim.results.R[-1]))
 
-    assert np.isclose(n_exp, n_vx, atol=15), "Vaccination rate does not match probability."
-    assert n_vx == n_r, "Vaccinated and Recovered counts should be equal if vx efficacy is 100%"
+    vx_counts = np.array(vx_counts)
+    r_counts = np.array(r_counts)
+
+    # Binomial confidence interval around expected value
+    expected_mean = total_agents * vx_prob_ri
+    expected_std = np.sqrt(total_agents * vx_prob_ri * (1 - vx_prob_ri))
+    mean_vx = vx_counts.mean()
+
+    # Allow for 2 standard deviations (approx 95% CI)
+    margin = 2 * expected_std
+    assert abs(mean_vx - expected_mean) < margin, (
+        f"Mean vaccinated ({mean_vx:.1f}) outside expected CI around {expected_mean:.1f} ± {margin:.1f}"
+    )
+
+    # Recovered should exactly match vaccinated in each replicate (vx efficacy = 100%)
+    assert np.all(vx_counts == r_counts), "Each vaccinated individual should be recovered if efficacy is 100%."
 
 
 def test_ri_no_effect_on_non_susceptibles():
@@ -157,12 +173,12 @@ def test_sia_schedule():
 
 
 if __name__ == "__main__":
-    test_ri_initialization()
-    test_ri_manually_seeded()
-    test_ri_on_births()
-    test_ri_zero()
+    # test_ri_initialization()
+    # test_ri_manually_seeded()
+    # test_ri_on_births()
+    # test_ri_zero()
     test_ri_vx_prob()
-    test_ri_no_effect_on_non_susceptibles()
-    test_sia_schedule()
+    # test_ri_no_effect_on_non_susceptibles()
+    # test_sia_schedule()
 
     print("All initialization tests passed.")
