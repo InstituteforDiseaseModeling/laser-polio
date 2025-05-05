@@ -57,6 +57,7 @@ def test_trans_default(n_reps=10):
         sim = setup_sim()
         sim.run()
         exposures.append(sim.results.E[1:].sum())
+    exposures = np.array(exposures)  # ← Fix
     mean_obs_E = np.mean(exposures)
 
     # sim = setup_sim()
