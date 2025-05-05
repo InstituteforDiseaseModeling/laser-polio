@@ -1,7 +1,6 @@
 # PRIORITIES
 
 @Steve
-- Update default kube config file
 - New model features
 - Run logger with radiation_k and validate
 - Are pops reproducible from seeds? Does pop with run seed=1 & sim seed=1 produce the same as a sim with seed of 1 without init_pop
@@ -87,5 +86,4 @@ STRETCH
 - Try running calibration on a variety of resources/methods (aks, COMPS, databricks) & write up report
 
 TESTING
-- Add tests for migration
 - Add transmission tests with run_sim() using real data
