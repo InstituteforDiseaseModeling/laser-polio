@@ -1293,7 +1293,12 @@ class Transmission_ABM:
         instance.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Skip sampling & property setting
-        instance._initialize_people_fields()
+        # instance._initialize_people_fields()
+
+        new_r0 = sim.pars.r0
+        infectivity_scalar = new_r0 / sim.pars.old_r0
+        sim.people.daily_infectivity *= infectivity_scalar # seem fast enough
+
         instance._initialize_common()
         return instance
 
@@ -1304,7 +1309,6 @@ class Transmission_ABM:
         var_ln = self.pars.risk_mult_var
         mu_ln = np.log(mean_ln**2 / np.sqrt(var_ln + mean_ln**2))
         sigma_ln = np.sqrt(np.log(var_ln / mean_ln**2 + 1))
-
         mean_gamma = self.pars.r0 / np.mean(self.pars.dur_inf(1000))
         scale_gamma = max(mean_gamma / 1, 1e-10)
 

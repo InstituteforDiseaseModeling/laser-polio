@@ -148,6 +148,10 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     def from_file(init_pop_file):
         sim = lp.SEIR_ABM.init_from_file(init_pop_file, pars)
+        with h5py.File(init_pop_file, "r") as hdf:
+            sim.results.R = hdf["recovered"][:]
+            if "pars" in hdf and "r0" in hdf["pars"]:
+                sim.pars.old_r0 = hdf["pars"]["r0"][()]  # [()] reads the scalar value
         disease_state = lp.DiseaseState_ABM.init_from_file(sim)
         vd = lp.VitalDynamics_ABM.init_from_file(sim)
         sia = lp.SIA_ABM.init_from_file(sim)
@@ -155,8 +159,6 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         tx = lp.Transmission_ABM.init_from_file(sim)
         sim._components = [type(vd), type(disease_state), type(tx), type(ri), type(sia)]
         sim.instances = [vd, disease_state, tx, ri, sia]
-        with h5py.File(init_pop_file, "r") as hdf:
-            sim.results.R = hdf["recovered"][:]
         return sim
 
     def regular():
@@ -181,7 +183,15 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
                 people_group = f.create_group("people")
                 LaserFrameIO.save_to_group(sim.people, people_group)  # Save to 'people' group
                 f.create_dataset("recovered", data=sim.results.R[:])  # Save the R result array
+                # Save parameters
+                pars_group = f.create_group("pars")
 
+                for key, value in sim.pars.to_dict().items():
+                    # Handle only scalar and array-like values; skip unsupported types
+                    try:
+                        pars_group.create_dataset(key, data=value)
+                    except TypeError:
+                        pars_group.attrs[key] = str(value)  # Fallback: store as string attribute
     # Safety checks
     if verbose >= 3:
         print(f"sim.people.count: {sim.people.count}")
