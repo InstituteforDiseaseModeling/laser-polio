@@ -229,9 +229,14 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     "--init-pop-file",
     type=click.Path(exists=True),
     default=None,
-    help="Optional initial population file (e.g., CSV or JSON format)",
+    help="Optional initial population file",
 )
-def main(model_config, params_file, results_path, extra_pars, init_pop_file):
+@click.option(
+    "--save-pop",
+    is_flag=True,
+    help="Save initial population file",
+)
+def main(model_config, params_file, results_path, extra_pars, init_pop_file, save_pop):
     """Run polio LASER simulation with optional config and parameter overrides."""
 
     config = {}
@@ -258,8 +263,8 @@ def main(model_config, params_file, results_path, extra_pars, init_pop_file):
     if extra_pars:
         config.update(json.loads(extra_pars))
 
-    # Run the sim
-    run_sim(config=config, init_pop_file=init_pop_file)
+    # Run the sim: save_pop and init_pop_file are mutually exclusive, not yet enforced
+    run_sim(config=config, init_pop_file=init_pop_file, save_pop=save_pop)
 
 
 # ---------------------------- CLI ENTRY ----------------------------

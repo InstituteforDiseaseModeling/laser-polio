@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 from laser_core.laserframe import LaserFrame
+from laser_core.utils import calc_capacity
 
 
 class LaserFrameIO(LaserFrame):

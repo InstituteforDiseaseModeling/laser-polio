@@ -233,7 +233,12 @@ class SEIR_ABM:
         # model.datevec = lp.daterange(model.pars["start_date"], days=model.nt)
 
         # Use LaserFrameIO to load people
-        model.people = LaserFrameIO.load(filename)
+        num_timesteps = pars.dur + 1
+        if (pars.cbr is not None) & (len(pars.cbr) == 1):
+            capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), num_timesteps, pars.cbr[0]))
+        elif (pars.cbr is not None) & (len(pars.cbr) > 1):
+            capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), num_timesteps, np.mean(pars.cbr)))
+        model.people = LaserFrameIO.load(filename=filename,capacity=capacity)
 
         # Setup node list
         model.nodes = np.unique(model.people.node_id[: model.people.count])
