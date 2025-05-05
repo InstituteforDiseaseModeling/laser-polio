@@ -419,8 +419,8 @@ def step_nb(disease_state, exposure_timer, infection_timer, acq_risk_multiplier,
         if disease_state[i] == 2:  # Infected
             if infection_timer[i] <= 0:
                 disease_state[i] = 3  # Become recovered
-                acq_risk_multiplier[i] = 0.0  # Reset risk
-                daily_infectivity[i] = 0.0  # Reset infectivity
+                # acq_risk_multiplier[i] = 0.0  # Reset risk
+                # daily_infectivity[i] = 0.0  # Reset infectivity
             infection_timer[i] -= 1  # Decrement infection timer so that they recover on the next timestep
 
     return
@@ -804,9 +804,20 @@ class DiseaseState_ABM:
                     raise ValueError(f"Unsupported seed value type: {type(value)}")
                 if n_seed > 0:
                     selected = np.random.choice(candidates, size=n_seed, replace=False)
-                    self.people.disease_state[selected] = 2  # Set to infectious
+                    self.people.disease_state[selected] = 2  # Set to infectious regardless of current state
+                    # If people were previously infected, we'll need to give them an infection timer again
+                    inf_timer = self.people.infection_timer[selected]
+                    inds_zero_timers = selected[np.where(inf_timer <= 0)]
+                    self.sim.people.infection_timer[inds_zero_timers] = self.pars.dur_inf(len(inds_zero_timers))
                     if self.verbose >= 1:
                         print(f"[DiseaseState_ABM] t={t}: Seeded {n_seed} infections in node {node_id}")
+                        # daily_infectivity = self.people.daily_infectivity[selected]
+                        # inf_timer = self.people.infection_timer[selected]
+                        # len(selected)
+                        # daily_infectivity.min()
+                        # daily_infectivity.mean()
+                        # inf_timer.min()
+                        # inf_timer.mean()
 
         # Optional early stopping rule if no cases or seed_schedule events remain
         if self.pars["stop_if_no_cases"]:
