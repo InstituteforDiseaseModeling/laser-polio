@@ -1297,7 +1297,7 @@ class Transmission_ABM:
 
         new_r0 = sim.pars.r0
         infectivity_scalar = new_r0 / sim.pars.old_r0
-        sim.people.daily_infectivity *= infectivity_scalar # seem fast enough
+        sim.people.daily_infectivity *= infectivity_scalar  # seem fast enough
 
         instance._initialize_common()
         return instance
