@@ -1,11 +1,16 @@
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
 from laser_polio.run_sim import run_sim
 
+test_dir = Path(__file__).parent
+data_path = test_dir / "data"
 
+
+@patch("laser_polio.root", Path("tests/"))
 def test_init_pop_loading(tmp_path):
     init_dir = Path("tests/data/initpop_testcase")
     init_file = init_dir / "init_pop.h5"

@@ -3,7 +3,6 @@
 @Steve
 - New model features
 - Are pops reproducible from seeds? Does pop with run seed=1 & sim seed=1 produce the same as a sim with seed of 1 without init_pop
-- Write a test for init_pops to produce similar results or at least run
 
 CALIBRATION
 - print number of jobs that are about to start
