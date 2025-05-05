@@ -1,8 +1,15 @@
+from pathlib import Path
+from unittest.mock import patch
+
 import numpy as np
 
 from laser_polio.run_sim import run_sim
 
+test_dir = Path(__file__).parent
+data_path = test_dir / "data"
 
+
+@patch("laser_polio.root", Path("tests/"))
 def test_radiation(n_reps=5, duration=30, low_k=0.02, high_k=0.1, min_diff=2):
     """
     Run n_reps sims with 3 values of radiation_k: 0.0, low_k, and high_k.
