@@ -1287,6 +1287,7 @@ class Transmission_ABM:
 
         # Skip sampling & property setting
         instance._initialize_common()
+        instance._initialize_people_fields()
         return instance
 
     def _initialize_people_fields(self):
@@ -1304,9 +1305,7 @@ class Transmission_ABM:
 
         rho = 0.8
         L = np.linalg.cholesky([[1, rho], [rho, 1]])
-        if not hasattr(self.people, "true_capacity"):
-            self.people.true_capacity = self.people.capacity
-        n = self.people.true_capacity
+        n = getattr(self.people, "true_capacity", self.people.capacity)
 
         # Record new exposure counts aka incidence
         # Pretty sure this code from after merge belongs somewhere else. This is NOT for init_from_file. Think...
@@ -1338,10 +1337,7 @@ class Transmission_ABM:
         L = np.linalg.cholesky(cov_matrix)  # Cholesky decomposition
 
         # Generate standard normal samples
-        if not hasattr(self.people, "true_capacity"):
-            self.people.true_capacity = self.people.capacity  # Ensure true_capacity is set even if we don't initialize prevalence by node
-        n_samples = self.people.true_capacity
-        z = np.random.normal(size=(n_samples, 2))
+        z = np.random.normal(size=(n, 2))
 
         z_corr = z @ L.T  # Apply Cholesky to introduce correlation
 
