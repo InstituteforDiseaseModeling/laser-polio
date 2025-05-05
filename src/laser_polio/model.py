@@ -238,7 +238,7 @@ class SEIR_ABM:
             capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), num_timesteps, pars.cbr[0]))
         elif (pars.cbr is not None) & (len(pars.cbr) > 1):
             capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), num_timesteps, np.mean(pars.cbr)))
-        model.people = LaserFrameIO.load(filename=filename,capacity=capacity)
+        model.people = LaserFrameIO.load(filename=filename, capacity=capacity)
 
         # Setup node list
         model.nodes = np.unique(model.people.node_id[: model.people.count])
@@ -1351,12 +1351,12 @@ class Transmission_ABM:
         if self.pars.individual_heterogeneity:
             acq_risk_multiplier = np.exp(mu_ln + sigma_ln * z_corr[:, 0])  # Lognormal transformation
             daily_infectivity = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)  # Gamma transformation
-            self.people.acq_risk_multiplier[: n] = acq_risk_multiplier
-            self.people.daily_infectivity[: n] = daily_infectivity
+            self.people.acq_risk_multiplier[:n] = acq_risk_multiplier
+            self.people.daily_infectivity[:n] = daily_infectivity
         else:
             sc.printyellow("Warning: manually resetting acq_risk_multiplier and daily_infectivity to 1.0 for testing")
-            self.people.acq_risk_multiplier[: n] = 1.0
-            self.people.daily_infectivity[: n] = mean_gamma
+            self.people.acq_risk_multiplier[:n] = 1.0
+            self.people.daily_infectivity[:n] = mean_gamma
 
         z = np.random.normal(size=(n, 2)) @ L.T
         self.people.acq_risk_multiplier[:n] = np.exp(mu_ln + sigma_ln * z[:, 0])
