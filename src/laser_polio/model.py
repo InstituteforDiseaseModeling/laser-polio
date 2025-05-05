@@ -1275,6 +1275,8 @@ class Transmission_ABM:
         # Stash the R0 scaling factor
         self.r0_scalars = self.pars.r0_scalars
 
+        self.people.add_scalar_property("acq_risk_multiplier", dtype=np.float32, default=1.0)
+        self.people.add_scalar_property("daily_infectivity", dtype=np.float32, default=1.0)
         self._initialize_people_fields()
         self._initialize_common()
 
@@ -1291,14 +1293,12 @@ class Transmission_ABM:
         instance.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Skip sampling & property setting
-        instance._initialize_common()
         instance._initialize_people_fields()
+        instance._initialize_common()
         return instance
 
     def _initialize_people_fields(self):
         """Initialize individual-level transmission properties."""
-        self.people.add_scalar_property("acq_risk_multiplier", dtype=np.float32, default=1.0)
-        self.people.add_scalar_property("daily_infectivity", dtype=np.float32, default=1.0)
 
         mean_ln = 1
         var_ln = self.pars.risk_mult_var
@@ -1359,8 +1359,6 @@ class Transmission_ABM:
             self.people.daily_infectivity[:n] = mean_gamma
 
         z = np.random.normal(size=(n, 2)) @ L.T
-        self.people.acq_risk_multiplier[:n] = np.exp(mu_ln + sigma_ln * z[:, 0])
-        self.people.daily_infectivity[:n] = stats.gamma.ppf(stats.norm.cdf(z[:, 1]), a=1, scale=scale_gamma)
 
     def _initialize_common(self):
         """Initialize shared network and timers."""
