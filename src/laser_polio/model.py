@@ -1346,12 +1346,12 @@ class Transmission_ABM:
         if self.pars.individual_heterogeneity:
             acq_risk_multiplier = np.exp(mu_ln + sigma_ln * z_corr[:, 0])  # Lognormal transformation
             daily_infectivity = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)  # Gamma transformation
-            self.people.acq_risk_multiplier[: self.people.true_capacity] = acq_risk_multiplier
-            self.people.daily_infectivity[: self.people.true_capacity] = daily_infectivity
+            self.people.acq_risk_multiplier[: n] = acq_risk_multiplier
+            self.people.daily_infectivity[: n] = daily_infectivity
         else:
             sc.printyellow("Warning: manually resetting acq_risk_multiplier and daily_infectivity to 1.0 for testing")
-            self.people.acq_risk_multiplier[: self.people.true_capacity] = 1.0
-            self.people.daily_infectivity[: self.people.true_capacity] = mean_gamma
+            self.people.acq_risk_multiplier[: n] = 1.0
+            self.people.daily_infectivity[: n] = mean_gamma
 
         z = np.random.normal(size=(n, 2)) @ L.T
         self.people.acq_risk_multiplier[:n] = np.exp(mu_ln + sigma_ln * z[:, 0])
