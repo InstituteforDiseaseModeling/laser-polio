@@ -150,6 +150,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         sim = lp.SEIR_ABM.init_from_file(init_pop_file, pars)
         with h5py.File(init_pop_file, "r") as hdf:
             sim.results.R = hdf["recovered"][:]
+            # recover r0 from loaded pop so we can set daily_infectivity as scale factor
             if "pars" in hdf and "r0" in hdf["pars"]:
                 sim.pars.old_r0 = hdf["pars"]["r0"][()]  # [()] reads the scalar value
         disease_state = lp.DiseaseState_ABM.init_from_file(sim)
@@ -183,7 +184,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
                 people_group = f.create_group("people")
                 LaserFrameIO.save_to_group(sim.people, people_group)  # Save to 'people' group
                 f.create_dataset("recovered", data=sim.results.R[:])  # Save the R result array
-                # Save parameters
+                # Save parameters; this is mainly for r0 for now
                 pars_group = f.create_group("pars")
 
                 for key, value in sim.pars.to_dict().items():
@@ -241,6 +242,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     default=None,
     help="Optional initial population file",
 )
+# Let's make sure we can save-pop from cli
 @click.option(
     "--save-pop",
     is_flag=True,
