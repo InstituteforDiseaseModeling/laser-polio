@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+from laser_core.random import seed as laser_seed
 
 from laser_polio.run_sim import run_sim
 
@@ -62,7 +63,9 @@ def test_init_pop_loading(tmp_path):
             assert np.array_equal(a, b), f"Mismatch in LaserFrame property '{prop}'."
 
     # Run the simulations to completion
+    laser_seed(123)
     sim_loaded.run()
+    laser_seed(123)
     sim_fresh.run()
 
     # 2. Final state similarity
