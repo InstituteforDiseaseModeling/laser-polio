@@ -149,7 +149,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     def from_file(init_pop_file):
         sim = lp.SEIR_ABM.init_from_file(init_pop_file, pars)
         with h5py.File(init_pop_file, "r") as hdf:
-            sim.results.R = hdf["recovered"][:]
+            results_R = hdf["recovered"][:]
             if "pars" in hdf and "r0" in hdf["pars"]:
                 sim.pars.old_r0 = hdf["pars"]["r0"][()]  # [()] reads the scalar value
         disease_state = lp.DiseaseState_ABM.init_from_file(sim)
@@ -157,6 +157,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         sia = lp.SIA_ABM.init_from_file(sim)
         ri = lp.RI_ABM.init_from_file(sim)
         tx = lp.Transmission_ABM.init_from_file(sim)
+        sim.results.R = results_R
         sim._components = [type(vd), type(disease_state), type(tx), type(ri), type(sia)]
         sim.instances = [vd, disease_state, tx, ri, sia]
         return sim
