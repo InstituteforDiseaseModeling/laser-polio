@@ -241,7 +241,9 @@ class SEIR_ABM:
         # model.datevec = lp.daterange(model.pars["start_date"], days=model.nt)
 
         # Use LaserFrameIO to load people
+        # Use same logic as elsewhere to set capacity multiplier on count for expansion from vital dynamics
         num_timesteps = pars.dur + 1
+        # 1.1 below is 'fudge factor'
         if (pars.cbr is not None) & (len(pars.cbr) == 1):
             capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), num_timesteps, pars.cbr[0]))
         elif (pars.cbr is not None) & (len(pars.cbr) > 1):
@@ -1158,8 +1160,6 @@ class Transmission_ABM:
         # Stash the R0 scaling factor
         self.r0_scalars = np.array(self.pars.r0_scalars)
 
-        self.people.add_scalar_property("acq_risk_multiplier", dtype=np.float32, default=1.0)
-        self.people.add_scalar_property("daily_infectivity", dtype=np.float32, default=1.0)
         self._initialize_people_fields()
         self._initialize_common()
 
@@ -1177,10 +1177,9 @@ class Transmission_ABM:
         instance.r0_scalars = instance.pars.r0_scalars
         instance.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
-        # Skip sampling & property setting
-        # instance._initialize_people_fields()
-
+        # This is our solution for getting daily_infectivity values aligned with pars.R0 when loading existing pop
         new_r0 = sim.pars.r0
+        # loaded pop needs to have r0 which we recover during load
         infectivity_scalar = new_r0 / sim.pars.old_r0
         sim.people.daily_infectivity *= infectivity_scalar  # seem fast enough
 
@@ -1190,10 +1189,14 @@ class Transmission_ABM:
     def _initialize_people_fields(self):
         """Initialize individual-level transmission properties."""
 
+        self.people.add_scalar_property("acq_risk_multiplier", dtype=np.float32, default=1.0)
+        self.people.add_scalar_property("daily_infectivity", dtype=np.float32, default=1.0)
+
         mean_ln = 1
         var_ln = self.pars.risk_mult_var
         mu_ln = np.log(mean_ln**2 / np.sqrt(var_ln + mean_ln**2))
         sigma_ln = np.sqrt(np.log(var_ln / mean_ln**2 + 1))
+
         mean_gamma = self.pars.r0 / np.mean(self.pars.dur_inf(1000))
         scale_gamma = max(mean_gamma / 1, 1e-10)
 

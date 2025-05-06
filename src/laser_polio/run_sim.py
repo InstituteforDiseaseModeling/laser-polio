@@ -240,6 +240,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     default=None,
     help="Optional initial population file",
 )
+# Let's make sure we can save-pop from cli
 @click.option(
     "--save-pop",
     is_flag=True,
