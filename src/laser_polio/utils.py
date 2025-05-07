@@ -338,7 +338,7 @@ def process_sia_schedule(csv_path, start_date):
     return sia_schedule
 
 
-def process_sia_schedule_polio(df, region_names, sim_start_date):
+def process_sia_schedule_polio(df, region_names, sim_start_date, filter_to_type2=True):
     """
     Processes an SIA schedule into a dictionary readable by the sim.
      The output file contains a list of the unique SIA dates and corresponding region_name indices included in that campaign.
@@ -354,6 +354,13 @@ def process_sia_schedule_polio(df, region_names, sim_start_date):
 
     # Filter dataset to include only matching adm2_name values
     df_filtered = df[df["dot_name"].isin(region_names)].copy()
+
+    # Filter to only type 2 campaigns if specified
+    if filter_to_type2:
+        df_filtered = df_filtered[
+            df_filtered["vaccinetype"].str.contains("OPV2", case=False, na=False)
+            | df_filtered["vaccinetype"].str.contains("topv", case=False, na=False)
+        ]
 
     # Process age data
     df_filtered["age_range"] = df_filtered.apply(lambda row: (row["age_min"], row["age_max"]), axis=1)  # Age range in days

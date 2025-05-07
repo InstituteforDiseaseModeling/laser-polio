@@ -85,7 +85,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     start_date = lp.date(f"{start_year}-01-01")
     historic = pd.read_csv(lp.root / "data/sia_historic_schedule.csv")
     future = pd.read_csv(lp.root / "data/sia_scenario_1.csv")
-    sia_schedule = lp.process_sia_schedule_polio(pd.concat([historic, future]), dot_names, start_date)
+    sia_schedule = lp.process_sia_schedule_polio(pd.concat([historic, future]), dot_names, start_date, filter_to_type2=True)
 
     # Demographics and risk
     df_comp = pd.read_csv(lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
@@ -210,6 +210,13 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
             lp.save_results_to_csv(sim, filename=results_path / "simulation_results.csv")
 
     return sim
+
+    # for i, instance in enumerate(sia_schedule):
+    #     date = instance["date"]
+    #     vx = instance["vaccinetype"]
+    #     nodes = instance["nodes"]
+    #     pop_in_nodes = pop[nodes].sum() / 1e6  # Convert to millions
+    #     print(f"{date}; vx: {vx}; n_nodes: {len(nodes)}; pop (millions): {pop_in_nodes}")
 
 
 # Add command-line interface (CLI) for running the simulation

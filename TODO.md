@@ -1,6 +1,7 @@
 # PRIORITIES
 
 @Steve
+- Check on what's happening at t=19 and t=129
 - Check sus in Jigawa & Zamfara @ time of seeds
 - Check r0_scalars for above as well
 - Plot frac sus in Nigeria
@@ -8,8 +9,10 @@
 - Try adding weights to yearly cases and timeseries
 - New model features
 - Are pops reproducible from seeds? Does pop with run seed=1 & sim seed=1 produce the same as a sim with seed of 1 without init_pop
+- Try calibrating to synthetic data for Zamfara (I sent copy to Dan)
 
 CALIBRATION
+- increase parallelism to 100
 - print number of jobs that are about to start
 - how many jobs can I run? what's the optimal setup?
 - update how calib results path is passed from cloud vs to calibrate - don't think it's working. Can test it when they're unequal.
