@@ -5,7 +5,7 @@ from laser_polio.utils import clean_strings
 
 # Load random effects for R_eff & SIA coverage from the regression model
 # Source: Kurt_sharing\step04b_sia_randeffect\20241220_regression
-df = pd.read_csv("data/curation_scripts/random_effects/random_effects_summary_2024-12-20.csv")
+df = pd.read_csv("data_curation_scripts/random_effects/random_effects_summary_2024-12-20.csv")
 
 # Clean the specified columns
 columns_to_clean = ["adm0_name", "adm1_name"]
@@ -43,8 +43,11 @@ df = df.rename(
 )
 print(df.head())
 
+# Take the negative of sia_effect_mean so that lowere values are bad (less coverage)
+df["sia_random_effect"] = -df["sia_random_effect"]
+
 # Save the full curated dataframe
-df.to_csv("data/curation_scripts/random_effects/random_effects_curated.csv", index=False)
+df.to_csv("data_curation_scripts/random_effects/random_effects_curated.csv", index=False)
 
 
 print("Done.")

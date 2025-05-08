@@ -1,3 +1,8 @@
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+
 import laser_polio as lp
 
 ###################################
@@ -5,7 +10,7 @@ import laser_polio as lp
 
 regions = ["NIGERIA"]
 start_year = 2018
-n_days = 2190  # 6 years
+n_days = 365
 pop_scale = 1 / 1
 init_region = "BIRINIWA"
 init_prev = 200
@@ -43,10 +48,9 @@ sim = lp.run_sim(
     run=run,
 )
 
-
+# Check the SIA schedule
 sia_schedule = sim.pars["sia_schedule"]
 pop = sim.pars["n_ppl"]
-
 for _i, instance in enumerate(sia_schedule):
     date = instance["date"]
     vx = instance["vaccinetype"]
@@ -54,6 +58,24 @@ for _i, instance in enumerate(sia_schedule):
     pop_in_nodes = pop[nodes].sum() / 1e6  # Convert to millions
     print(f"{date}; vx: {vx}; n_nodes: {len(nodes)}; pop (millions): {pop_in_nodes}")
 
+# Plot SIA coverage
+vx_sia_prob = sim.pars["vx_prob_sia"]
+avg_sia_prob = np.mean(vx_sia_prob)
+print(f"Average SIA coverage: {avg_sia_prob:.2f}")
+plt.figure(figsize=(8, 5))
+plt.hist(vx_sia_prob, bins=20, edgecolor="black", alpha=0.75)
+# Add vertical dashed mean line
+plt.axvline(avg_sia_prob, color="red", linestyle="--", linewidth=2, label=f"Mean = {avg_sia_prob:.2f}")
+plt.title("Histogram of SIA Coverage for Nigeria")
+plt.xlabel("SIA Coverage")
+plt.ylabel("Count")
+plt.legend()
+plt.grid(True, linestyle="--", alpha=0.5)
+plt.tight_layout()
+plt.savefig(Path(results_path) / "plot_vx_prob_sia.png")
+plt.show()
+
+# Run sim
 sim.run()
 
 print("Done.")

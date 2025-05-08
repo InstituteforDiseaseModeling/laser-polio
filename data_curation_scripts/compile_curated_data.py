@@ -16,10 +16,10 @@ def check_duplicates(df, subset):
 
 
 # Load the datasets
-demog = pd.read_csv("data/curation_scripts/pop/demog_data_POLIS_ADM02_yearly_cbr.csv")  # cbr & pop
-ri = pd.read_csv("data/curation_scripts/ri/ri_curated.csv")
-re = pd.read_csv("data/curation_scripts/random_effects/random_effects_curated.csv")
-underwt = pd.read_csv("data/curation_scripts/individual_risk/underwt_u5_2019.csv")
+demog = pd.read_csv("data_curation_scripts/pop/demog_data_POLIS_ADM02_yearly_cbr.csv")  # cbr & pop
+ri = pd.read_csv("data_curation_scripts/ri/ri_curated.csv")
+re = pd.read_csv("data_curation_scripts/random_effects/random_effects_curated.csv")
+underwt = pd.read_csv("data_curation_scripts/individual_risk/underwt_u5_2019.csv")
 
 # Load the shapefiles for validation purposes
 shp0 = gpd.read_file("data/shp_africa_low_res.gpkg", layer="adm0")  # gpd.read_file("data/shp_africa_low_res.gpkg", layer="adm0")
