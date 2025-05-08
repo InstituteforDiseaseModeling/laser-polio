@@ -183,28 +183,28 @@ def plot_targets(study, output_dir=None, shp=None):
     plt.title("Total Nodes with Cases")
     width = 0.2
     x = np.arange(1 + len(preds))
-    values = [actual["total_nodes_with_cases"][0]] + [rep["total_nodes_with_cases"][0] for rep in preds]
+    values = [actual["nodes_with_cases_total"][0]] + [rep["nodes_with_cases_total"][0] for rep in preds]
     labels = ["Actual"] + [f"Rep {i + 1}" for i in range(len(preds))]
     plt.bar(x, values, width=width, color=[color_map[lbl] for lbl in labels])
     plt.xticks(x, labels, rotation=45)
     plt.ylabel("Nodes")
     plt.tight_layout()
-    plt.savefig(output_dir / "plot_best_total_nodes_with_cases.png")
+    plt.savefig(output_dir / "plot_best_nodes_with_cases_total.png")
 
     # Monthly Nodes with Cases
-    n_months = len(actual["monthly_nodes_with_cases"])
+    n_months = len(actual["nodes_with_cases_timeseries"])
     months = list(range(1, n_months + 1))
     plt.figure()
     plt.title("Monthly Nodes with Cases")
-    plt.plot(months, actual["monthly_nodes_with_cases"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+    plt.plot(months, actual["nodes_with_cases_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
     for i, rep in enumerate(preds):
         label = f"Rep {i + 1}"
-        plt.plot(months, rep["monthly_nodes_with_cases"], "o-", label=f"Rep {i + 1}", color=color_map[label])
+        plt.plot(months, rep["nodes_with_cases_timeseries"], "o-", label=f"Rep {i + 1}", color=color_map[label])
     plt.xlabel("Month")
     plt.ylabel("Number of Nodes with ≥1 Case")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(output_dir / "plot_best_monthly_nodes_with_cases.png")
+    plt.savefig(output_dir / "plot_best_nodes_with_cases_timeseries.png")
 
     # import numpy as np
     # import pandas as pd

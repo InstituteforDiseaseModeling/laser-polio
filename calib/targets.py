@@ -82,7 +82,7 @@ def get_smoothed_node_case_presence(sim_df, case_column="new_exposed", cir=1 / 2
         monthly_group = monthly_group.reindex(all_months, fill_value=0)
         monthly_counts[i, :] = monthly_group.values
 
-    return {"total_nodes_with_cases": total_counts.mean(), "monthly_nodes_with_cases": monthly_counts.mean(axis=0)}
+    return {"nodes_with_cases_total": total_counts.mean(), "nodes_with_cases_timeseries": monthly_counts.mean(axis=0)}
 
 
 def calc_targets_temporal_regional_nodes(filename, model_config_path=None, is_actual_data=True):
@@ -134,15 +134,15 @@ def calc_targets_temporal_regional_nodes(filename, model_config_path=None, is_ac
     # --- Number of nodes with cases ---
     if is_actual_data:
         has_case = df[case_col] > 0
-        targets["total_nodes_with_cases"] = np.array([df.loc[has_case, "node"].nunique()])
+        targets["nodes_with_cases_total"] = np.array([df.loc[has_case, "node"].nunique()])
         all_months = df["month"].sort_values().unique()
         monthly_node_counts = df.loc[has_case].groupby("month")["node"].nunique().sort_index()
         monthly_node_counts = monthly_node_counts.reindex(all_months, fill_value=0)
-        targets["monthly_nodes_with_cases"] = monthly_node_counts.values
+        targets["nodes_with_cases_timeseries"] = monthly_node_counts.values
     if not is_actual_data:
         node_case_metrics = get_smoothed_node_case_presence(df)
-        targets["total_nodes_with_cases"] = np.array([node_case_metrics["total_nodes_with_cases"]])
-        targets["monthly_nodes_with_cases"] = node_case_metrics["monthly_nodes_with_cases"]
+        targets["nodes_with_cases_total"] = np.array([node_case_metrics["nodes_with_cases_total"]])
+        targets["nodes_with_cases_timeseries"] = node_case_metrics["nodes_with_cases_timeseries"]
 
     print(f"{targets=}")
     return targets
