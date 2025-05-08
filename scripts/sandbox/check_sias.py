@@ -47,7 +47,7 @@ sim = lp.run_sim(
 sia_schedule = sim.pars["sia_schedule"]
 pop = sim.pars["n_ppl"]
 
-for i, instance in enumerate(sia_schedule):
+for _i, instance in enumerate(sia_schedule):
     date = instance["date"]
     vx = instance["vaccinetype"]
     nodes = instance["nodes"]
