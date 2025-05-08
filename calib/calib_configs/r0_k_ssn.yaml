@@ -14,4 +14,4 @@ parameters:
 
 metadata:
   scoring_fn: compute_log_likelihood_fit
-  target_fn: calc_calib_targets_paralysis
+  target_fn: calc_targets_temporal_regional_nodes

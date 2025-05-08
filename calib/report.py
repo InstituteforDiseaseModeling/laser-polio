@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import optuna
@@ -97,26 +98,32 @@ def plot_targets(study, output_dir=None, shp=None):
     region_groups = model_config.get("summary_config", {}).get("region_groups", {})
     region_labels = list(region_groups.keys())
 
-    # Total Infected (scatter plot)
+    # Define consistent colors
+    n_reps = len(preds)
+    labels = ["Actual"] + [f"Rep {i + 1}" for i in range(n_reps)]
+    cmap = cm.get_cmap("Dark2")  # tab10
+    color_map = {label: cmap(i) for i, label in enumerate(labels)}
+
+    # Total Infected
     plt.figure()
     plt.title("Total Infected")
-    plt.xticks([0], ["total"])
-    plt.plot(0, actual["total_infected"][0], "o", label="Actual")
-    for i, rep in enumerate(preds):
-        plt.plot(0, rep["total_infected"][0], "x", label=f"Predicted rep {i + 1}")
+    width = 0.2
+    x = np.arange(len(labels))
+    values = [actual["total_infected"][0]] + [rep["total_infected"][0] for rep in preds]
+    plt.bar(x, values, width=width, color=[color_map[label] for label in labels])
+    plt.xticks(x, labels, rotation=45)
     plt.ylabel("Cases")
-    plt.legend()
     plt.tight_layout()
     plt.savefig(output_dir / "plot_best_total_infected_comparison.png")
-    # plt.show()
 
     # Yearly Cases
     years = list(range(2018, 2018 + len(actual["yearly_cases"])))
     plt.figure()
     plt.title("Yearly Cases")
-    plt.plot(years, actual["yearly_cases"], "o-", label="Actual", linewidth=2)
+    plt.plot(years, actual["yearly_cases"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
     for i, rep in enumerate(preds):
-        plt.plot(years, rep["yearly_cases"], "o-", label=f"Rep {i + 1}")
+        label = f"Rep {i + 1}"
+        plt.plot(years, rep["yearly_cases"], "o-", label=label, color=color_map[label])
     plt.xlabel("Year")
     plt.ylabel("Cases")
     plt.legend()
@@ -128,9 +135,10 @@ def plot_targets(study, output_dir=None, shp=None):
     months = list(range(1, 1 + len(actual["monthly_cases"])))
     plt.figure()
     plt.title("Monthly Cases")
-    plt.plot(months, actual["monthly_cases"], "o-", label="Actual", linewidth=2)
+    plt.plot(months, actual["monthly_cases"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
     for i, rep in enumerate(preds):
-        plt.plot(months, rep["monthly_cases"], "o-", label=f"Rep {i + 1}")
+        label = f"Rep {i + 1}"
+        plt.plot(months, rep["monthly_cases"], "o-", label=label, color=color_map[label])
     plt.xlabel("Month")
     plt.ylabel("Cases")
     plt.legend()
@@ -143,30 +151,60 @@ def plot_targets(study, output_dir=None, shp=None):
     months_series = pd.date_range(start="2018-01-01", periods=n_months, freq="MS")
     plt.figure()
     plt.title("Monthly Timeseries")
-    plt.plot(months_series, actual["monthly_timeseries"], "o-", label="Actual", linewidth=2)
+    plt.plot(months_series, actual["monthly_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
     for i, rep in enumerate(preds):
-        plt.plot(months_series, rep["monthly_timeseries"], "o-", label=f"Rep {i + 1}")
+        label = f"Rep {i + 1}"
+        plt.plot(months_series, rep["monthly_timeseries"], "o-", label=label, color=color_map[label])
     plt.xlabel("Month")
     plt.ylabel("Cases")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(output_dir / "plot_best_monthly_timeseries_comparison.png")
-    # plt.show()
+    # plt.savefig(output_dir / "plot_best_monthly_timeseries_comparison.png")
+    plt.show()
 
     # Regional Cases (bar plot)
     x = np.arange(len(region_labels))
     width = 0.1
     plt.figure()
     plt.title("Regional Cases")
-    plt.bar(x, actual["regional_cases"], width, label="Actual")
+    plt.bar(x, actual["regional_cases"], width, label="Actual", color=color_map["Actual"])
     for i, rep in enumerate(preds):
-        plt.bar(x + (i + 1) * width, rep["regional_cases"], width, label=f"Rep {i + 1}")
+        label = f"Rep {i + 1}"
+        plt.bar(x + (i + 1) * width, rep["regional_cases"], width, label=f"Rep {i + 1}", color=color_map[label])
     plt.xticks(x + width * (len(preds) // 2), region_labels)
     plt.ylabel("Cases")
     plt.legend()
     plt.tight_layout()
     plt.savefig(output_dir / "plot_best_regional_cases_comparison.png")
     # plt.show()
+
+    # Total Nodes with Cases
+    plt.figure()
+    plt.title("Total Nodes with Cases")
+    width = 0.2
+    x = np.arange(1 + len(preds))
+    values = [actual["total_nodes_with_cases"][0]] + [rep["total_nodes_with_cases"][0] for rep in preds]
+    labels = ["Actual"] + [f"Rep {i + 1}" for i in range(len(preds))]
+    plt.bar(x, values, width=width, color=[color_map[lbl] for lbl in labels])
+    plt.xticks(x, labels, rotation=45)
+    plt.ylabel("Nodes")
+    plt.tight_layout()
+    plt.savefig(output_dir / "plot_best_total_nodes_with_cases.png")
+
+    # Monthly Nodes with Cases
+    n_months = len(actual["monthly_nodes_with_cases"])
+    months = list(range(1, n_months + 1))
+    plt.figure()
+    plt.title("Monthly Nodes with Cases")
+    plt.plot(months, actual["monthly_nodes_with_cases"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+    for i, rep in enumerate(preds):
+        label = f"Rep {i + 1}"
+        plt.plot(months, rep["monthly_nodes_with_cases"], "o-", label=f"Rep {i + 1}", color=color_map[label])
+    plt.xlabel("Month")
+    plt.ylabel("Number of Nodes with ≥1 Case")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(output_dir / "plot_best_monthly_nodes_with_cases.png")
 
     # import numpy as np
     # import pandas as pd
