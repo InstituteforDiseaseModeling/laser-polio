@@ -1284,6 +1284,77 @@ def get_exposure_probs(num_people, node_ids, base_prob_infection, risk, exposure
     return
 
 
+@nb.njit(parallel=True)
+def tx_step_combined_nb(num_nodes, num_people, disease_states, node_ids, risks, base_probs, probs):
+    tl_sus_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+    tl_risk_sums = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float64)
+    for i in nb.prange(num_people):
+        if disease_states[i] == 0:
+            tid = nb.get_thread_id()
+            tl_sus_counts[tid, node_ids[i]] += 1
+            nid = node_ids[i]
+            risk = risks[i]
+            probs[i] = base_probs[nid] * risk
+            tl_risk_sums[tid, nid] += risk
+
+    sus_counts = tl_sus_counts.sum(axis=0)  # Sum across threads
+    risk_sums = tl_risk_sums.sum(axis=0)  # Sum across threads
+
+    # Numba doesn't support passing an array of lambda values...
+    # new_infections = np.random.poisson(risk_sums, num_nodes).astype(np.int32)
+    new_infections = np.zeros(num_nodes, dtype=np.int32)
+    for node in nb.prange(num_nodes):
+        new_infections[node] = np.random.poisson(risk_sums[node])
+
+    sus_total = sus_counts.sum()
+    sus_indices = np.empty(sus_total, dtype=np.int32)
+    sus_probs = np.empty(sus_total, dtype=np.float32)
+    index_offsets = np.zeros(num_nodes, dtype=np.int32)
+    index_offsets[1:] = sus_counts[:-1].cumsum()
+    active_indices = np.empty(num_nodes, dtype=np.int32)
+    active_indices[:] = index_offsets
+    for i in nb.prange(num_people):
+        if disease_states[i] == 0:
+            idx = active_indices[node_ids[i]]
+            sus_indices[idx] = i
+            sus_probs[idx] = probs[i]
+            active_indices[node_ids[i]] = idx + 1
+
+    new_exposures = np.zeros(num_nodes, dtype=np.int32)
+
+    for node in nb.prange(num_nodes):
+        n_to_draw = new_infections[node]
+        if n_to_draw <= 0:
+            continue
+
+        sus_count = sus_counts[node]
+        if sus_count == 0:
+            continue
+
+        indices_slice = sus_indices[index_offsets[node] : index_offsets[node] + sus_counts[node]]
+        probs_slice = sus_probs[index_offsets[node] : index_offsets[node] + sus_counts[node]]
+
+        # Step 3: Choose unique indices from susceptible population
+        # using variation of NumPy random.choice()
+
+        n_uniq = 0
+        p = probs_slice
+        while n_uniq < n_to_draw:
+            x = np.random.rand(n_to_draw - n_uniq)
+            cdf = np.cumsum(p)
+            if cdf[-1] == 0:
+                break
+            selected_indices = np.searchsorted(cdf, x * cdf[-1], side="right")
+            unique_indices = np.unique(selected_indices)
+            disease_states[indices_slice[unique_indices]] = 1
+            new_exposures[node] += unique_indices.size
+            n_uniq += unique_indices.size
+            if n_uniq < n_to_draw:
+                p[unique_indices] = 0.0
+
+    return new_exposures, new_infections, risk_sums
+
+
 class Transmission_ABM:
     def __init__(self, sim):
         self.sim = sim
@@ -1300,6 +1371,8 @@ class Transmission_ABM:
         self.people.add_scalar_property("daily_infectivity", dtype=np.float32, default=1.0)
         self._initialize_people_fields()
         self._initialize_common()
+
+        self.step_stats = TimingStats()
 
     @classmethod
     def init_from_file(cls, sim):
@@ -1568,23 +1641,25 @@ class Transmission_ABM:
             # 5) Calculate infections
             num_nodes = len(self.nodes)
             num_people = self.sim.people.count
-            exposure_sums = compute_infections_nb(num_nodes, num_people, disease_state, node_ids, risk) * base_prob_infection
-            new_infections = np.random.poisson(exposure_sums).astype(np.int32)
-            # logger.valid( f"{new_infections=}" )
-            if self.verbose >= 3:
-                logger.info(f"exposure_sums: {fmt(exposure_sums, 2)}")
-                logger.info(f"Expected new exposures: {new_infections}")
 
             with self.step_stats.start("Part 6"):
                 # 6) Draw n_expected_exposures for each node according to their exposure_probs
-                # cl exposure_probs = base_prob_infection[node_ids] * risk  # Try adding in node-level force & personal risk
-                get_exposure_probs(num_people, node_ids, base_prob_infection, risk, self.exposure_probs)
                 if self.verbose >= 3:
                     disease_state_pre_infect = disease_state.copy()
-                new_exposed = self.infect_fn(node_ids, self.exposure_probs, disease_state, new_infections)
+                new_exposed, new_infections, exposure_sums = tx_step_combined_nb(
+                    num_nodes,
+                    num_people,
+                    disease_state,
+                    node_ids,
+                    risk,
+                    base_prob_infection,
+                    self.exposure_probs,
+                )
 
             self.sim.results.new_exposed[self.sim.t, :] = new_exposed
             if self.verbose >= 3:
+                logger.info(f"exposure_sums: {fmt(exposure_sums, 2)}")
+                logger.info(f"Expected new exposures: {new_infections}")
                 logger.info(f"Observed new exposures: {new_exposed}")
                 total_expected = np.sum(exposure_sums)
                 tot_poisson_draw = np.sum(new_infections)
