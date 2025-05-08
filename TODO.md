@@ -10,6 +10,7 @@
 - New model features
 - Are pops reproducible from seeds? Does pop with run seed=1 & sim seed=1 produce the same as a sim with seed of 1 without init_pop
 - Try calibrating to synthetic data for Zamfara (I sent copy to Dan)
+- Sample radiation_k on log scale
 
 CALIBRATION
 - increase parallelism to 100

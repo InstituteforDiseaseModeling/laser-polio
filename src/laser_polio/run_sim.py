@@ -211,13 +211,6 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     return sim
 
-    # for i, instance in enumerate(sia_schedule):
-    #     date = instance["date"]
-    #     vx = instance["vaccinetype"]
-    #     nodes = instance["nodes"]
-    #     pop_in_nodes = pop[nodes].sum() / 1e6  # Convert to millions
-    #     print(f"{date}; vx: {vx}; n_nodes: {len(nodes)}; pop (millions): {pop_in_nodes}")
-
 
 # Add command-line interface (CLI) for running the simulation
 @click.command()

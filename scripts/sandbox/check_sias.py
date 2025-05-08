@@ -5,7 +5,7 @@ import laser_polio as lp
 
 regions = ["NIGERIA"]
 start_year = 2018
-n_days = 365  # 6 years
+n_days = 2190  # 6 years
 pop_scale = 1 / 1
 init_region = "BIRINIWA"
 init_prev = 200
@@ -14,6 +14,10 @@ migration_method = "radiation"
 radiation_k = 0.5
 max_migr_frac = 1.0
 results_path = "results/demo_nigeria"
+save_plots = True
+save_data = True
+save_pop = False
+run = False
 
 ######### END OF USER PARS ########
 ###################################
@@ -31,12 +35,12 @@ sim = lp.run_sim(
     radiation_k=radiation_k,
     max_migr_frac=max_migr_frac,
     results_path=results_path,
-    save_plots=True,
-    save_data=True,
+    save_plots=save_plots,
+    save_data=save_data,
     verbose=1,
     seed=1,
-    save_pop=True,
-    run=False,
+    save_pop=save_pop,
+    run=run,
 )
 
 
