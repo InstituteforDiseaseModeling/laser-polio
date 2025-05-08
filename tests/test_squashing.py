@@ -60,7 +60,7 @@ pop = pop * pop_scale  # Scale population
 cbr = df_comp.set_index("dot_name").loc[dot_names, "cbr"].values  # CBR data
 ri = df_comp.set_index("dot_name").loc[dot_names, "ri_eff"].values  # RI data
 sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values  # SIA data
-sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, sia_cover=0.7, sia_scale=2.4)  # Secret sauce numbers from Hil
+sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=0.7, scale=2.4)  # Secret sauce numbers from Hil
 reff_re = df_comp.set_index("dot_name").loc[dot_names, "reff_random_effect"].values  # random effects from regression model
 r0_scalars = lp.calc_r0_scalars_from_rand_eff(reff_re)  # Center and scale the random effects
 
