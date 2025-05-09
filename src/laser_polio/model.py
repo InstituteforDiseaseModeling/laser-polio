@@ -198,6 +198,7 @@ class SEIR_ABM:
         self.perf_stats = TimingStats()
         with self.perf_stats.start(self.__class__.__name__ + ".__init__()"):
             self.common_init(pars, verbose)
+            pars = self.pars
 
             pars.n_ppl = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
             if (pars.cbr is not None) & (len(pars.cbr) == 1):
