@@ -7,6 +7,7 @@
 - Try calibrating the r0_scalar parameters in run_sim (24 and 0.2)
 - Try calibrating the sia rand effects center and scale values
 - Try finer spatial resolution
+- Try calibrating the sia rand effects center and scale values
 - Check r0_scalars for above as well
 - New model features
 - Are pops reproducible from seeds? Does pop with run seed=1 & sim seed=1 produce the same as a sim with seed of 1 without init_pop
