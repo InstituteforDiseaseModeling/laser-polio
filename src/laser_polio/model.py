@@ -1285,6 +1285,50 @@ def get_exposure_probs(num_people, node_ids, base_prob_infection, risk, exposure
 
 
 @nb.njit(parallel=True)
+def tx_step_nb(
+    num_nodes,
+    num_people,
+    disease_states,
+    node_ids,
+    daily_infectivity,
+    network,
+    seasonality,
+    r0_scalars,
+    alive_counts,
+    risks,
+    exposure_probs,
+):
+    tl_beta_sums = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float64)
+    for i in nb.prange(num_people):
+        if disease_states[i] == 2:
+            tid = nb.get_thread_id()
+            nid = node_ids[i]
+            tl_beta_sums[tid, nid] += daily_infectivity[i]
+    beta_sums = tl_beta_sums.sum(axis=0)  # Sum across threads
+
+    transfer = beta_sums * network
+    beta_sums += transfer.sum(axis=1) - transfer.sum(axis=0)  # Add incoming, subtract outgoing
+    beta_sums = np.maximum(beta_sums, 0)
+
+    beta = beta_sums * seasonality * r0_scalars
+
+    per_agent_inf_rate = beta / np.maximum(alive_counts, 1)  # Avoid div by zero
+    base_prob_inf = 1 - np.exp(-per_agent_inf_rate)  # Convert to probability of infection
+
+    tl_exposure_sums = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float64)
+    for i in nb.prange(num_people):
+        if disease_states[i] == 0:
+            tl_exposure_sums[nb.get_thread_id(), node_ids[i]] += risks[i]
+    exposure_sums = tl_exposure_sums.sum(axis=0)
+    exposure_sums *= base_prob_inf  # Scale by base infection probability
+
+    for i in nb.prange(num_people):
+        exposure_probs[i] = base_prob_inf[node_ids[i]] * risks[i]
+
+    return beta_sums, beta, base_prob_inf, exposure_sums
+
+
+@nb.njit(parallel=True)
 def tx_step_combined_nb(num_nodes, num_people, disease_states, node_ids, risks, base_probs, probs):
     tl_sus_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
     tl_risk_sums = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float64)
@@ -1313,7 +1357,7 @@ def tx_step_combined_nb(num_nodes, num_people, disease_states, node_ids, risks, 
     index_offsets[1:] = sus_counts[:-1].cumsum()
     active_indices = np.empty(num_nodes, dtype=np.int32)
     active_indices[:] = index_offsets
-    for i in nb.prange(num_people):
+    for i in range(num_people):
         if disease_states[i] == 0:
             idx = active_indices[node_ids[i]]
             sus_indices[idx] = i
@@ -1519,54 +1563,7 @@ class Transmission_ABM:
     def step(self):
         # Manual debugging of transmission
         if self.verbose >= 3:
-            # Log timestep
             logger.info(f"TIMESTEP: {self.sim.t}")
-
-            # # Go node by node
-            # ds = self.people.disease_state[: self.people.count]
-            # node_id = self.people.node_id[: self.people.count]
-            # daily_infectivity = self.people.daily_infectivity[: self.people.count]
-            # risk = self.people.acq_risk_multiplier[: self.people.count]
-
-            # infecteds = np.where(ds == 2)
-            # infected_nodes = np.unique(node_id[infecteds])
-            # for node in infected_nodes:
-            #     # Number of infecteds
-            #     num_alive = np.sum((node_id == node) & (ds >= 0)) + self.sim.results.R[self.sim.t][node]
-            #     num_susceptibles = np.sum((node_id == node) & (ds == 0))
-            #     num_infecteds = np.sum((node_id == node) & (ds == 2))
-
-            #     # Calc beta for this node
-            #     node_beta_sum = np.sum(daily_infectivity[(node_id == node) & (ds == 2)])
-            #     beta_seasonality = lp.get_seasonality(self.sim)
-            #     r0_scalar = self.r0_scalars[node]
-            #     beta = node_beta_sum * beta_seasonality * r0_scalar
-            #     per_agent_infection_rate = beta / np.clip(num_alive, 1, None)
-            #     base_prob_infection = 1 - np.exp(-per_agent_infection_rate)
-            #     mean_risk = np.mean(risk[(node_id == node) & (ds == 0)])
-            #     exp_infections_using_infectivity = base_prob_infection * num_susceptibles
-
-            #     # Back of the envelope calculation
-            #     R0 = self.sim.pars.r0
-            #     infectious_period = 24
-            #     beta_manual = R0 / infectious_period
-            #     lambda_ = beta_manual * num_infecteds / num_alive * beta_seasonality * r0_scalar
-            #     p_infection = 1 - np.exp(-lambda_)
-            #     exp_infections_manual = p_infection * num_susceptibles
-
-            #     # Log detailed node-level stats
-            #     logger.info(
-            #         f"MANUAL CALCS: "
-            #         f"Node {node}: S={num_susceptibles}, I={num_infecteds}, Alive={num_alive}, frac_I={num_infecteds / num_alive:.2f}, frac_S={num_susceptibles / num_alive:.2f}, "
-            #     )
-            #     logger.info(
-            #         f"Exp infections (back of the envelope) (lambda = R0 / inf_period * I / N * scalars; new I = S * (1-exp(-lambda)))={exp_infections_manual:.2f}, "  # Obs infectivity={obs_infectivity:.2f}, Exp infectivity={exp_infectivity:.2f},
-            #     )
-            #     # logger.info(
-            #     #     f"r0={self.sim.pars.r0}, beta_seasonality={beta_seasonality:.4f}, r0_scalar={r0_scalar:.4f}, beta={beta:.4f}, "
-            #     #     f"base_prob_infection={base_prob_infection:.4f}, mean_risk={mean_risk:.4f}, "
-            #     # )
-            #     logger.info(f"Exp infections (using individual infectivity) ={exp_infections_using_infectivity:.2f}, ")
 
         with self.step_stats.start("Part 1"):
             # 1) Sum up the total amount of infectivity shed by all infectious agents within a node.
@@ -1580,19 +1577,23 @@ class Transmission_ABM:
             # node_beta_sums = fast_beta()
             # logger.valid(f"node_beta_sums={np.array2string(node_beta_sums, separator=',', max_line_width=9999)}")
             node_beta_sums = compute_beta_ind_sums(node_ids, infectivity, disease_state, len(self.nodes))
-        if self.verbose >= 3:
-            n_infected = []
-            for node in self.sim.nodes:
-                # num_alive = np.sum((node_ids == node) & (disease_state >= 0)) + self.sim.results.R[self.sim.t][node]
-                num_susceptibles = np.sum((node_ids == node) & (disease_state == 0))
-                n_I_node = np.sum((node_ids == node) & (disease_state == 2))
-                n_infected.append(n_I_node)
-            n_infected = np.array(n_infected)
-            exp_node_beta_sums = n_infected * self.sim.pars.r0 / np.mean(self.sim.pars.dur_inf(1000))
-            logger.info(f"Expected node beta sums: {fmt(exp_node_beta_sums, 2)}")
-            node_beta_sums_pre = node_beta_sums.copy()
-            logger.info(f"Node beta sums (pre-transfer): {fmt(node_beta_sums_pre, 2)}")
-            logger.info(f"Total node beta sums (pre-transfer): {fmt(node_beta_sums_pre.sum(), 2)}")
+
+            num_nodes = len(self.nodes)
+            num_people = self.sim.people.count
+
+            if self.verbose >= 3:
+                n_infected = []
+                for node in self.sim.nodes:
+                    # num_alive = np.sum((node_ids == node) & (disease_state >= 0)) + self.sim.results.R[self.sim.t][node]
+                    num_susceptibles = np.sum((node_ids == node) & (disease_state == 0))
+                    n_I_node = np.sum((node_ids == node) & (disease_state == 2))
+                    n_infected.append(n_I_node)
+                n_infected = np.array(n_infected)
+                exp_node_beta_sums = n_infected * self.sim.pars.r0 / np.mean(self.sim.pars.dur_inf(1000))
+                logger.info(f"Expected node beta sums: {fmt(exp_node_beta_sums, 2)}")
+                node_beta_sums_pre = node_beta_sums.copy()
+                logger.info(f"Node beta sums (pre-transfer): {fmt(node_beta_sums_pre, 2)}")
+                logger.info(f"Total node beta sums (pre-transfer): {fmt(node_beta_sums_pre.sum(), 2)}")
 
         with self.step_stats.start("Part 2"):
             # 2) Spatially redistribute infectivity among nodes
@@ -1601,21 +1602,21 @@ class Transmission_ABM:
             node_beta_sums += transfer.sum(axis=1) - transfer.sum(axis=0)
             node_beta_sums = np.maximum(node_beta_sums, 0)  # Prevent negative contagion
 
-        # logger.valid(f"node_beta_sums [post-migration]={np.array2string(node_beta_sums, separator=',', max_line_width=9999)}")
-        if self.verbose >= 3:
-            logger.info(f"Node beta sums (post-transfer): {fmt(node_beta_sums, 2)}")
-            logger.info(f"Total Node beta sums (post-transfer): {fmt(node_beta_sums.sum(), 2)}")
+            # logger.valid(f"node_beta_sums [post-migration]={np.array2string(node_beta_sums, separator=',', max_line_width=9999)}")
+            if self.verbose >= 3:
+                logger.info(f"Node beta sums (post-transfer): {fmt(node_beta_sums, 2)}")
+                logger.info(f"Total Node beta sums (post-transfer): {fmt(node_beta_sums.sum(), 2)}")
 
         with self.step_stats.start("Part 3"):
             # 3) Apply seasonal & geographic modifiers
             beta_seasonality = lp.get_seasonality(self.sim)
             beta = node_beta_sums * beta_seasonality * self.r0_scalars  # Total node infection rate
             # logger.valid( f"{beta=}" )
-        if self.verbose >= 3:
-            logger.info(f"beta_seasonality: {fmt(beta_seasonality, 2)}")
-            logger.info(f"R0 scalars: {fmt(self.r0_scalars, 2)}")
-            logger.info(f"beta: {fmt(beta, 2)}")
-            logger.info(f"Total beta: {fmt(beta.sum(), 2)}")
+            if self.verbose >= 3:
+                logger.info(f"beta_seasonality: {fmt(beta_seasonality, 2)}")
+                logger.info(f"R0 scalars: {fmt(self.r0_scalars, 2)}")
+                logger.info(f"beta: {fmt(beta, 2)}")
+                logger.info(f"Total beta: {fmt(beta.sum(), 2)}")
 
         with self.step_stats.start("Part 4"):
             # 4) Calculate base probability for each agent to become exposed
@@ -1630,31 +1631,59 @@ class Transmission_ABM:
             per_agent_infection_rate = beta / np.clip(alive_counts, 1, None)
             base_prob_infection = 1 - np.exp(-per_agent_infection_rate)
 
-        # logger.valid( f"{base_prob_infection=}" )
-        if self.verbose >= 3:
-            logger.info(f"Alive counts: {fmt(alive_counts, 2)}")
-            logger.info(f"Per agent infection rate: {fmt(per_agent_infection_rate, 2)}")
-            logger.info(f"Base prob infection: {fmt(base_prob_infection, 2)}")
-            logger.info(f"Exp inf (sans acq risk): {fmt(num_susceptibles * base_prob_infection, 2)}")
+            # logger.valid( f"{base_prob_infection=}" )
+            if self.verbose >= 3:
+                logger.info(f"Alive counts: {fmt(alive_counts, 2)}")
+                logger.info(f"Per agent infection rate: {fmt(per_agent_infection_rate, 2)}")
+                logger.info(f"Base prob infection: {fmt(base_prob_infection, 2)}")
+                logger.info(f"Exp inf (sans acq risk): {fmt(num_susceptibles * base_prob_infection, 2)}")
 
         with self.step_stats.start("Part 5"):
             # 5) Calculate infections
-            num_nodes = len(self.nodes)
-            num_people = self.sim.people.count
+            exposure_sums = compute_infections_nb(num_nodes, num_people, disease_state, node_ids, risk) * base_prob_infection
 
-            with self.step_stats.start("Part 6"):
-                # 6) Draw n_expected_exposures for each node according to their exposure_probs
-                if self.verbose >= 3:
-                    disease_state_pre_infect = disease_state.copy()
-                new_exposed, new_infections, exposure_sums = tx_step_combined_nb(
-                    num_nodes,
-                    num_people,
-                    disease_state,
-                    node_ids,
-                    risk,
-                    base_prob_infection,
-                    self.exposure_probs,
-                )
+            new_infections = np.random.poisson(exposure_sums).astype(np.int32)
+
+        with self.step_stats.start("Part 6"):
+            # 6) Draw n_expected_exposures for each node according to their exposure_probs
+            # new_exposed, new_infections, exposure_sums = tx_step_combined_nb(
+            #     num_nodes,
+            #     num_people,
+            #     disease_state,
+            #     node_ids,
+            #     risk,
+            #     base_prob_infection,
+            #     self.exposure_probs,
+            # )
+
+            get_exposure_probs(num_people, node_ids, base_prob_infection, risk, self.exposure_probs)
+
+            _exposure_probs = np.empty_like(self.exposure_probs)
+            _node_beta_sums, _beta, _base_prob_infection, _exposure_sums = tx_step_nb(
+                num_nodes,
+                num_people,
+                disease_state,
+                node_ids,
+                infectivity,
+                self.network,
+                beta_seasonality,
+                self.r0_scalars,
+                alive_counts,
+                risk,
+                _exposure_probs,
+            )
+            assert np.allclose(_node_beta_sums, node_beta_sums), "Beta sums do not match between Numba and non-Numba versions"
+            assert np.allclose(_beta, beta), "Beta does not match between Numba and non-Numba versions"
+            assert np.allclose(_base_prob_infection, base_prob_infection), (
+                "Base prob infection does not match between Numba and non-Numba versions"
+            )
+            assert np.allclose(_exposure_sums, exposure_sums), "Exposure sums do not match between Numba and non-Numba versions"
+            assert np.allclose(_exposure_probs, self.exposure_probs), "Exposure probs do not match between Numba and non-Numba versions"
+
+            if self.verbose >= 3:
+                disease_state_pre_infect = disease_state.copy()
+
+            new_exposed = self.infect_fn(node_ids, self.exposure_probs, disease_state, new_infections)
 
             self.sim.results.new_exposed[self.sim.t, :] = new_exposed
             if self.verbose >= 3:
