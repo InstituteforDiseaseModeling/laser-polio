@@ -5,15 +5,15 @@
 - Try adding distance from origin as a calib target
 - Try calibrating risk_mult_var to adjust individual heterogeneity
 - Try calibrating the r0_scalar parameters in run_sim (24 and 0.2)
-- Try finer spatial resolution
 - Try calibrating the sia rand effects center and scale values
-- Try adding a chronically missed pop, perhaps by weighted random choice for vx
+- Try finer spatial resolution
 - Check r0_scalars for above as well
 - New model features
 - Are pops reproducible from seeds? Does pop with run seed=1 & sim seed=1 produce the same as a sim with seed of 1 without init_pop
 - Try calibrating to synthetic data for Zamfara (I sent copy to Dan)
 - Sample radiation_k on log scale
 - Plot all data inputs for sanity checks
+- fix test_sia_schedule() - number of recovered inidividuals does not match expected value
 
 CALIBRATION
 - increase parallelism to 100

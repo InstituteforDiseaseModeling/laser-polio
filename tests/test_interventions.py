@@ -172,6 +172,34 @@ def test_sia_schedule():
     assert np.all(ages <= (5 * 365 + 22)), "Recovered individuals should be <5 years old."
 
 
+def test_chronically_missed():
+    """Test that chronically missed individuals are not vaccinated."""
+
+    sia_pars = {
+        "sia_schedule": [{"date": "2019-01-10", "nodes": [0, 1], "age_range": (0, 5 * 365), "vaccinetype": "perfect"}],
+        "vx_prob_sia": [1.0, 1.0],  # SIA effectiveness per node
+        "missed_frac": 0.2,
+    }
+    sim = setup_sim(vx_prob_ri=0, new_pars=sia_pars)
+    sim.run()
+
+    # Check missed group
+    missed = sim.people.chronically_missed[: sim.people.count]
+    n_missed = np.sum(missed)
+    assert np.isclose(n_missed, sim.pars.n_ppl.sum() * 0.2, atol=100), "No missed individuals were created."
+
+    # Assert none of the missed were recovered
+    recovered = sim.people.disease_state[: sim.people.count] == 3
+    assert not np.any(recovered & missed), "Some chronically missed individuals were vaccinated!"
+
+    # Assert that the number of vaccinated individuals is equal to the expected number of vaccinated individuals
+    age = sim.t - sim.people.date_of_birth[: sim.people.count]  # Age of individuals
+    age_eligible = np.sum(age < 5 * 365)  # Filter to <5 years old
+    exp_vx = age_eligible * (1 - sim.pars.missed_frac)  # Expected number of vaccinated individuals
+    n_vx = np.sum(recovered)
+    assert np.isclose(n_vx, exp_vx, atol=500), "Number of vaccinated individuals does not match expected value."
+
+
 if __name__ == "__main__":
     # test_ri_initialization()
     # test_ri_manually_seeded()
@@ -180,5 +208,6 @@ if __name__ == "__main__":
     test_ri_vx_prob()
     # test_ri_no_effect_on_non_susceptibles()
     # test_sia_schedule()
+    test_chronically_missed()
 
     print("All initialization tests passed.")

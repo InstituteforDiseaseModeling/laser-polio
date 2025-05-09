@@ -183,6 +183,14 @@ class SEIR_ABM:
                 node_ids = np.concatenate([np.full(count, node_id) for node_id, count in zip(ordered_node_ids, pars.n_ppl, strict=False)])
                 self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids
 
+            # Setup chronically missed population for vaccination: 0 = missed/inaccessible to vx, 1 = accessible for vaccination
+            self.people.add_scalar_property("chronically_missed", dtype=np.uint8, default=0)
+            missed_frac = pars.missed_frac
+            n = self.people.count
+            n_missed = int(missed_frac * n)
+            missed_ids = np.random.choice(n, size=n_missed, replace=False)
+            self.people.chronically_missed[missed_ids] = 1  # Set the missed population to 1 (missed/inaccessible)
+
         # Setup early stopping option - controlled in DiseaseState_ABM component
         self.should_stop = False
 
@@ -215,6 +223,14 @@ class SEIR_ABM:
                 self.nodes = np.arange(len(np.atleast_1d(pars.n_ppl)))
                 node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_ppl)])
                 self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids  # Assign node IDs to initial people
+
+            # Setup chronically missed population for vaccination: 0 = missed/inaccessible to vx, 1 = accessible for vaccination
+            self.people.add_scalar_property("chronically_missed", dtype=np.uint8, default=0)
+            missed_frac = pars.missed_frac
+            n = self.people.count
+            n_missed = int(missed_frac * n)
+            missed_ids = np.random.choice(n, size=n_missed, replace=False)
+            self.people.chronically_missed[missed_ids] = 1  # Set the missed population to 1 (missed/inaccessible)
 
             # Components
             self._components = []
@@ -1907,7 +1923,11 @@ def get_vital_statistics(num_nodes, num_people, disease_state, node_id, date_of_
     return
 
 
-@nb.njit((nb.int64, nb.int32[:], nb.int32[:], nb.int32[:], nb.int64, nb.float64[:], nb.int64, nb.int32[:, :]), parallel=True, cache=True)
+@nb.njit(
+    (nb.int64, nb.int32[:], nb.int32[:], nb.int32[:], nb.int64, nb.float64[:], nb.int64, nb.int32[:, :], nb.uint8[:]),
+    parallel=True,
+    cache=True,
+)
 def fast_ri(
     step_size,
     node_id,
@@ -1917,6 +1937,7 @@ def fast_ri(
     vx_prob_ri,
     num_people,
     local_counts,
+    chronically_missed,
 ):
     """
     Optimized vaccination step with thread-local storage and parallel execution.
@@ -1924,6 +1945,8 @@ def fast_ri(
     for i in nb.prange(num_people):
         state = disease_state[i]
         if state < 0:  # skip dead or inactive agents
+            continue
+        if chronically_missed[i] == 1:  # skip chronically missed agents
             continue
 
         node = node_id[i]
@@ -2015,6 +2038,7 @@ class RI_ABM:
                 vx_prob_ri,
                 np.int32(self.people.count),
                 local_counts,
+                self.people.chronically_missed,
             )
             # Sum up the counts from all threads
             self.results.ri_vaccinated[self.sim.t] = local_counts.sum(axis=0)
@@ -2056,6 +2080,7 @@ def fast_sia(
     max_age,
     local_vaccinated,
     local_protected,
+    chronically_missed,
 ):
     """
     Numbified supplemental immunization activity (SIA) vaccination step.
@@ -2079,6 +2104,9 @@ def fast_sia(
     for i in nb.prange(num_people):
         # Skip if agent is not alive, not in targeted node, or not in age range
         if disease_states[i] < 0:
+            continue
+
+        if chronically_missed[i] == 1:
             continue
 
         age = sim_t - dobs[i]
@@ -2165,6 +2193,7 @@ class SIA_ABM:
                     max_age,
                     local_vaccinated,
                     local_protected,
+                    chronically_missed=self.people.chronically_missed,
                 )
                 self.results.sia_vaccinated[t] = local_vaccinated.sum(axis=0)
                 self.results.sia_protected[t] = local_protected.sum(axis=0)
