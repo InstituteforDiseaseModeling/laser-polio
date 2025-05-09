@@ -200,38 +200,30 @@ class SEIR_ABM:
             self.common_init(pars, verbose)
             pars = self.pars
 
-            pars.n_ppl = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
-            if (pars.cbr is not None) & (len(pars.cbr) == 1):
-                capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, pars.cbr[0]))
-            elif (pars.cbr is not None) & (len(pars.cbr) > 1):
-                capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, np.mean(pars.cbr)))
-            else:
-                capacity = int(np.sum(pars.n_ppl))
-            self.people = LaserFrameIO(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
-            # We initialize disease_state here since it's required for most other components (which facilitates testing)
-            self.people.add_scalar_property("disease_state", dtype=np.int32, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
-            self.people.disease_state[: self.people.count] = 0  # Set initial population as susceptible
-            self.results = LaserFrame(capacity=1)
+            # pars.n_ppl = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
+            # if (pars.cbr is not None) & (len(pars.cbr) == 1):
+            #     capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, pars.cbr[0]))
+            # elif (pars.cbr is not None) & (len(pars.cbr) > 1):
+            #     capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, np.mean(pars.cbr)))
+            # else:
+            #     capacity = int(np.sum(pars.n_ppl))
+            # self.people = LaserFrameIO(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
+            # # We initialize disease_state here since it's required for most other components (which facilitates testing)
+            # self.people.add_scalar_property("disease_state", dtype=np.int32, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
+            # self.people.disease_state[: self.people.count] = 0  # Set initial population as susceptible
+            # self.results = LaserFrame(capacity=1)
 
-            # Setup spatial component with node IDs
-            self.people.add_scalar_property("node_id", dtype=np.int32, default=0)
-            if hasattr(pars, "node_lookup") and pars.node_lookup is not None:
-                ordered_node_ids = list(pars.node_lookup.keys())
-                self.nodes = np.array(ordered_node_ids)
-                node_ids = np.concatenate([np.full(count, node_id) for node_id, count in zip(ordered_node_ids, pars.n_ppl, strict=False)])
-                self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids
-            else:
-                self.nodes = np.arange(len(np.atleast_1d(pars.n_ppl)))
-                node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_ppl)])
-                self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids  # Assign node IDs to initial people
-
-            # Setup chronically missed population for vaccination: 0 = missed/inaccessible to vx, 1 = accessible for vaccination
-            self.people.add_scalar_property("chronically_missed", dtype=np.uint8, default=0)
-            missed_frac = pars.missed_frac
-            n = self.people.count
-            n_missed = int(missed_frac * n)
-            missed_ids = np.random.choice(n, size=n_missed, replace=False)
-            self.people.chronically_missed[missed_ids] = 1  # Set the missed population to 1 (missed/inaccessible)
+            # # Setup spatial component with node IDs
+            # self.people.add_scalar_property("node_id", dtype=np.int32, default=0)
+            # if hasattr(pars, "node_lookup") and pars.node_lookup is not None:
+            #     ordered_node_ids = list(pars.node_lookup.keys())
+            #     self.nodes = np.array(ordered_node_ids)
+            #     node_ids = np.concatenate([np.full(count, node_id) for node_id, count in zip(ordered_node_ids, pars.n_ppl, strict=False)])
+            #     self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids
+            # else:
+            #     self.nodes = np.arange(len(np.atleast_1d(pars.n_ppl)))
+            #     node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_ppl)])
+            #     self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids  # Assign node IDs to initial people
 
             # Components
             self._components = []
