@@ -1118,7 +1118,15 @@ def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
 
 
 @nb.njit(parallel=True)
-def fast_infect2(num_nodes, num_people, sus_by_node, node_ids, exposure_probs, disease_state, new_infections):
+def fast_infect2(
+    num_nodes,
+    sus_by_node,
+    disease_state,
+    new_infections,
+    sus_indices_in,
+    sus_probs_in,
+    offsets,
+):
     """
     A Numba-accelerated version of faster_infect.
     Parallelizes over nodes, computing a CDF for each node's susceptible population.
@@ -1138,17 +1146,8 @@ def fast_infect2(num_nodes, num_people, sus_by_node, node_ids, exposure_probs, d
         if sus_count == 0:
             continue
 
-        # Step 2: Collect indices of susceptible individuals in this node
-        # and copy their exposure probabilities into a new array
-        # We need the copy in case we need to retry sampling to get unique indices
-        sus_indices = np.empty(sus_count, dtype=np.int32)
-        sus_probs = np.empty(sus_count, dtype=np.float32)
-        idx = 0
-        for i in range(num_people):
-            if (node_ids[i] == node) and (disease_state[i] == 0):
-                sus_indices[idx] = i
-                sus_probs[idx] = exposure_probs[i]
-                idx += 1
+        sus_indices = sus_indices_in[offsets[node] : offsets[node] + sus_by_node[node]]
+        sus_probs = sus_probs_in[offsets[node] : offsets[node] + sus_by_node[node]]
 
         # Step 3: Choose unique indices from susceptible population
         # using variation of NumPy random.choice()
@@ -1363,6 +1362,8 @@ def tx_step_nb(
     alive_counts,
     risks,
     exposure_probs,
+    sus_indices,
+    sus_probs,
 ):
     tl_beta_by_node = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float64)
     tl_exposure_by_node = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float64)
@@ -1398,78 +1399,19 @@ def tx_step_nb(
     for i in nb.prange(num_nodes):
         new_infections[i] = np.random.poisson(exposure_by_node[i])
 
-    return beta_by_node, base_prob_inf, exposure_by_node, new_infections, sus_by_node
-
-
-@nb.njit(parallel=True)
-def tx_step_combined_nb(num_nodes, num_people, disease_states, node_ids, risks, base_probs, probs):
-    tl_sus_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
-    tl_risk_sums = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float64)
-    for i in nb.prange(num_people):
-        if disease_states[i] == 0:
-            tid = nb.get_thread_id()
-            tl_sus_counts[tid, node_ids[i]] += 1
-            nid = node_ids[i]
-            risk = risks[i]
-            probs[i] = base_probs[nid] * risk
-            tl_risk_sums[tid, nid] += risk
-
-    sus_counts = tl_sus_counts.sum(axis=0)  # Sum across threads
-    risk_sums = tl_risk_sums.sum(axis=0)  # Sum across threads
-
-    # Numba doesn't support passing an array of lambda values...
-    # new_infections = np.random.poisson(risk_sums, num_nodes).astype(np.int32)
-    new_infections = np.zeros(num_nodes, dtype=np.int32)
-    for node in nb.prange(num_nodes):
-        new_infections[node] = np.random.poisson(risk_sums[node])
-
-    sus_total = sus_counts.sum()
-    sus_indices = np.empty(sus_total, dtype=np.int32)
-    sus_probs = np.empty(sus_total, dtype=np.float32)
-    index_offsets = np.zeros(num_nodes, dtype=np.int32)
-    index_offsets[1:] = sus_counts[:-1].cumsum()
+    offsets = np.zeros(num_nodes, dtype=np.int32)
+    offsets[1:] = sus_by_node[:-1].cumsum()
     active_indices = np.empty(num_nodes, dtype=np.int32)
-    active_indices[:] = index_offsets
+    active_indices[:] = offsets
     for i in range(num_people):
-        if disease_states[i] == 0:
+        nid = node_ids[i]
+        if new_infections[nid] > 0 and disease_states[i] == 0:
             idx = active_indices[node_ids[i]]
             sus_indices[idx] = i
-            sus_probs[idx] = probs[i]
+            sus_probs[idx] = exposure_probs[i]
             active_indices[node_ids[i]] = idx + 1
 
-    new_exposures = np.zeros(num_nodes, dtype=np.int32)
-
-    for node in nb.prange(num_nodes):
-        n_to_draw = new_infections[node]
-        if n_to_draw <= 0:
-            continue
-
-        sus_count = sus_counts[node]
-        if sus_count == 0:
-            continue
-
-        indices_slice = sus_indices[index_offsets[node] : index_offsets[node] + sus_counts[node]]
-        probs_slice = sus_probs[index_offsets[node] : index_offsets[node] + sus_counts[node]]
-
-        # Step 3: Choose unique indices from susceptible population
-        # using variation of NumPy random.choice()
-
-        n_uniq = 0
-        p = probs_slice
-        while n_uniq < n_to_draw:
-            x = np.random.rand(n_to_draw - n_uniq)
-            cdf = np.cumsum(p)
-            if cdf[-1] == 0:
-                break
-            selected_indices = np.searchsorted(cdf, x * cdf[-1], side="right")
-            unique_indices = np.unique(selected_indices)
-            disease_states[indices_slice[unique_indices]] = 1
-            new_exposures[node] += unique_indices.size
-            n_uniq += unique_indices.size
-            if n_uniq < n_to_draw:
-                p[unique_indices] = 0.0
-
-    return new_exposures, new_infections, risk_sums
+    return beta_by_node, base_prob_inf, exposure_by_node, new_infections, sus_by_node, offsets
 
 
 class Transmission_ABM:
@@ -1488,6 +1430,9 @@ class Transmission_ABM:
         self.people.add_scalar_property("daily_infectivity", dtype=np.float32, default=1.0)
         self._initialize_people_fields()
         self._initialize_common()
+
+        self.people.add_scalar_property("sus_indices", dtype=np.int32, default=0)
+        self.people.add_scalar_property("sus_probs", dtype=np.float32, default=0.0)
 
         self.step_stats = TimingStats()
 
@@ -1676,7 +1621,7 @@ class Transmission_ABM:
 
             # Include seasonal & geographic modifiers
             beta_seasonality = lp.get_seasonality(self.sim)
-            beta, base_prob_infection, exposure_sums, new_infections, sus_by_node = tx_step_nb(
+            beta, base_prob_infection, exposure_sums, new_infections, sus_by_node, offsets = tx_step_nb(
                 num_nodes,
                 num_people,
                 disease_state,
@@ -1688,6 +1633,8 @@ class Transmission_ABM:
                 alive_counts,
                 risk,
                 self.exposure_probs,
+                self.people.sus_indices,
+                self.people.sus_probs,
             )
 
             if self.verbose >= 3:
@@ -1708,7 +1655,15 @@ class Transmission_ABM:
                 disease_state_pre_infect = disease_state.copy()
 
             # new_exposed = self.infect_fn(node_ids, self.exposure_probs, disease_state, new_infections)
-            new_exposed = fast_infect2(num_nodes, num_people, sus_by_node, node_ids, self.exposure_probs, disease_state, new_infections)
+            new_exposed = fast_infect2(
+                num_nodes,
+                sus_by_node,
+                disease_state,
+                new_infections,
+                self.people.sus_indices,
+                self.people.sus_probs,
+                offsets,
+            )
 
             self.sim.results.new_exposed[self.sim.t, :] = new_exposed
             if self.verbose >= 3:
