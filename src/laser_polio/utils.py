@@ -57,9 +57,9 @@ def calc_r0_scalars_from_rand_eff(rand_eff=None, R0=14, R_min=3.41, R_max=16.7, 
     return reff_scalars
 
 
-def calc_sia_prob_from_rand_eff(sia_re, center=0.5, scale=0.8):
+def calc_sia_prob_from_rand_eff(sia_re, center=0.5, scale=1.0):
     """Convert SIA random effects to probabilities."""
-    vals_rescaled = scale * sia_re + np.log(center / (1 - center))  # Center & scale the random effects (source = Hil???)
+    vals_rescaled = scale * sia_re + np.log(center / (1 - center))  # Center & scale the random effects
     sia_probs = inv_logit(vals_rescaled)  # Convert to probabilities
     return sia_probs
 

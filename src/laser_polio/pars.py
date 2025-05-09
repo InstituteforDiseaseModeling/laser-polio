@@ -49,6 +49,7 @@ default_pars = PropertySet(
         "vx_prob_ri": None,  # Should include coverage and efficacy from expected number of RI doses
         "sia_schedule": None,
         "vx_prob_sia": None,
+        "missed_frac": 0.0,  # Fraction of population that's inaccessible to vaccination
         "vx_efficacy": {
             "perfect": 1.0,
             "bOPV": 0,

@@ -1,16 +1,20 @@
 # PRIORITIES
 
 @Steve
-- Check on what's happening at t=19 and t=129
-- Check sus in Jigawa & Zamfara @ time of seeds
-- Check r0_scalars for above as well
-- Plot frac sus in Nigeria
-- Check SIA coverage & immunity over time in both areas
 - Try adding weights to yearly cases and timeseries
+- Try adding distance from origin as a calib target
+- Try calibrating risk_mult_var to adjust individual heterogeneity
+- Try calibrating the r0_scalar parameters in run_sim (24 and 0.2)
+- Try calibrating the sia rand effects center and scale values
+- Try finer spatial resolution
+- Try calibrating the sia rand effects center and scale values
+- Check r0_scalars for above as well
 - New model features
 - Are pops reproducible from seeds? Does pop with run seed=1 & sim seed=1 produce the same as a sim with seed of 1 without init_pop
 - Try calibrating to synthetic data for Zamfara (I sent copy to Dan)
 - Sample radiation_k on log scale
+- Plot all data inputs for sanity checks
+- fix test_sia_schedule() - number of recovered inidividuals does not match expected value
 
 CALIBRATION
 - increase parallelism to 100

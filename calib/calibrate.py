@@ -18,16 +18,22 @@ CONTEXT_SETTINGS = {"help_option_names": ["--help"], "terminal_width": 240}
 if os.getenv("POLIO_ROOT"):
     lp.root = Path(os.getenv("POLIO_ROOT"))
 
-# ------------------- USER CONFIG -------------------
+# ------------------- USER CONFIGS -------------------
+
+study_name = "calib_nigeria_6y_node_counts_20250508"
+model_config = "config_nigeria_6y_load_init_pop.yaml"
+calib_config = "r0_k_ssn.yaml"
+fit_function = "log_likelihood"
 num_trials = 2
-study_name = "calib_nigeria_6y_neds_config_20250507"
-calib_config_path = lp.root / "calib/calib_configs/r0_k_ssn.yaml"
-model_config_path = lp.root / "calib/model_configs/config_nigeria_6y_load_init_pop.yaml"
-fit_function = "log_likelihood"  # options are "log_likelihood" or "mse"
+n_replicates = 1  # Number of replicates to run for each trial
+
+# ---------------------------------------------------
+
+# Set up paths
+model_config_path = lp.root / "calib/model_configs" / model_config
+calib_config_path = lp.root / "calib/calib_configs" / calib_config
 results_path = lp.root / "results" / study_name
 actual_data_file = lp.root / "results" / study_name / "actual_data.csv"
-n_replicates = 1  # Number of replicates to run for each trial
-# ---------------------------------------------------
 
 
 def main(model_config, results_path, study_name, fit_function="mse", **kwargs):

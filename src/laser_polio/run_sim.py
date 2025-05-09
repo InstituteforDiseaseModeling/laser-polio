@@ -96,7 +96,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values
     # reff_re = df_comp.set_index("dot_name").loc[dot_names, "reff_random_effect"].values
     # TODO Need to REDO random effect probs since they might've been based on the wrong data. Also, need to do the processing before filtering because of the centering & scaling
-    sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re)
+    sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=0.5, scale=1.0)
     # r0_scalars = lp.calc_r0_scalars_from_rand_eff(reff_re)
     # Calcultate geographic R0 modifiers based on underweight data (one for each node)
     underwt = df_comp.set_index("dot_name").loc[dot_names, "prop_underwt"].values
