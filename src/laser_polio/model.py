@@ -969,331 +969,6 @@ class DiseaseState_ABM:
             plt.show()
 
 
-@nb.njit(parallel=True)
-def compute_beta_ind_sums(node_ids, daily_infectivity, disease_state, num_nodes):
-    num_threads = nb.get_num_threads()
-
-    # Create a thread-local storage (TLS) array for each thread
-    beta_sums_tls = np.zeros((num_threads, num_nodes), dtype=np.float64)
-
-    # Each thread works on its own local accumulator
-    for i in nb.prange(len(node_ids)):
-        if disease_state[i] == 2:  # Only process infected individuals
-            thread_id = nb.get_thread_id()
-            node = node_ids[i]
-            beta_sums_tls[thread_id, node] += daily_infectivity[i]  # Local accumulation
-
-    beta_sums = beta_sums_tls.sum(axis=0)  # Sum across threads
-
-    return beta_sums
-
-
-@nb.njit(parallel=True)
-def compute_infections_nb(num_nodes, num_people, disease_state, node_id, acq_risk_multiplier):
-    """
-    Return an array "exposure_sums" where exposure_sums[node] is the sum of
-    probabilities for susceptible individuals in that node.
-    """
-
-    # Thread-local storage
-    tl_sums = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float64)
-
-    for i in nb.prange(num_people):
-        if disease_state[i] == 0:  # susceptible
-            tl_sums[nb.get_thread_id(), node_id[i]] += acq_risk_multiplier[i]
-
-    exposure_sums = tl_sums.sum(axis=0)  # Sum across threads
-
-    return exposure_sums
-
-
-def classic_infect(node_ids, exposure_probs, disease_state, new_infections):
-    """
-    Classic agent-level infection: for each susceptible agent, draw a random number and expose if r < p.
-
-    This function is compatible with the fast_infect() signature and can be swapped in via 'infection_method' param.
-
-    Parameters:
-        node_ids (np.ndarray): Array of node IDs for each person (int32).
-        exposure_probs (np.ndarray): Per-agent exposure probability (float32, [0, 1]).
-        disease_state (np.ndarray): Array of disease states (0 = S, 1 = E, 2 = I, 3 = R).
-        new_infections (np.ndarray): Ignored in this function; included for API compatibility.
-
-    Returns:
-        new_exposures_by_node (np.ndarray): Number of new exposures assigned per node.
-    """
-    susceptible = disease_state == 0
-    rand_vals = np.random.rand(len(disease_state))
-    will_be_exposed = (rand_vals < exposure_probs) & susceptible
-
-    # Expose the selected individuals
-    disease_state[will_be_exposed] = 1
-
-    # Tally new exposures per node
-    n_nodes = new_infections.shape[0]
-    exposed_nodes = node_ids[will_be_exposed]
-    new_exposures_by_node = np.bincount(exposed_nodes, minlength=n_nodes)
-
-    return new_exposures_by_node
-
-
-@nb.njit(parallel=True)
-def fast_infect(node_ids, exposure_probs, disease_state, new_infections):
-    """
-    A Numba-accelerated version of faster_infect.
-    Parallelizes over nodes, computing a CDF for each node's susceptible population.
-    Selects 'n_to_draw' indices via binary search of random values, and marks them as exposed.
-
-    NOTE: This version does NOT enforce uniqueness of selected indices within the same node.
-    """
-    num_nodes = len(new_infections)
-    n_people = len(node_ids)
-    n_new_exposures = np.zeros(num_nodes, dtype=np.int32)
-
-    # 1A) Calculate the number of susceptible individuals in each node
-    # This is done in parallel to speed up the process
-
-    # Thread-local storage
-    local_sums = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
-    # Parallel loop
-    for i in nb.prange(n_people):
-        if disease_state[i] == 0:  # susceptible
-            local_sums[nb.get_thread_id(), node_ids[i]] += 1
-    # Merge
-    susceptible_sums = local_sums.sum(axis=0)  # Sum across threads
-
-    for node in nb.prange(num_nodes):
-        n_to_draw = new_infections[node]
-        if n_to_draw <= 0:
-            continue
-
-        # 1B) Get and check count of susceptible agents in _this_ node
-        sus_count = susceptible_sums[node]
-        if sus_count == 0:
-            continue
-
-        # Step 2: Collect indices of susceptible individuals in this node
-        # and copy their exposure probabilities into a new array
-        # We need the copy in case we need to retry sampling to get unique indices
-        sus_indices = np.empty(sus_count, dtype=np.int32)
-        sus_probs = np.empty(sus_count, dtype=np.float32)
-        idx = 0
-        for i in range(n_people):
-            if (node_ids[i] == node) and (disease_state[i] == 0):
-                sus_indices[idx] = i
-                sus_probs[idx] = exposure_probs[i]
-                idx += 1
-
-        # Step 3: Choose unique indices from susceptible population
-        # using variation of NumPy random.choice()
-        n_uniq = 0  # How many unique indices have we selected so far
-        p = sus_probs  # alias sus_probs because the original algorithm uses p
-        size = n_to_draw  # alias n_to_draw because the original algorithm uses size
-        while n_uniq < size:
-            # The magic is here with the random probes, the cumulative sum of the weights,
-            # which effectively makes each index scaled by its weight,
-            # and the binary search to find the indices.
-
-            # Easy example, imagine two susceptible individuals, one with p=0.1 and one with p=0.9
-            # If we draw a random number x in [0..1), we can find the index of the individual
-            # that will be exposed by searching for the index of the first element in the cumulative
-            # sum of the weights that is greater than x, which is much more likely to be the second
-            # individual than the first.
-
-            x = np.random.rand(size - n_uniq)  # Random values for sampling [0..1)
-            cdf = np.cumsum(p)  # cumsum of weights for searching
-            if cdf[-1] == 0:  # exit early if no susceptibles remaining
-                break
-            # Binary search for indices, modify x to be in [0..cdf[-1])
-            # One multiply vs thousands of divides for cdf /= cdf[-1]
-            indices = np.searchsorted(cdf, x * cdf[-1], side="right")
-            indices = np.unique(indices)  # unique indices only
-            disease_state[sus_indices[indices]] = 1  # expose the chosen individuals
-            n_new_exposures[node] += indices.size  # update the count with new exposures
-            n_uniq += indices.size  # update the number of unique indices selected
-            if n_uniq < size:  # if we haven't selected enough unique indices, we need to retry
-                p[indices] = 0.0  # set the probabilities for the selected indices to zero
-
-    return n_new_exposures
-
-
-@nb.njit(parallel=True)
-def fast_infect2(
-    num_nodes,
-    sus_by_node,
-    disease_state,
-    new_infections,
-    sus_indices_in,
-    sus_probs_in,
-    offsets,
-):
-    """
-    A Numba-accelerated version of faster_infect.
-    Parallelizes over nodes, computing a CDF for each node's susceptible population.
-    Selects 'n_to_draw' indices via binary search of random values, and marks them as exposed.
-
-    NOTE: This version does NOT enforce uniqueness of selected indices within the same node.
-    """
-    n_new_exposures = np.zeros(num_nodes, dtype=np.int32)
-
-    for node in nb.prange(num_nodes):
-        n_to_draw = new_infections[node]
-        if n_to_draw <= 0:
-            continue
-
-        # 1B) Get and check count of susceptible agents in _this_ node
-        sus_count = sus_by_node[node]
-        if sus_count == 0:
-            continue
-
-        sus_indices = sus_indices_in[offsets[node] : offsets[node] + sus_by_node[node]]
-        sus_probs = sus_probs_in[offsets[node] : offsets[node] + sus_by_node[node]]
-
-        # Step 3: Choose unique indices from susceptible population
-        # using variation of NumPy random.choice()
-        n_uniq = 0  # How many unique indices have we selected so far
-        p = sus_probs  # alias sus_probs because the original algorithm uses p
-        size = n_to_draw  # alias n_to_draw because the original algorithm uses size
-        while n_uniq < size:
-            # The magic is here with the random probes, the cumulative sum of the weights,
-            # which effectively makes each index scaled by its weight,
-            # and the binary search to find the indices.
-
-            # Easy example, imagine two susceptible individuals, one with p=0.1 and one with p=0.9
-            # If we draw a random number x in [0..1), we can find the index of the individual
-            # that will be exposed by searching for the index of the first element in the cumulative
-            # sum of the weights that is greater than x, which is much more likely to be the second
-            # individual than the first.
-
-            x = np.random.rand(size - n_uniq)  # Random values for sampling [0..1)
-            cdf = np.cumsum(p)  # cumsum of weights for searching
-            if cdf[-1] == 0:  # exit early if no susceptibles remaining
-                break
-            # Binary search for indices, modify x to be in [0..cdf[-1])
-            # One multiply vs thousands of divides for cdf /= cdf[-1]
-            indices = np.searchsorted(cdf, x * cdf[-1], side="right")
-            indices = np.unique(indices)  # unique indices only
-            disease_state[sus_indices[indices]] = 1  # expose the chosen individuals
-            n_new_exposures[node] += indices.size  # update the count with new exposures
-            n_uniq += indices.size  # update the number of unique indices selected
-            if n_uniq < size:  # if we haven't selected enough unique indices, we need to retry
-                p[indices] = 0.0  # set the probabilities for the selected indices to zero
-
-    return n_new_exposures
-
-
-def efsp_infect(node_ids, exposure_probs, disease_state, new_infections):
-    """
-    Infect agents using precomputed number of infections per node, using Efraimidis-Spirakis
-    weighted sampling without replacement.
-
-    Parameters:
-        node_ids (np.ndarray): Array of node IDs per agent (int32).
-        exposure_probs (np.ndarray): Exposure probabilities (float32).
-        disease_state (np.ndarray): Disease states (0 = S, 1 = E, 2 = I, 3 = R).
-        new_infections (np.ndarray): Number of infections to assign per node (int32).
-
-    Returns:
-        np.ndarray: Number of new exposures assigned per node (same shape as new_infections).
-    """
-    n_nodes = new_infections.shape[0]
-    new_exposures_by_node = np.zeros(n_nodes, dtype=np.int32)
-
-    # Loop over each node with infections to assign
-    for node in np.flatnonzero(new_infections):
-        # Get agent indices for this node
-        in_node = np.flatnonzero((node_ids == node) & (disease_state == 0))
-        if in_node.size == 0:
-            continue
-
-        # Weights for these susceptible individuals
-        weights = exposure_probs[in_node]
-        weights = np.clip(weights, 1e-8, 1.0)  # Avoid division by 0 or unstable keys
-
-        k = min(new_infections[node], in_node.size)  # Can't infect more than available
-        if k == 0:
-            continue
-
-        # Efraimidis-Spirakis: sample k indices based on weights
-        keys = np.log(np.random.rand(in_node.size)) / weights
-        top_k_indices = np.argpartition(keys, k)[:k]
-        selected_agents = in_node[top_k_indices]
-
-        # Infect them
-        disease_state[selected_agents] = 1
-        new_exposures_by_node[node] = k
-
-    return new_exposures_by_node
-
-
-def chunk_infect(node_ids, exposure_probs, disease_state, new_infections, chunk_size=1000):
-    """
-    Efficiently sample exactly the specified number of new infections from weighted susceptibles in each node.
-
-    Parameters:
-        node_ids (np.ndarray): Array of node IDs for each person.
-        exposure_probs (np.ndarray): Per-person exposure probability (not necessarily normalized).
-        disease_state (np.ndarray): Array of disease states (0 = susceptible).
-        new_infections (np.ndarray): Number of infections to assign per node.
-        chunk_size (int): How many agents to process at once per chunk.
-
-    Returns:
-        infected_by_node (np.ndarray): Array of actual infections performed per node.
-        And updates disease_state in place (sets selected susceptibles to 1).
-
-    """
-    num_nodes = len(new_infections)
-    infected_by_node = np.zeros(num_nodes, dtype=np.int32)
-
-    for node in range(num_nodes):
-        n_draw = new_infections[node]
-        if n_draw <= 0:
-            continue
-        selected = set()  # Store indices to infect
-
-        # Step 1: Get susceptible individuals in this node
-        susceptible = (node_ids == node) & (disease_state == 0)
-        sus_indices = np.where(susceptible)[0]
-        if len(sus_indices) == 0:
-            continue
-
-        # Step 2: Chunking loop
-        for chunk_start in range(0, len(sus_indices), chunk_size):
-            chunk_sus_inds = sus_indices[chunk_start : chunk_start + chunk_size]  # Get the sus indices in the chunk
-            chunk_probs = exposure_probs[chunk_sus_inds]  # Get the exposure probabilities for sus in the chunk
-
-            # Calc the number of infections to make in this chunk
-            prob_sum = np.sum(chunk_probs)  # Sum the exposure probabilities in the chunk
-            if prob_sum == 0:
-                continue
-
-            weights = chunk_probs / prob_sum  # Normalize the probabilities since np.random.choice expects p to sum to 1
-            k = min(n_draw - len(selected), len(chunk_sus_inds))  # Number of draws to make in this chunk
-            if k <= 0:
-                break
-
-            # Select individuals to infect
-            draws = np.random.choice(chunk_sus_inds, size=k, replace=False, p=weights)
-            selected.update(draws)
-
-            if len(selected) >= n_draw:
-                break
-
-        # Optional fallback if we still haven't filled the target
-        if len(selected) < n_draw:
-            missing = n_draw - len(selected)
-            fallback_pool = np.setdiff1d(sus_indices, list(selected), assume_unique=True)
-            fill = fallback_pool[:missing]  # take as many as we can
-            selected.update(fill)
-
-        # Step 3: Infect selected individuals
-        selected = list(selected)[:n_draw]  # clip if over-selected
-        disease_state[selected] = 1
-        infected_by_node[node] = len(selected)
-
-    return infected_by_node
-
-
 @nb.njit((nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32), nogil=True)  # , cache=True)
 def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
     """
@@ -1342,15 +1017,7 @@ def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
 
 
 @nb.njit(parallel=True)
-def get_exposure_probs(num_people, node_ids, base_prob_infection, risk, exposure_probs):
-    for i in nb.prange(num_people):
-        exposure_probs[i] = base_prob_infection[node_ids[i]] * risk[i]
-
-    return
-
-
-@nb.njit(parallel=True)
-def tx_step_nb(
+def tx_step_prep_nb(
     num_nodes,
     num_people,
     disease_states,
@@ -1361,7 +1028,6 @@ def tx_step_nb(
     r0_scalars,
     alive_counts,
     risks,
-    exposure_probs,
     sus_indices,
     sus_probs,
 ):
@@ -1392,9 +1058,6 @@ def tx_step_nb(
 
     exposure_by_node *= base_prob_inf  # Scale by base infection probability
 
-    for i in nb.prange(num_people):
-        exposure_probs[i] = base_prob_inf[node_ids[i]] * risks[i]
-
     new_infections = np.empty(num_nodes, dtype=np.int32)
     for i in nb.prange(num_nodes):
         new_infections[i] = np.random.poisson(exposure_by_node[i])
@@ -1406,12 +1069,74 @@ def tx_step_nb(
     for i in range(num_people):
         nid = node_ids[i]
         if new_infections[nid] > 0 and disease_states[i] == 0:
-            idx = active_indices[node_ids[i]]
+            idx = active_indices[nid]
             sus_indices[idx] = i
-            sus_probs[idx] = exposure_probs[i]
-            active_indices[node_ids[i]] = idx + 1
+            sus_probs[idx] = risks[i] * base_prob_inf[nid]
+            active_indices[nid] = idx + 1
 
     return beta_by_node, base_prob_inf, exposure_by_node, new_infections, sus_by_node, offsets
+
+
+@nb.njit(parallel=True)
+def tx_infect_nb(
+    num_nodes,
+    sus_by_node,
+    disease_state,
+    new_infections,
+    sus_indices_in,
+    sus_probs_in,
+    offsets,
+):
+    """
+    Parallelizes over nodes, computing a CDF for each node's susceptible population.
+    Selects 'n_to_draw' indices via binary search of random values, and marks them as exposed.
+    """
+    n_new_exposures = np.zeros(num_nodes, dtype=np.int32)
+
+    for node in nb.prange(num_nodes):
+        n_to_draw = new_infections[node]
+        if n_to_draw <= 0:
+            continue
+
+        # 1B) Get and check count of susceptible agents in _this_ node
+        sus_count = sus_by_node[node]
+        if sus_count == 0:
+            continue
+
+        sus_indices = sus_indices_in[offsets[node] : offsets[node] + sus_by_node[node]]
+        sus_probs = sus_probs_in[offsets[node] : offsets[node] + sus_by_node[node]]
+
+        # Step 3: Choose unique indices from susceptible population
+        # using variation of NumPy random.choice()
+        n_uniq = 0  # How many unique indices have we selected so far
+        p = sus_probs  # alias sus_probs because the original algorithm uses p
+        size = n_to_draw  # alias n_to_draw because the original algorithm uses size
+        while n_uniq < size:
+            # The magic is here with the random probes, the cumulative sum of the weights,
+            # which effectively makes each index scaled by its weight,
+            # and the binary search to find the indices.
+
+            # Easy example, imagine two susceptible individuals, one with p=0.1 and one with p=0.9
+            # If we draw a random number x in [0..1), we can find the index of the individual
+            # that will be exposed by searching for the index of the first element in the cumulative
+            # sum of the weights that is greater than x, which is much more likely to be the second
+            # individual than the first.
+
+            x = np.random.rand(size - n_uniq)  # Random values for sampling [0..1)
+            cdf = np.cumsum(p)  # cumsum of weights for searching
+            if cdf[-1] == 0:  # exit early if no susceptibles remaining
+                break
+            # Binary search for indices, modify x to be in [0..cdf[-1])
+            # One multiply vs thousands of divides for cdf /= cdf[-1]
+            indices = np.searchsorted(cdf, x * cdf[-1], side="right")
+            indices = np.unique(indices)  # unique indices only
+            disease_state[sus_indices[indices]] = 1  # expose the chosen individuals
+            n_new_exposures[node] += indices.size  # update the count with new exposures
+            n_uniq += indices.size  # update the number of unique indices selected
+            if n_uniq < size:  # if we haven't selected enough unique indices, we need to retry
+                p[indices] = 0.0  # set the probabilities for the selected indices to zero
+
+    return n_new_exposures
 
 
 class Transmission_ABM:
@@ -1563,19 +1288,6 @@ class Transmission_ABM:
 
         self.sim.results.add_array_property("new_exposed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
 
-        # Map infection method to function
-        method = self.pars["infection_method"].lower()
-        if method == "fast":
-            self.infect_fn = fast_infect
-        elif method == "classic":
-            self.infect_fn = classic_infect
-        elif method == "efsp":
-            self.infect_fn = efsp_infect
-        else:
-            raise ValueError(f"Unknown infection method: {method}")
-
-        self.exposure_probs = np.zeros(self.people.capacity, dtype=np.float64)
-
         return
 
     def step(self):
@@ -1621,7 +1333,7 @@ class Transmission_ABM:
 
             # Include seasonal & geographic modifiers
             beta_seasonality = lp.get_seasonality(self.sim)
-            beta, base_prob_infection, exposure_sums, new_infections, sus_by_node, offsets = tx_step_nb(
+            beta, base_prob_infection, exposure_sums, new_infections, sus_by_node, offsets = tx_step_prep_nb(
                 num_nodes,
                 num_people,
                 disease_state,
@@ -1632,7 +1344,6 @@ class Transmission_ABM:
                 self.r0_scalars,
                 alive_counts,
                 risk,
-                self.exposure_probs,
                 self.people.sus_indices,
                 self.people.sus_probs,
             )
@@ -1649,13 +1360,12 @@ class Transmission_ABM:
                 logger.info(f"Exp inf (sans acq risk): {fmt(num_susceptibles * base_prob_infection, 2)}")
 
         with self.step_stats.start("Part 6"):
-            # 6) Draw n_expected_exposures for each node according to their exposure_probs
+            # 6) Distribute new infections
 
             if self.verbose >= 3:
                 disease_state_pre_infect = disease_state.copy()
 
-            # new_exposed = self.infect_fn(node_ids, self.exposure_probs, disease_state, new_infections)
-            new_exposed = fast_infect2(
+            new_exposed = tx_infect_nb(
                 num_nodes,
                 sus_by_node,
                 disease_state,
