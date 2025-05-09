@@ -1022,15 +1022,17 @@ def tx_step_prep_nb(
     num_people,
     disease_states,
     node_ids,
-    daily_infectivity,
+    daily_infectivity,  # per agent infectivity/shedding (heterogeneous)
     network,
-    seasonality,
-    r0_scalars,
-    alive_counts,
-    risks,
-    sus_indices,
-    sus_probs,
+    seasonality,  # per node seasonality factor
+    r0_scalars,  # per node R0 scaling factor
+    alive_counts,  # number of alive agents per node (for scaling)
+    risks,  # per agent susceptibility (heterogeneous)
 ):
+    # Step 1: Use parallelized loop to obtain per node sums or counts of:
+    #  - exposure (susceptibility/node)
+    #  - susceptible individuals (count/node)
+    #  - beta (infectivity/node)
     tl_beta_by_node = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float64)
     tl_exposure_by_node = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float64)
     tl_sus_by_node = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
@@ -1047,50 +1049,80 @@ def tx_step_prep_nb(
     exposure_by_node = tl_exposure_by_node.sum(axis=0)
     sus_by_node = tl_sus_by_node.sum(axis=0)  # Sum across threads
 
+    # Step 2: Compute the force of infection for each node accounting for immigration and emmigration
     transfer = beta_by_node * network
     beta_by_node += transfer.sum(axis=1) - transfer.sum(axis=0)  # Add incoming, subtract outgoing
     beta_by_node = np.maximum(beta_by_node, 0)
 
+    # Step 3: Scale by seasonality and R0 scalars
     beta_by_node = beta_by_node * seasonality * r0_scalars
 
+    # Step 4: Compute the exposure rate for each node
+    #   - convert total FOI to per-agent exposure rate
+    #   - convert rate to probability of infection
     per_agent_inf_rate = beta_by_node / np.maximum(alive_counts, 1)  # Avoid div by zero
     base_prob_inf = 1 - np.exp(-per_agent_inf_rate)  # Convert to probability of infection
 
     exposure_by_node *= base_prob_inf  # Scale by base infection probability
 
+    # Step 5: Compute the number of new infections per node
     new_infections = np.empty(num_nodes, dtype=np.int32)
     for i in nb.prange(num_nodes):
         new_infections[i] = np.random.poisson(exposure_by_node[i])
 
-    offsets = np.zeros(num_nodes, dtype=np.int32)
-    offsets[1:] = sus_by_node[:-1].cumsum()
-    active_indices = np.empty(num_nodes, dtype=np.int32)
-    active_indices[:] = offsets
-    for i in range(num_people):
-        nid = node_ids[i]
-        if new_infections[nid] > 0 and disease_states[i] == 0:
-            idx = active_indices[nid]
-            sus_indices[idx] = i
-            sus_probs[idx] = risks[i] * base_prob_inf[nid]
-            active_indices[nid] = idx + 1
-
-    return beta_by_node, base_prob_inf, exposure_by_node, new_infections, sus_by_node, offsets
+    return beta_by_node, base_prob_inf, exposure_by_node, new_infections, sus_by_node
 
 
 @nb.njit(parallel=True)
 def tx_infect_nb(
     num_nodes,
+    num_people,
     sus_by_node,
+    node_ids,
     disease_state,
+    sus_indices_storage,
+    sus_probs_storage,
+    risks,
+    base_prob_inf,
     new_infections,
-    sus_indices_in,
-    sus_probs_in,
-    offsets,
 ):
     """
     Parallelizes over nodes, computing a CDF for each node's susceptible population.
     Selects 'n_to_draw' indices via binary search of random values, and marks them as exposed.
     """
+
+    # Susceptible agents in a node are _not_ necessarily contiguous in the array because
+    #   a) disease dynamics (some E, I, and R) and
+    #   b) vital dynamics (some dead/inactive)
+    # So we need to create a mapping, in contiguous memory, of all the susceptible agents for a (each) node
+    # We also need the heterogeneous susceptibility (risks) for each susceptible agent
+
+    # If there are, e.g., [50, 20, 18, 91] susceptibles in each node, we "reserve" that many slots in sus_indices
+    # and sus_probs by setting the offsets for each node to [0, 50, 70, 88]. I.e., the indices of susceptible agents
+    # for node 0 start at sus_indices[0], node 1 at sus_indices[50], etc.
+    # Then we track how many slots we have used with next_index which we increment as we fill in the slots.
+
+    # At the end, the first 50 entries of sus_indices will have the indices of the susceptible agents in node 0,
+    # the next 20 will have the indices of the susceptible agents in node 1, etc.
+    # The values in sus_probs will be the susceptibility of each of those agents.
+
+    # If later we want to access or process the susceptible agents in node 2 (and we do want), for example,
+    #  we can do so by using
+    #   sus_indices[offsets[2]:offsets[2] + sus_by_node[2]] (sus_indices[70:88]) and
+    #   sus_probs[offsets[2]:offsets[2] + sus_by_node[2]] (sus_probs[70:88]).
+
+    offsets = np.zeros(num_nodes, dtype=np.int32)
+    offsets[1:] = sus_by_node[:-1].cumsum()
+    next_index = np.empty(num_nodes, dtype=np.int32)
+    next_index[:] = offsets
+    for i in range(num_people):
+        nid = node_ids[i]
+        if (new_infections[nid] > 0) and (disease_state[i] == 0):
+            idx = next_index[nid]
+            sus_indices_storage[idx] = i
+            sus_probs_storage[idx] = risks[i] * base_prob_inf[nid]
+            next_index[nid] = idx + 1
+
     n_new_exposures = np.zeros(num_nodes, dtype=np.int32)
 
     for node in nb.prange(num_nodes):
@@ -1103,8 +1135,8 @@ def tx_infect_nb(
         if sus_count == 0:
             continue
 
-        sus_indices = sus_indices_in[offsets[node] : offsets[node] + sus_by_node[node]]
-        sus_probs = sus_probs_in[offsets[node] : offsets[node] + sus_by_node[node]]
+        sus_indices = sus_indices_storage[offsets[node] : offsets[node] + sus_by_node[node]]
+        sus_probs = sus_probs_storage[offsets[node] : offsets[node] + sus_by_node[node]]
 
         # Step 3: Choose unique indices from susceptible population
         # using variation of NumPy random.choice()
@@ -1333,7 +1365,7 @@ class Transmission_ABM:
 
             # Include seasonal & geographic modifiers
             beta_seasonality = lp.get_seasonality(self.sim)
-            beta, base_prob_infection, exposure_sums, new_infections, sus_by_node, offsets = tx_step_prep_nb(
+            beta, base_prob_infection, exposure_sums, new_infections, sus_by_node = tx_step_prep_nb(
                 num_nodes,
                 num_people,
                 disease_state,
@@ -1344,8 +1376,6 @@ class Transmission_ABM:
                 self.r0_scalars,
                 alive_counts,
                 risk,
-                self.people.sus_indices,
-                self.people.sus_probs,
             )
 
             if self.verbose >= 3:
@@ -1367,12 +1397,15 @@ class Transmission_ABM:
 
             new_exposed = tx_infect_nb(
                 num_nodes,
+                num_people,
                 sus_by_node,
+                node_ids,
                 disease_state,
-                new_infections,
                 self.people.sus_indices,
                 self.people.sus_probs,
-                offsets,
+                risk,
+                base_prob_infection,
+                new_infections,
             )
 
             self.sim.results.new_exposed[self.sim.t, :] = new_exposed
