@@ -22,6 +22,7 @@ include README.rst
 recursive-include examples *
 
 exclude TODO.md
+exclude tests/data/initpop_testcase/init_pop.h5
 exclude .vscode/settings.json
 recursive-exclude calib *
 recursive-exclude data *

@@ -35,9 +35,9 @@ def test_init_pop_loading(tmp_path):
         "seed": 123,
     }
 
-    if not init_file.exists():
-        init_dir.mkdir(parents=True, exist_ok=True)
-        run_sim(**config, results_path=init_dir, run=False)
+    # Always create a fresh init file.
+    init_dir.mkdir(parents=True, exist_ok=True)
+    run_sim(**config, results_path=init_dir, run=False)
 
     # Load-from-disk sim
     sim_loaded = run_sim(
