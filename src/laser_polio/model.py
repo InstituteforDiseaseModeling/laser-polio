@@ -1181,17 +1181,14 @@ class Transmission_ABM:
         self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Stash the R0 scaling factor
-        self.r0_scalars = self.pars.r0_scalars
+        self.r0_scalars = np.array(self.pars.r0_scalars)
 
         self.people.add_scalar_property("acq_risk_multiplier", dtype=np.float32, default=1.0)
         self.people.add_scalar_property("daily_infectivity", dtype=np.float32, default=1.0)
         self._initialize_people_fields()
         self._initialize_common()
 
-        self.people.add_scalar_property("sus_indices", dtype=np.int32, default=0)
-        self.people.add_scalar_property("sus_probs", dtype=np.float32, default=0.0)
-
-        self.step_stats = TimingStats()
+        return
 
     @classmethod
     def init_from_file(cls, sim):
@@ -1319,6 +1316,11 @@ class Transmission_ABM:
         self.do_ni_time = 0
 
         self.sim.results.add_array_property("new_exposed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+
+        self.people.add_scalar_property("sus_indices", dtype=np.int32, default=0)
+        self.people.add_scalar_property("sus_probs", dtype=np.float32, default=0.0)
+
+        self.step_stats = TimingStats()
 
         return
 
