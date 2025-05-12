@@ -1130,7 +1130,7 @@ def tx_infect_nb(
         if n_to_draw <= 0:
             continue
 
-        # 1B) Get and check count of susceptible agents in _this_ node
+        # Get and check count of susceptible agents in _this_ node
         sus_count = sus_by_node[node]
         if sus_count == 0:
             continue
@@ -1138,7 +1138,7 @@ def tx_infect_nb(
         sus_indices = sus_indices_storage[offsets[node] : offsets[node] + sus_by_node[node]]
         sus_probs = sus_probs_storage[offsets[node] : offsets[node] + sus_by_node[node]]
 
-        # Step 3: Choose unique indices from susceptible population
+        # Choose unique indices from susceptible population
         # using variation of NumPy random.choice()
         n_uniq = 0  # How many unique indices have we selected so far
         p = sus_probs  # alias sus_probs because the original algorithm uses p
@@ -1330,16 +1330,23 @@ class Transmission_ABM:
             logger.info(f"TIMESTEP: {self.sim.t}")
 
         with self.step_stats.start("Part 1"):
-            # 1) Sum up the total amount of infectivity shed by all infectious agents within a node.
-
+            # 1) Stash variables for later use
             disease_state = self.people.disease_state[: self.people.count]
             node_ids = self.people.node_id[: self.people.count]
             infectivity = self.people.daily_infectivity[: self.people.count]
             risk = self.people.acq_risk_multiplier[: self.people.count]
-
             num_nodes = len(self.nodes)
             num_people = self.sim.people.count
+            alive_counts = (
+                self.sim.results.S[self.sim.t - 1]
+                + self.sim.results.E[self.sim.t - 1]
+                + self.sim.results.I[self.sim.t - 1]
+                + self.sim.results.R[self.sim.t - 1]
+                + self.sim.results.births[self.sim.t]
+                - self.sim.results.deaths[self.sim.t]
+            )
 
+            # Manual validation
             if self.verbose >= 3:
                 n_infected = []
                 for node in self.sim.nodes:
@@ -1351,21 +1358,8 @@ class Transmission_ABM:
                 exp_node_beta_sums = n_infected * self.sim.pars.r0 / np.mean(self.sim.pars.dur_inf(1000))
                 logger.info(f"Expected node beta sums: {fmt(exp_node_beta_sums, 2)}")
 
-        with self.step_stats.start("Part 4"):
-            # 4) Calculate base probability for each agent to become exposed
-            alive_counts = (
-                self.sim.results.S[self.sim.t - 1]
-                + self.sim.results.E[self.sim.t - 1]
-                + self.sim.results.I[self.sim.t - 1]
-                + self.sim.results.R[self.sim.t - 1]
-                + self.sim.results.births[self.sim.t]
-                - self.sim.results.deaths[self.sim.t]
-            )
-
-        with self.step_stats.start("Part 5"):
-            # 5) Calculate infections
-
-            # Include seasonal & geographic modifiers
+        with self.step_stats.start("Part 2"):
+            # 2) Compute force of infection, scale by seasonality and geographic scalars, and compute the number of new exposures
             beta_seasonality = lp.get_seasonality(self.sim)
             beta, base_prob_infection, exposure_sums, new_infections, sus_by_node = tx_step_prep_nb(
                 num_nodes,
@@ -1380,23 +1374,19 @@ class Transmission_ABM:
                 risk,
             )
 
+            # Manual validation
             if self.verbose >= 3:
                 logger.info(f"beta_seasonality: {fmt(beta_seasonality, 2)}")
                 logger.info(f"R0 scalars: {fmt(self.r0_scalars, 2)}")
                 logger.info(f"beta: {fmt(beta, 2)}")
                 logger.info(f"Total beta: {fmt(beta.sum(), 2)}")
-
-            if self.verbose >= 3:
                 logger.info(f"Alive counts: {fmt(alive_counts, 2)}")
                 logger.info(f"Base prob infection: {fmt(base_prob_infection, 2)}")
                 logger.info(f"Exp inf (sans acq risk): {fmt(num_susceptibles * base_prob_infection, 2)}")
+                disease_state_pre_infect = disease_state.copy()  # Copy before infection
 
-        with self.step_stats.start("Part 6"):
-            # 6) Distribute new infections
-
-            if self.verbose >= 3:
-                disease_state_pre_infect = disease_state.copy()
-
+        with self.step_stats.start("Part 3"):
+            # 3) Distribute new exposures
             new_exposed = tx_infect_nb(
                 num_nodes,
                 num_people,
@@ -1409,8 +1399,9 @@ class Transmission_ABM:
                 base_prob_infection,
                 new_infections,
             )
-
             self.sim.results.new_exposed[self.sim.t, :] = new_exposed
+
+            # Manual validation
             if self.verbose >= 3:
                 logger.info(f"exposure_sums: {fmt(exposure_sums, 2)}")
                 logger.info(f"Expected new exposures: {new_infections}")
