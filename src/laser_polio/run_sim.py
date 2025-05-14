@@ -142,9 +142,21 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     # Dynamic values passed by user/CLI/Optuna
     pars = PropertySet({**base_pars, **configs})
 
-    # Print pars
+    # Plot pars
     # TODO: make this optional
-    # sc.pp(pars.to_dict())
+    sc.pp(pars.to_dict())
+    plot_pars = True
+    if plot_pars:
+        plot_path = results_path / "pars_plots"
+        Path(plot_path).mkdir(parents=True, exist_ok=True)
+        # Maps: n_ppl, cbr, init_immun, init_prev, r0_scalars
+        pars_to_map = ["n_ppl", "cbr", "init_prev", "r0_scalars"]
+        for par in pars_to_map:
+            values = pars[par]
+            lp.plot_choropleth_and_hist(shp, par, values, plot_path)
+        print(f"Saved choropleth maps to {plot_path}")
+    # TODO: special map: init_immun
+    # TODO: Other: age_pyramid_path, sia_schedule, vx_prob_ri, vx_prob_sia, seed_schedule
 
     def from_file(init_pop_file):
         sim = lp.SEIR_ABM.init_from_file(init_pop_file, pars)

@@ -1,5 +1,6 @@
 from .distributions import *  # noqa F403
 from .pars import *  # noqa F403
+from .plotting import *  # noqa F403
 from .model import *  # noqa F403
 from .run_sim import *  # noqa F403
 from pathlib import Path
