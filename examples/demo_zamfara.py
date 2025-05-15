@@ -24,6 +24,7 @@ seed_schedule = [
 ]
 save_plots = True
 save_data = False
+plot_pars = True
 seed = 1
 # Diffs from demo_zamfara_load_init_pop.py
 results_path = "results/demo_zamfara"
@@ -45,6 +46,7 @@ sim = lp.run_sim(
     results_path=results_path,
     save_plots=save_plots,
     save_data=save_data,
+    plot_pars=plot_pars,
     verbose=verbose,
     seed=seed,
     r0=r0,
