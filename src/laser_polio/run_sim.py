@@ -4,7 +4,6 @@ from pathlib import Path
 
 import click
 import geopandas as gpd
-import h5py
 import numpy as np
 import pandas as pd
 import sciris as sc
@@ -148,16 +147,11 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     def from_file(init_pop_file):
         #logger.info(f"Initializing SEIR_ABM from file: {init_pop_file}")
-        import pdb
-        pdb.set_trace()
-        with h5py.File(init_pop_file, "r") as hdf:
-            people = LaserFrameIO.load(hdf, "people")
-            results_r = LaserFrameIO.load(hdf, "recovered")
-            pars_loaded = LaserFrameIO.load(hdf, "pars")
-            if pars_loaded and "r0" in pars:
-                sim.pars.old_r0 = pars_loaded["r0"][()]  # [()] reads the scalar value
-    
+        people, results_R, pars_loaded = LaserFrameIO.load_snapshot(init_pop_file)
+
         sim = lp.SEIR_ABM.init_from_file(people, pars)
+        if pars_loaded and "r0" in pars_loaded:
+            sim.pars.old_r0 = pars_loaded["r0"]
         disease_state = lp.DiseaseState_ABM.init_from_file(sim)
         vd = lp.VitalDynamics_ABM.init_from_file(sim)
         sia = lp.SIA_ABM.init_from_file(sim)
@@ -180,16 +174,11 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     # Either initialize the sim from file or create a sim from scratch
     if init_pop_file:
-        if "people" not in h5py.File(init_pop_file, "r").keys() or "recovered" not in h5py.File(init_pop_file, "r").keys():
-            raise ValueError(f"Invalid init_pop_file: {init_pop_file} must contain 'people' and 'recovered' datasets.")
         sim = from_file(init_pop_file)
     else:
         sim = regular()
         if save_pop:
-            with h5py.File(results_path / "init_pop.h5", "w") as f:
-                LaserFrameIO.save(sim.people, f, "people")  # Save to 'people' group
-                LaserFrameIO.save(sim.results.R[:], f, "recovered")
-                LaserFrameIO.save(pars, f, "pars")
+            sim.people.save_snapshot( results_path / "init_pop.h5", sim.results.R[:], sim.pars )
 
     # Safety checks
     if verbose >= 3:

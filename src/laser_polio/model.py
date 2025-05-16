@@ -165,7 +165,7 @@ class SEIR_ABM:
                 capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, np.mean(pars.cbr)))
             else:
                 capacity = int(np.sum(pars.n_ppl))
-            self.people = LaserFrame(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
+            self.people = LaserFrameIO(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
             # We initialize disease_state here since it's required for most other components (which facilitates testing)
             self.people.add_scalar_property("disease_state", dtype=np.int32, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
             self.people.disease_state[: self.people.count] = 0  # Set initial population as susceptible
