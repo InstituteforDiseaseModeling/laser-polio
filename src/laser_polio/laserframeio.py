@@ -1,68 +1,82 @@
 import h5py
 import numpy as np
 from laser_core.laserframe import LaserFrame
+from laser_core.propertyset import PropertySet
 
 
 class LaserFrameIO(LaserFrame):
     @staticmethod
-    def save_to_group(frame, group, initial_populations=None, age_distribution=None, cumulative_deaths=None, eula_age=None):
+    def save(obj, parent_group, name):
         """
-        Save LaserFrameIO properties to an existing HDF5 group.
+        Save a LaserFrame, ndarray, scalar, or dict into an HDF5 group.
 
         Parameters:
-            frame: The LaserFrame object to save
-            group: An h5py.Group object
-            initial_populations: Optional array to save as attribute
-            age_distribution: Optional array to save as attribute
-            cumulative_deaths: Optional array to save as attribute
-            eula_age: Optional value to save as attribute
+            obj: The object to save.
+            parent_group: An h5py.File or h5py.Group.
+            name: The name of the dataset or subgroup to create.
         """
-        # Core frame attributes
-        group.attrs["count"] = frame._count
-        group.attrs["capacity"] = frame._capacity
+        #if hasattr(obj, "_count") and hasattr(obj, "_capacity"):
+        if isinstance(obj, LaserFrame):
+            group = parent_group.create_group(name)
+            group.attrs["count"] = obj._count
+            group.attrs["capacity"] = obj._capacity
 
-        # Optional metadata
-        if initial_populations is not None:
-            group.attrs["init_pops"] = initial_populations
-        if age_distribution is not None:
-            group.attrs["age_dist"] = age_distribution
-        if cumulative_deaths is not None:
-            group.attrs["cumulative_deaths"] = cumulative_deaths
-        if eula_age is not None:
-            group.attrs["eula_age"] = eula_age
+            for key in dir(obj):
+                if not key.startswith("_"):
+                    value = getattr(obj, key)
+                    if isinstance(value, np.ndarray):
+                        group.create_dataset(key, data=value[:obj._count])
 
-        # Save all np.ndarray properties
-        for key in dir(frame):
-            if not key.startswith("_"):
-                value = getattr(frame, key)
-                if isinstance(value, np.ndarray):
-                    data = value[: frame._count]
-                    group.create_dataset(key, data=data)
+        elif isinstance(obj, PropertySet):
+            group = parent_group.create_group(name)
+            for key, value in obj.to_dict().items():
+                try:
+                    group.create_dataset(key, data=value)
+                except TypeError:
+                    group.attrs[key] = str(value)
 
-    @classmethod
-    def load(cls, filename: str, capacity=None):
-        """Load a LaserFrameIO object from the 'people' group inside an HDF5 file."""
-        with h5py.File(filename, "r") as hdf:
-            if "people" not in hdf:
-                raise ValueError(f"No 'people' group found in {filename}")
-            group = hdf["people"]
+        elif isinstance(obj, (np.ndarray, int, float)):
+            parent_group.create_dataset(name, data=obj)
 
-            saved_count = int(group.attrs["count"])
-            saved_capacity = int(group.attrs["capacity"])
-            saved_capacity = int(1.5 * saved_count)  # hack
+        else:
+            raise TypeError(f"Unsupported object type for saving: {type(obj)}")
 
-            # Allow user override of capacity
-            final_capacity = capacity if capacity is not None else saved_capacity
+    @staticmethod
+    def load(f, name):
+        """
+        Load a known object from an HDF5 file by name.
 
-            # Initialize the LaserFrame
-            frame = cls(capacity=final_capacity, initial_count=saved_count)
+        Parameters:
+            f: h5py.File or h5py.Group (open in read mode)
+            name: "people", "recovered", or "pars"
 
-            # Recover properties
-            for key in group.keys():
+        Returns:
+            LaserFrame, ndarray, or dict depending on name
+        """
+        if name == "people":
+            group = f[name]
+            count = int(group.attrs["count"])
+            capacity = int(group.attrs["capacity"])
+            from laser_core import LaserFrame  # or however LaserFrame is imported
+            frame = LaserFrame(capacity=capacity, initial_count=count)
+
+            for key in group:
                 data = group[key][:]
                 dtype = data.dtype
                 frame.add_scalar_property(name=key, dtype=dtype, default=0)
-                setattr(frame, key, np.zeros(frame._capacity, dtype=dtype))  # Preallocate
-                getattr(frame, key)[:saved_count] = data  # Fill values up to saved count
+                setattr(frame, key, np.zeros(capacity, dtype=dtype))
+                getattr(frame, key)[:count] = data
 
             return frame
+
+        elif name == "recovered":
+            return f[name][()]  # returns full ndarray
+
+        elif name == "pars":
+            group = f[name]
+            d = {key: group[key][()] for key in group}
+            d.update(dict(group.attrs))
+            return d
+
+        else:
+            raise ValueError(f"Unsupported group name: {name}")
