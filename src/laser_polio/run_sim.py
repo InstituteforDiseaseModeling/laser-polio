@@ -191,11 +191,17 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         sc.pp(pars.to_dict())
 
     def from_file(init_pop_file):
-        sim = lp.SEIR_ABM.init_from_file(init_pop_file, pars)
+        #logger.info(f"Initializing SEIR_ABM from file: {init_pop_file}")
+        import pdb
+        pdb.set_trace()
         with h5py.File(init_pop_file, "r") as hdf:
-            results_R = hdf["recovered"][:]
-            if "pars" in hdf and "r0" in hdf["pars"]:
-                sim.pars.old_r0 = hdf["pars"]["r0"][()]  # [()] reads the scalar value
+            people = LaserFrameIO.load(hdf, "people")
+            results_r = LaserFrameIO.load(hdf, "recovered")
+            pars_loaded = LaserFrameIO.load(hdf, "pars")
+            if pars_loaded and "r0" in pars:
+                sim.pars.old_r0 = pars_loaded["r0"][()]  # [()] reads the scalar value
+    
+        sim = lp.SEIR_ABM.init_from_file(people, pars)
         disease_state = lp.DiseaseState_ABM.init_from_file(sim)
         vd = lp.VitalDynamics_ABM.init_from_file(sim)
         sia = lp.SIA_ABM.init_from_file(sim)
@@ -225,18 +231,10 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         sim = regular()
         if save_pop:
             with h5py.File(results_path / "init_pop.h5", "w") as f:
-                people_group = f.create_group("people")
-                LaserFrameIO.save_to_group(sim.people, people_group)  # Save to 'people' group
-                f.create_dataset("recovered", data=sim.results.R[:])  # Save the R result array
-                # Save parameters
-                pars_group = f.create_group("pars")
+                LaserFrameIO.save(sim.people, f, "people")  # Save to 'people' group
+                LaserFrameIO.save(sim.results.R[:], f, "recovered")
+                LaserFrameIO.save(pars, f, "pars")
 
-                for key, value in sim.pars.to_dict().items():
-                    # Handle only scalar and array-like values; skip unsupported types
-                    try:
-                        pars_group.create_dataset(key, data=value)
-                    except TypeError:
-                        pars_group.attrs[key] = str(value)  # Fallback: store as string attribute
     # Safety checks
     if verbose >= 3:
         print(f"sim.people.count: {sim.people.count}")

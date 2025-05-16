@@ -229,8 +229,7 @@ class SEIR_ABM:
             self._components = []
 
     @classmethod
-    def init_from_file(cls, filename: str, pars: PropertySet = None):
-        logger.info(f"Initializing SEIR_ABM from file: {filename}")
+    def init_from_file(cls, people, pars: PropertySet = None):
 
         # initialize model
         model = cls.__new__(cls)
@@ -247,7 +246,8 @@ class SEIR_ABM:
             capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), num_timesteps, pars.cbr[0]))
         elif (pars.cbr is not None) & (len(pars.cbr) > 1):
             capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), num_timesteps, np.mean(pars.cbr)))
-        model.people = LaserFrameIO.load(filename=filename, capacity=capacity)
+        model.people = people
+        model._capacity = capacity
 
         # Setup node list
         model.nodes = np.unique(model.people.node_id[: model.people.count])
@@ -1023,10 +1023,6 @@ def tx_step_prep_nb(
     disease_states,
     node_ids,
     daily_infectivity,  # per agent infectivity/shedding (heterogeneous)
-    network,
-    seasonality,  # per node seasonality factor
-    r0_scalars,  # per node R0 scaling factor
-    alive_counts,  # number of alive agents per node (for scaling)
     risks,  # per agent susceptibility (heterogeneous)
 ):
     # Step 1: Use parallelized loop to obtain per node sums or counts of:
@@ -1049,28 +1045,7 @@ def tx_step_prep_nb(
     exposure_by_node = tl_exposure_by_node.sum(axis=0)
     sus_by_node = tl_sus_by_node.sum(axis=0)  # Sum across threads
 
-    # Step 2: Compute the force of infection for each node accounting for immigration and emmigration
-    transfer = beta_by_node * network
-    beta_by_node += transfer.sum(axis=1) - transfer.sum(axis=0)  # Add incoming, subtract outgoing
-    beta_by_node = np.maximum(beta_by_node, 0)
-
-    # Step 3: Scale by seasonality and R0 scalars
-    beta_by_node = beta_by_node * seasonality * r0_scalars
-
-    # Step 4: Compute the exposure rate for each node
-    #   - convert total FOI to per-agent exposure rate
-    #   - convert rate to probability of infection
-    per_agent_inf_rate = beta_by_node / np.maximum(alive_counts, 1)  # Avoid div by zero
-    base_prob_inf = 1 - np.exp(-per_agent_inf_rate)  # Convert to probability of infection
-
-    exposure_by_node *= base_prob_inf  # Scale by base infection probability
-
-    # Step 5: Compute the number of new infections per node
-    new_infections = np.empty(num_nodes, dtype=np.int32)
-    for i in nb.prange(num_nodes):
-        new_infections[i] = np.random.poisson(exposure_by_node[i])
-
-    return beta_by_node, base_prob_inf, exposure_by_node, new_infections, sus_by_node
+    return beta_by_node, exposure_by_node, sus_by_node
 
 
 @nb.njit(parallel=True)
@@ -1366,18 +1341,36 @@ class Transmission_ABM:
         with self.step_stats.start("Part 2"):
             # 2) Compute force of infection, scale by seasonality and geographic scalars, and compute the number of new exposures
             beta_seasonality = lp.get_seasonality(self.sim)
-            beta, base_prob_infection, exposure_sums, new_infections, sus_by_node = tx_step_prep_nb(
+            beta_by_node, exposure_by_node, sus_by_node = tx_step_prep_nb(
                 num_nodes,
                 num_people,
                 disease_state,
                 node_ids,
                 infectivity,
-                self.network,
-                beta_seasonality,
-                self.r0_scalars,
-                alive_counts,
                 risk,
             )
+
+        with self.step_stats.start("Part 2b"):
+            # Step 2: Compute the force of infection for each node accounting for immigration and emmigration
+            transfer = beta_by_node * self.network
+            beta_by_node += transfer.sum(axis=1) - transfer.sum(axis=0)  # Add incoming, subtract outgoing
+            beta_by_node = np.maximum(beta_by_node, 0)
+    
+            # Step 3: Scale by seasonality and R0 scalars
+            beta_by_node = beta_by_node * beta_seasonality * self.r0_scalars
+
+            # Step 4: Compute the exposure rate for each node
+            #   - convert total FOI to per-agent exposure rate
+            #   - convert rate to probability of infection
+            per_agent_inf_rate = beta_by_node / np.maximum(alive_counts, 1)  # Avoid div by zero
+            base_prob_inf = 1 - np.exp(-per_agent_inf_rate)  # Convert to probability of infection
+
+            exposure_by_node *= base_prob_inf  # Scale by base infection probability
+
+            # Step 5: Compute the number of new infections per node
+            new_infections = np.empty(num_nodes, dtype=np.int32)
+            for i in range(num_nodes):
+                new_infections[i] = np.random.poisson(exposure_by_node[i])
 
             # Manual validation
             if self.verbose >= 3:
@@ -1401,7 +1394,7 @@ class Transmission_ABM:
                 self.people.sus_indices,
                 self.people.sus_probs,
                 risk,
-                base_prob_infection,
+                base_prob_inf,
                 new_infections,
             )
             self.sim.results.new_exposed[self.sim.t, :] = new_exposed
