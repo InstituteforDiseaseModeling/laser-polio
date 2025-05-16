@@ -4,7 +4,6 @@ from pathlib import Path
 
 import click
 import geopandas as gpd
-import h5py
 import numpy as np
 import pandas as pd
 import sciris as sc
@@ -147,11 +146,12 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     # sc.pp(pars.to_dict())
 
     def from_file(init_pop_file):
-        sim = lp.SEIR_ABM.init_from_file(init_pop_file, pars)
-        with h5py.File(init_pop_file, "r") as hdf:
-            results_R = hdf["recovered"][:]
-            if "pars" in hdf and "r0" in hdf["pars"]:
-                sim.pars.old_r0 = hdf["pars"]["r0"][()]  # [()] reads the scalar value
+        # logger.info(f"Initializing SEIR_ABM from file: {init_pop_file}")
+        people, results_R, pars_loaded = LaserFrameIO.load_snapshot(init_pop_file)
+
+        sim = lp.SEIR_ABM.init_from_file(people, pars)
+        if pars_loaded and "r0" in pars_loaded:
+            sim.pars.old_r0 = pars_loaded["r0"]
         disease_state = lp.DiseaseState_ABM.init_from_file(sim)
         vd = lp.VitalDynamics_ABM.init_from_file(sim)
         sia = lp.SIA_ABM.init_from_file(sim)
@@ -174,25 +174,12 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     # Either initialize the sim from file or create a sim from scratch
     if init_pop_file:
-        if "people" not in h5py.File(init_pop_file, "r").keys() or "recovered" not in h5py.File(init_pop_file, "r").keys():
-            raise ValueError(f"Invalid init_pop_file: {init_pop_file} must contain 'people' and 'recovered' datasets.")
         sim = from_file(init_pop_file)
     else:
         sim = regular()
         if save_pop:
-            with h5py.File(results_path / "init_pop.h5", "w") as f:
-                people_group = f.create_group("people")
-                LaserFrameIO.save_to_group(sim.people, people_group)  # Save to 'people' group
-                f.create_dataset("recovered", data=sim.results.R[:])  # Save the R result array
-                # Save parameters
-                pars_group = f.create_group("pars")
+            sim.people.save_snapshot(results_path / "init_pop.h5", sim.results.R[:], sim.pars)
 
-                for key, value in sim.pars.to_dict().items():
-                    # Handle only scalar and array-like values; skip unsupported types
-                    try:
-                        pars_group.create_dataset(key, data=value)
-                    except TypeError:
-                        pars_group.attrs[key] = str(value)  # Fallback: store as string attribute
     # Safety checks
     if verbose >= 3:
         print(f"sim.people.count: {sim.people.count}")
@@ -242,6 +229,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     default=None,
     help="Optional initial population file",
 )
+# Let's make sure we can save-pop from cli
 @click.option(
     "--save-pop",
     is_flag=True,
