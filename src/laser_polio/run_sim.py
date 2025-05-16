@@ -146,7 +146,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     # sc.pp(pars.to_dict())
 
     def from_file(init_pop_file):
-        #logger.info(f"Initializing SEIR_ABM from file: {init_pop_file}")
+        # logger.info(f"Initializing SEIR_ABM from file: {init_pop_file}")
         people, results_R, pars_loaded = LaserFrameIO.load_snapshot(init_pop_file)
 
         sim = lp.SEIR_ABM.init_from_file(people, pars)
@@ -178,7 +178,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     else:
         sim = regular()
         if save_pop:
-            sim.people.save_snapshot( results_path / "init_pop.h5", sim.results.R[:], sim.pars )
+            sim.people.save_snapshot(results_path / "init_pop.h5", sim.results.R[:], sim.pars)
 
     # Safety checks
     if verbose >= 3:

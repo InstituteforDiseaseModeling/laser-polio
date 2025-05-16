@@ -18,7 +18,6 @@ from alive_progress import alive_bar
 from laser_core.demographics.kmestimator import KaplanMeierEstimator
 from laser_core.demographics.pyramid import AliasedDistribution
 from laser_core.demographics.pyramid import load_pyramid_csv
-from laser_core.laserframe import LaserFrame
 from laser_core.migration import distance
 from laser_core.migration import gravity
 from laser_core.migration import radiation
@@ -158,6 +157,21 @@ class SEIR_ABM:
             # Initialize the population
             if self.verbose >= 1:
                 sc.printcyan("Initializing simulation...")
+
+        # Setup early stopping option - controlled in DiseaseState_ABM component
+        self.should_stop = False
+
+    def __init__(self, pars: PropertySet = None, verbose=1):
+        """
+        This is the regular constructor. It is not called when initializing from file.
+        add_scalar_property calls should only be here, not in common_init, or init_from_file.
+        Same goes for assignments to values in sim.people.xxx
+        """
+        self.perf_stats = TimingStats()
+        with self.perf_stats.start(self.__class__.__name__ + ".__init__()"):
+            self.common_init(pars, verbose)
+            pars = self.pars
+
             pars.n_ppl = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
             if (pars.cbr is not None) & (len(pars.cbr) == 1):
                 capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, pars.cbr[0]))
@@ -169,19 +183,19 @@ class SEIR_ABM:
             # We initialize disease_state here since it's required for most other components (which facilitates testing)
             self.people.add_scalar_property("disease_state", dtype=np.int32, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
             self.people.disease_state[: self.people.count] = 0  # Set initial population as susceptible
-            self.results = LaserFrame(capacity=1)
+            self.results = LaserFrameIO(capacity=1)
 
             # Setup spatial component with node IDs
             self.people.add_scalar_property("node_id", dtype=np.int32, default=0)
-            if pars.node_lookup is None:
-                self.nodes = np.arange(len(np.atleast_1d(pars.n_ppl)))
-                node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_ppl)])
-                self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids  # Assign node IDs to initial people
-            else:
+            if hasattr(pars, "node_lookup") and pars.node_lookup is not None:
                 ordered_node_ids = list(pars.node_lookup.keys())
                 self.nodes = np.array(ordered_node_ids)
                 node_ids = np.concatenate([np.full(count, node_id) for node_id, count in zip(ordered_node_ids, pars.n_ppl, strict=False)])
                 self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids
+            else:
+                self.nodes = np.arange(len(np.atleast_1d(pars.n_ppl)))
+                node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_ppl)])
+                self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids  # Assign node IDs to initial people
 
             # Setup chronically missed population for vaccination: 0 = missed/inaccessible to vx, 1 = accessible for vaccination
             self.people.add_scalar_property("chronically_missed", dtype=np.uint8, default=0)
@@ -191,46 +205,11 @@ class SEIR_ABM:
             missed_ids = np.random.choice(n, size=n_missed, replace=False)
             self.people.chronically_missed[missed_ids] = 1  # Set the missed population to 1 (missed/inaccessible)
 
-        # Setup early stopping option - controlled in DiseaseState_ABM component
-        self.should_stop = False
-
-    def __init__(self, pars: PropertySet = None, verbose=1):
-        self.perf_stats = TimingStats()
-        with self.perf_stats.start(self.__class__.__name__ + ".__init__()"):
-            self.common_init(pars, verbose)
-            pars = self.pars
-
-            # pars.n_ppl = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
-            # if (pars.cbr is not None) & (len(pars.cbr) == 1):
-            #     capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, pars.cbr[0]))
-            # elif (pars.cbr is not None) & (len(pars.cbr) > 1):
-            #     capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, np.mean(pars.cbr)))
-            # else:
-            #     capacity = int(np.sum(pars.n_ppl))
-            # self.people = LaserFrameIO(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
-            # # We initialize disease_state here since it's required for most other components (which facilitates testing)
-            # self.people.add_scalar_property("disease_state", dtype=np.int32, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
-            # self.people.disease_state[: self.people.count] = 0  # Set initial population as susceptible
-            # self.results = LaserFrame(capacity=1)
-
-            # # Setup spatial component with node IDs
-            # self.people.add_scalar_property("node_id", dtype=np.int32, default=0)
-            # if hasattr(pars, "node_lookup") and pars.node_lookup is not None:
-            #     ordered_node_ids = list(pars.node_lookup.keys())
-            #     self.nodes = np.array(ordered_node_ids)
-            #     node_ids = np.concatenate([np.full(count, node_id) for node_id, count in zip(ordered_node_ids, pars.n_ppl, strict=False)])
-            #     self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids
-            # else:
-            #     self.nodes = np.arange(len(np.atleast_1d(pars.n_ppl)))
-            #     node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_ppl)])
-            #     self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids  # Assign node IDs to initial people
-
             # Components
             self._components = []
 
     @classmethod
     def init_from_file(cls, people, pars: PropertySet = None):
-
         # initialize model
         model = cls.__new__(cls)
         # model.pars = deepcopy(lp.default_pars)
@@ -1353,7 +1332,7 @@ class Transmission_ABM:
             transfer = beta_by_node * self.network
             beta_by_node += transfer.sum(axis=1) - transfer.sum(axis=0)  # Add incoming, subtract outgoing
             beta_by_node = np.maximum(beta_by_node, 0)
-    
+
             # Step 3: Scale by seasonality and R0 scalars
             beta_by_node = beta_by_node * beta_seasonality * self.r0_scalars
 
@@ -1374,11 +1353,11 @@ class Transmission_ABM:
             if self.verbose >= 3:
                 logger.info(f"beta_seasonality: {fmt(beta_seasonality, 2)}")
                 logger.info(f"R0 scalars: {fmt(self.r0_scalars, 2)}")
-                logger.info(f"beta: {fmt(beta, 2)}")
-                logger.info(f"Total beta: {fmt(beta.sum(), 2)}")
+                logger.info(f"beta: {fmt(beta_by_node, 2)}")
+                logger.info(f"Total beta: {fmt(beta_by_node.sum(), 2)}")
                 logger.info(f"Alive counts: {fmt(alive_counts, 2)}")
-                logger.info(f"Base prob infection: {fmt(base_prob_infection, 2)}")
-                logger.info(f"Exp inf (sans acq risk): {fmt(num_susceptibles * base_prob_infection, 2)}")
+                logger.info(f"Base prob infection: {fmt(base_prob_inf, 2)}")
+                logger.info(f"Exp inf (sans acq risk): {fmt(num_susceptibles * base_prob_inf, 2)}")
                 disease_state_pre_infect = disease_state.copy()  # Copy before infection
 
         with self.step_stats.start("Part 3"):
@@ -1399,10 +1378,10 @@ class Transmission_ABM:
 
             # Manual validation
             if self.verbose >= 3:
-                logger.info(f"exposure_sums: {fmt(exposure_sums, 2)}")
+                logger.info(f"exposure_by_node: {fmt(exposure_by_node, 2)}")
                 logger.info(f"Expected new exposures: {new_infections}")
                 logger.info(f"Observed new exposures: {new_exposed}")
-                total_expected = np.sum(exposure_sums)
+                total_expected = np.sum(exposure_by_node)
                 tot_poisson_draw = np.sum(new_infections)
                 # Check the number of people that are newly exposed
                 num_new_exposed = np.sum(disease_state == 1) - np.sum(disease_state_pre_infect == 1)

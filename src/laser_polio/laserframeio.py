@@ -36,7 +36,7 @@ class LaserFrameIO(LaserFrame):
             if not key.startswith("_"):
                 value = getattr(self, key)
                 if isinstance(value, np.ndarray):
-                    group.create_dataset(key, data=value[:self._count])
+                    group.create_dataset(key, data=value[: self._count])
 
     def _save_dict(self, data, group):
         """
@@ -65,6 +65,7 @@ class LaserFrameIO(LaserFrame):
             count = int(group.attrs["count"])
             capacity = int(group.attrs["capacity"])
             from laser_core import LaserFrame  # or however LaserFrame is imported
+
             frame = LaserFrame(capacity=capacity, initial_count=count)
 
             for key in group:
@@ -89,7 +90,7 @@ class LaserFrameIO(LaserFrame):
             raise ValueError(f"Unsupported group name: {name}")
 
     @classmethod
-    def load_snapshot(cls,path):
+    def load_snapshot(cls, path):
         """
         Load a LaserFrameIO and optional extras from an HDF5 snapshot file.
 
