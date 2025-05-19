@@ -1,8 +1,11 @@
 from pathlib import Path
 
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib.cm import ScalarMappable
+from matplotlib.colors import ListedColormap
 from matplotlib.colors import Normalize
 
 __all__ = [
@@ -26,18 +29,17 @@ def plot_pars(pars, shp, results_path):
     Path(plot_path).mkdir(parents=True, exist_ok=True)
 
     # Maps: n_ppl, cbr, init_prev, r0_scalars
-    pars_to_map = ["n_ppl", "cbr", "init_prev", "r0_scalars"]
+    pars_to_map = ["n_ppl", "cbr", "init_prev", "r0_scalars", "vx_prob_sia"]
     for par in pars_to_map:
         values = pars[par]
         plot_choropleth_and_hist(shp, par, values, plot_path)
 
-    # Map: init_immun
+    # Custom maps: init_immun, sia_schedule, seed_schedule
     plot_init_immun_grid(shp, pars["init_immun"], plot_path)
-
-    # Map: sia_schedule
     plot_sia_schedule(shp, pars["sia_schedule"], plot_path)
+    plot_seed_schedule(shp, pars["seed_schedule"], pars["node_lookup"], plot_path)
 
-    # TODO: Other: age_pyramid_path, vx_prob_ri, vx_prob_sia, seed_schedule
+    # TODO: Other: age_pyramid_path, vx_prob_ri
 
 
 def plot_choropleth_and_hist(shp, par, values, results_path, cmap="viridis", figsize=(8, 8)):
@@ -131,42 +133,7 @@ def plot_init_immun_grid(shp, init_immun_df, results_path, cmap="viridis", n_col
     plt.close(fig)
 
 
-def plot_sia_schedule(shp, sia_schedule, results_path, cmap="Reds", figsize=(8, 6)):
-    """
-    Plot a series of maps showing SIA coverage.
-
-    Args:
-        shp (GeoDataFrame): Shapefile GeoDataFrame, must be indexed by node number.
-        sia_schedule (list of dict): Each dict must contain 'date', 'age_range', 'vaccinetype', 'nodes'.
-        results_path (Path): Directory where plots will be saved.
-        cmap (str): Colormap for covered areas.
-        figsize (tuple): Size of each individual figure.
-    """
-    for i, sia in enumerate(sia_schedule):
-        covered = [False] * len(shp)
-        for node in sia["nodes"]:
-            covered[node] = True
-
-        shp_copy = shp.copy()
-        shp_copy["covered"] = covered
-
-        fig, ax = plt.subplots(figsize=figsize)
-        shp_copy.plot(ax=ax, column="covered", cmap=cmap, legend=False, edgecolor="black")
-
-        # Title with date, age range in years, and vaccine type
-        age_lo = int(sia["age_range"][0] / 365)
-        age_hi = int(sia["age_range"][1] / 365)
-        date_str = sia["date"].strftime("%Y-%m-%d")
-        title = f"SIA {i:02d}: {date_str}, ages {age_lo}-{age_hi} yrs, {sia['vaccinetype']}"
-        ax.set_title(title, fontsize=12)
-        ax.axis("off")
-
-        plt.tight_layout()
-        plt.savefig(results_path / f"sia_{i:02d}.png")
-        plt.close(fig)
-
-
-def plot_sia_schedule_grid(shp, sia_schedule, results_path, n_cols=4, figsize=(20, 12)):
+def plot_sia_schedule(shp, sia_schedule, results_path, n_cols=4, figsize=(20, 12)):
     """
     Plot all SIA rounds in a grid with covered areas in blue and others in grey.
 
@@ -178,24 +145,30 @@ def plot_sia_schedule_grid(shp, sia_schedule, results_path, n_cols=4, figsize=(2
         figsize (tuple): Overall figure size.
     """
     n_sias = len(sia_schedule)
-    n_rows = int(np.ceil(n_sias / n_cols))
+    if n_sias <= n_cols:
+        n_rows, n_cols = 1, n_sias
+    else:
+        n_rows = int(np.ceil(n_sias / n_cols))
 
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
-    axes = axes.flatten()
-
+    if isinstance(axes, np.ndarray):
+        axes = axes.flatten()
+    else:
+        axes = np.array([axes])
     for i, sia in enumerate(sia_schedule):
         shp_copy = shp.copy()
         shp_copy["covered"] = False
         shp_copy.loc[sia["nodes"], "covered"] = True
+        shp_copy["covered"] = pd.Categorical(shp_copy["covered"], categories=[False, True])
 
         ax = axes[i]
         # Use categorical coloring for True/False
+        cmap = ListedColormap(["lightgrey", "blue"])
         shp_copy.plot(
             column="covered",
             ax=ax,
             edgecolor="black",
-            cmap="bwr",  # blue for True, red for False (or use ListedColormap)
-            categorical=True,
+            cmap=cmap,
             legend=False,
         )
 
@@ -210,8 +183,80 @@ def plot_sia_schedule_grid(shp, sia_schedule, results_path, n_cols=4, figsize=(2
     for j in range(i + 1, len(axes)):
         axes[j].axis("off")
 
+    # Add shared legend
+    covered_patch = mpatches.Patch(color="blue", label="Covered")
+    uncovered_patch = mpatches.Patch(color="lightgrey", label="Not covered")
+    fig.legend(handles=[uncovered_patch, covered_patch], loc="lower center", ncol=2, frameon=False, bbox_to_anchor=(0.5, -0.01))
+
     plt.tight_layout()
-    plt.savefig(results_path / "sia_schedule_grid.png")
+    plt.savefig(results_path / "plot_sia_schedule.png")
+    plt.close(fig)
+
+
+def plot_seed_schedule(shp, seed_schedule, node_lookup, results_path, n_cols=4, figsize=(16, 12), cmap="Oranges"):
+    """
+    Plot a grid of seed event maps showing where and when seeding occurs, colored by prevalence.
+
+    Args:
+        shp (GeoDataFrame): Shapefile with rows corresponding to node ids.
+        seed_schedule (list of dict): List of seed events, each with 'date', 'dot_name', 'prevalence'.
+        node_lookup (dict): Mapping from node_id to dict with 'dot_name'.
+        results_path (Path): Directory to save the output figure.
+        n_cols (int): Number of columns in the plot grid.
+        figsize (tuple): Size of the full figure.
+        cmap (str): Colormap for prevalence.
+    """
+    # Map dot_names to node_ids
+    dotname_to_node = {v["dot_name"]: k for k, v in node_lookup.items()}
+
+    # Build prevalence per node per seed event
+    n_events = len(seed_schedule)
+    # Auto-compute optimal rows/cols if small number of events
+    n_events = len(seed_schedule)
+    if n_events <= n_cols:
+        n_rows, n_cols = 1, n_events
+    else:
+        n_rows = int(np.ceil(n_events / n_cols))
+
+    prevalences = [event["prevalence"] for event in seed_schedule]
+    max_prevalence = max(prevalences) if prevalences else 1
+    norm = Normalize(vmin=0, vmax=max_prevalence)
+    sm = ScalarMappable(norm=norm, cmap=cmap)
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
+    axes = axes.flatten()
+
+    for i, event in enumerate(seed_schedule):
+        ax = axes[i]
+        node_id = dotname_to_node.get(event["dot_name"], None)
+        if node_id is None:
+            print(f"Warning: dot_name '{event['dot_name']}' not found in node_lookup")
+            shp.plot(ax=ax, color="lightgrey", edgecolor="black")
+            ax.set_title(f"{event['date']}\n{event['dot_name']}\n(prevalence N/A)", fontsize=9)
+            ax.axis("off")
+            continue
+
+        shp_copy = shp.copy()
+        shp_copy["prevalence"] = 0
+        shp_copy.at[node_id, "prevalence"] = event["prevalence"]
+
+        # Plot: base in grey, seeded in color
+        shp_copy.plot(ax=ax, color="lightgrey", edgecolor="black")
+        shp_copy[shp_copy["prevalence"] > 0].plot(ax=ax, column="prevalence", cmap=cmap, norm=norm, edgecolor="black")
+
+        ax.set_title(f"{event['date']}\n{event['dot_name']}\n(prevalence {event['prevalence']})", fontsize=8)
+        ax.axis("off")
+
+    # Turn off any unused axes
+    for j in range(i + 1, len(axes)):
+        axes[j].axis("off")
+
+    # Add shared colorbar
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.015, 0.7])
+    fig.colorbar(sm, cax=cbar_ax, label="Prevalence")
+
+    plt.tight_layout(rect=[0, 0, 0.9, 1])
+    plt.savefig(results_path / "seed_schedule_grid.png")
     plt.close(fig)
 
 
