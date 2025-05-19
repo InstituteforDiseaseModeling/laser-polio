@@ -133,7 +133,7 @@ def plot_init_immun_grid(shp, init_immun_df, results_path, cmap="viridis", n_col
     plt.close(fig)
 
 
-def plot_sia_schedule(shp, sia_schedule, results_path, n_cols=4, figsize=(20, 12)):
+def plot_sia_schedule(shp, sia_schedule, results_path, n_cols=6, figsize=(20, 12)):
     """
     Plot all SIA rounds in a grid with covered areas in blue and others in grey.
 
@@ -167,7 +167,7 @@ def plot_sia_schedule(shp, sia_schedule, results_path, n_cols=4, figsize=(20, 12
         shp_copy.plot(
             column="covered",
             ax=ax,
-            edgecolor="black",
+            # edgecolor="black",
             cmap=cmap,
             legend=False,
         )
