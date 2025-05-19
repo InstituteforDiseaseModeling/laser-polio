@@ -58,6 +58,7 @@ sim = lp.run_sim(
     init_pop_file=init_pop_file,
     seed_schedule=seed_schedule,
     missed_frac=missed_frac,
+    use_pim_scalars=True,
 )
 
 sc.printcyan("Done.")
