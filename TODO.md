@@ -2,8 +2,6 @@
 
 @Steve
 - Compare results from piecewise calibration. What hints does that give us? Should we boost immunity in 2018?
-- Plot all data inputs for sanity checks. Esp. R0 scalars from PIM vs DPT3.
-- Check with Kurt on underwt - why am i at adm2 and hes at adm1
 - Plot out 'bad' calib trials, get a smattering of options for each r0, both high and low likelihoods
 - Try calibrating risk_mult_var to adjust individual heterogeneity
 - Try calibrating the r0_scalar parameters in run_sim (24 and 0.2)
