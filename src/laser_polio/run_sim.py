@@ -21,7 +21,7 @@ if os.getenv("POLIO_ROOT"):
     lp.root = Path(os.getenv("POLIO_ROOT"))
 
 
-def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False, plot_pars=False, **kwargs):
+def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False, plot_pars=False, use_pim_scalars=False, **kwargs):
     """
     Set up simulation from config file (YAML + overrides) or kwargs.
 
@@ -32,6 +32,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         run (bool): Whether to run the simulation.
         save_pop (bool): Whether to save the initial population file.
         plot_pars (bool): Whether to plot the parameters.
+        use_pim_scalars (bool): Whether to use R0 scalars based on polio immunity mapper (PIM) random effects or under weight fraction.
         kwargs (dict): Additional parameters to override in the config.
 
     Example usage:
@@ -102,17 +103,19 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     pop = df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values * pop_scale
     cbr = df_comp.set_index("dot_name").loc[dot_names, "cbr"].values
     ri = df_comp.set_index("dot_name").loc[dot_names, "ri_eff"].values
+    # SIA probabilities
     sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values
-    # reff_re = df_comp.set_index("dot_name").loc[dot_names, "reff_random_effect"].values
-    # TODO Need to REDO random effect probs since they might've been based on the wrong data. Also, need to do the processing before filtering because of the centering & scaling
     sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=0.5, scale=1.0)
-    # r0_scalars = lp.calc_r0_scalars_from_rand_eff(reff_re)
-    # Calcultate geographic R0 modifiers based on underweight data (one for each node)
+    # R0 scalars
     underwt = df_comp.set_index("dot_name").loc[dot_names, "prop_underwt"].values
-    r0_scalars = (1 / (1 + np.exp(24 * (0.22 - underwt)))) + 0.2  # The 0.22 is the mean of Nigeria underwt
-    # # Check Zamfara means
-    # print(f"{underwt[-14:]}")
-    # print(f"{r0_scalars[-14:]}")
+    r0_scalars_wt = (1 / (1 + np.exp(24 * (0.22 - underwt)))) + 0.2  # The 0.22 is the mean of Nigeria underwt
+    pim_re = df_comp.set_index("dot_name").loc[dot_names, "reff_random_effect"].values
+    pim_scaled = (pim_re - pim_re.min()) / (pim_re.max() - pim_re.min())  # Rescale to [0, 1]
+    r0_scalar_pim = pim_scaled * (r0_scalars_wt.max() - r0_scalars_wt.min()) + r0_scalars_wt.min()
+    if use_pim_scalars:
+        r0_scalars = r0_scalar_pim
+    else:
+        r0_scalars = r0_scalars_wt
 
     # Validate all arrays match
     assert all(len(arr) == len(dot_names) for arr in [shp, init_immun, node_lookup, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
