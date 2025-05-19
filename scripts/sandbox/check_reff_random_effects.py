@@ -102,7 +102,6 @@ def plot_choropleths_with_histograms(
         plt.show()
     else:
         plt.close()
-    plt.show()
 
 
 # ----- Load and curate the data -----
