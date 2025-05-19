@@ -208,8 +208,6 @@ def plot_seed_schedule(shp, seed_schedule, node_lookup, results_path, n_cols=4, 
     # Map dot_names to node_ids
     dotname_to_node = {v["dot_name"]: k for k, v in node_lookup.items()}
 
-    # Build prevalence per node per seed event
-    n_events = len(seed_schedule)
     # Auto-compute optimal rows/cols if small number of events
     n_events = len(seed_schedule)
     if n_events <= n_cols:

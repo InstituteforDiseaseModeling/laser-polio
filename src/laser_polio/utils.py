@@ -344,8 +344,11 @@ def process_sia_schedule_polio(df, region_names, sim_start_date, n_days, filter_
      The output file contains a list of the unique SIA dates and corresponding region_name indices included in that campaign.
 
     Parameters:
+    - df (pd.DataFrame): DataFrame containing the SIA schedule with columns:
     - region_names (list of str): List of full region names (e.g., 'AFRO:NIGERIA:ZAMFARA:ANKA').
     - sim_start_date (str): The beginning date in 'YYYY-MM-DD' format.
+    - n_days (int): The number of days to include in the simulation.
+    - filter_to_type2 (bool): If True, filter to only type 2 campaigns.
 
     Returns:
     - List of dictionaries in the format:

@@ -25,6 +25,15 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     """
     Set up simulation from config file (YAML + overrides) or kwargs.
 
+    Parameters:
+        config (dict): Configuration dictionary with simulation parameters.
+        init_pop_file (str): Path to initial population file.
+        verbose (int): Verbosity level for logging.
+        run (bool): Whether to run the simulation.
+        save_pop (bool): Whether to save the initial population file.
+        plot_pars (bool): Whether to plot the parameters.
+        kwargs (dict): Additional parameters to override in the config.
+
     Example usage:
         # Use kwargs
         run_sim(regions=["ZAMFARA"], r0=16)

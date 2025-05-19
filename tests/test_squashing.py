@@ -45,7 +45,7 @@ start_date = lp.date(f"{start_year}-01-01")
 historic_sia_schedule = pd.read_csv("data/sia_historic_schedule.csv")
 future_sia_schedule = pd.read_csv("data/sia_scenario_1.csv")
 sia_schedule_raw = pd.concat([historic_sia_schedule, future_sia_schedule], ignore_index=True)  # combine the two schedules
-sia_schedule = lp.process_sia_schedule_polio(sia_schedule_raw, dot_names, start_date)  # Load sia schedule
+sia_schedule = lp.process_sia_schedule_polio(sia_schedule_raw, dot_names, start_date, n_days)  # Load sia schedule
 
 ### Load the demographic, coverage, and risk data
 # Age pyramid
