@@ -108,8 +108,6 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=0.5, scale=1.0)
     # R0 scalars
     underwt = df_comp.set_index("dot_name").loc[dot_names, "prop_underwt"].values
-    r0_scalars = (1 / (1 + np.exp(24 * (0.22 - underwt)))) + 0.2
-    underwt = df_comp.set_index("dot_name").loc[dot_names, "prop_underwt"].values
     r0_scalars_wt = (1 / (1 + np.exp(24 * (0.22 - underwt)))) + 0.2  # The 0.22 is the mean of Nigeria underwt
     pim_re = df_comp["reff_random_effect"].values
     # Use Nigeria mins and maxes to keep this consistent with the underweight scaling when geography is not Nigeria
