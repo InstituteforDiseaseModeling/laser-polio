@@ -1,11 +1,11 @@
 # PRIORITIES
 
 @Steve
+- Try PIM REs on r0
 - Compare results from piecewise calibration. What hints does that give us? Should we boost immunity in 2018?
 - Plot out 'bad' calib trials, get a smattering of options for each r0, both high and low likelihoods
 - Try calibrating risk_mult_var to adjust individual heterogeneity
 - Try calibrating the r0_scalar parameters in run_sim (24 and 0.2)
-- Try PIM REs on r0
 - Try calibrating the sia rand effects center and scale values
 - Try adding distance from origin as a calib target
 - Try calibrating to synthetic data for Zamfara (I sent copy to Dan)
