@@ -95,7 +95,6 @@ def plot_init_immun_grid(shp, init_immun_df, results_path, cmap="viridis", n_col
     n_rows = int(np.ceil(n_plots / n_cols))
 
     # Compute global color scale
-    all_vals = init_immun_df[immunity_cols].values.flatten()
     vmin, vmax = 0.0, 1.0
     norm = Normalize(vmin=vmin, vmax=vmax)
     sm = ScalarMappable(norm=norm, cmap=cmap)
