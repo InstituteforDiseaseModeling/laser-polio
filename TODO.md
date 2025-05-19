@@ -1,7 +1,6 @@
 # PRIORITIES
 
 @Steve
-- Filter sia_schedule by dur
 - Compare results from piecewise calibration. What hints does that give us? Should we boost immunity in 2018?
 - Plot all data inputs for sanity checks. Esp. R0 scalars from PIM vs DPT3.
 - Check with Kurt on underwt - why am i at adm2 and hes at adm1

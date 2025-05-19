@@ -85,7 +85,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     start_date = lp.date(f"{start_year}-01-01")
     historic = pd.read_csv(lp.root / "data/sia_historic_schedule.csv")
     future = pd.read_csv(lp.root / "data/sia_scenario_1.csv")
-    sia_schedule = lp.process_sia_schedule_polio(pd.concat([historic, future]), dot_names, start_date, filter_to_type2=True)
+    sia_schedule = lp.process_sia_schedule_polio(pd.concat([historic, future]), dot_names, start_date, n_days, filter_to_type2=True)
 
     # Demographics and risk
     df_comp = pd.read_csv(lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
@@ -143,13 +143,10 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     pars = PropertySet({**base_pars, **configs})
 
     # Plot pars
-    # TODO: make this optional
-    sc.pp(pars.to_dict())
-
     if plot_pars:
         lp.plot_pars(pars, shp, results_path)
-
-        print(f"Saved choropleth maps to {results_path}")
+    if verbose >= 3:
+        sc.pp(pars.to_dict())
 
     def from_file(init_pop_file):
         sim = lp.SEIR_ABM.init_from_file(init_pop_file, pars)
