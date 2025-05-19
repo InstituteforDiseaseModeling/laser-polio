@@ -16,7 +16,18 @@ def inv_logit(x):
     return 1 / (1 + np.exp(-x))
 
 
-def plot_choropleths_with_histograms(shp, var1_values, var2_values, var1_name=None, var2_name=None, cmap="viridis", colorbar_label="Value"):
+def plot_choropleths_with_histograms(
+    shp,
+    var1_values,
+    var2_values,
+    var1_name=None,
+    var2_name=None,
+    cmap="viridis",
+    colorbar_label="Value",
+    save_path=None,
+    dpi=300,
+    show=True,
+):
     """
     Plot side-by-side choropleths and histograms, optionally inferring variable names.
 
@@ -68,12 +79,10 @@ def plot_choropleths_with_histograms(shp, var1_values, var2_values, var1_name=No
     # Plot histograms
     axes[1, 0].hist(shp[var1_name].dropna(), bins=20, color="gray", edgecolor="black")
     axes[1, 0].set_ylim(0, hist_ylim)
-    axes[1, 0].set_xlabel("Value")
     axes[1, 0].set_ylabel("Count")
 
     axes[1, 1].hist(shp[var2_name].dropna(), bins=20, color="gray", edgecolor="black")
     axes[1, 1].set_ylim(0, hist_ylim)
-    axes[1, 1].set_xlabel("Value")
     axes[1, 1].set_ylabel("Count")
 
     # Add colorbar
@@ -84,6 +93,14 @@ def plot_choropleths_with_histograms(shp, var1_values, var2_values, var1_name=No
     cbar = fig.colorbar(sm, cax=cbar_ax, orientation="horizontal")
     cbar.set_label(colorbar_label)
 
+    # Save or show
+    if save_path:
+        plt.savefig(save_path, dpi=dpi, bbox_inches="tight")
+        print(f"Plot saved to: {save_path}")
+    if show:
+        plt.show()
+    else:
+        plt.close()
     plt.show()
 
 
@@ -122,7 +139,7 @@ min_r0_scalar_pim_ls = np.min(r0_scalar_pim_ls)
 max_r0_scalar_pim_ls = np.max(r0_scalar_pim_ls)
 print(f"pim_lr: {mean_r0_scalar_wt:.2f} ({min_r0_scalar_wt:.2f}, {max_r0_scalar_wt:.2f})")
 # Plot maps of the original and rescaled values
-plot_choropleths_with_histograms(shp, r0_scalar_wt, r0_scalar_pim_ls)
+plot_choropleths_with_histograms(shp, r0_scalar_wt, r0_scalar_pim_ls, save_path="results/plot_r0_scalars_underwt_pim_ls.png", show=True)
 
 # Option 2: Match Mean and Range (Affine Transformation)
 pim_centered = pim - pim.mean()
