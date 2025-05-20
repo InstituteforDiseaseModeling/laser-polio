@@ -1250,7 +1250,7 @@ class Transmission_ABM:
         scale_gamma = mean_gamma / shape_gamma
         scale_gamma = max(scale_gamma, 1e-10)  # Ensure scale is never exactly 0 since gamma is undefined for scale_gamma=0
         # Step 3: Generate correlated normal samples
-        rho = 0.8  # Desired correlation
+        rho = self.pars.corr_risk_inf  # Desired correlation
         cov_matrix = np.array([[1, rho], [rho, 1]])  # Create covariance matrix
 
         L = np.linalg.cholesky(cov_matrix)  # Cholesky decomposition
