@@ -1,9 +1,16 @@
+from pathlib import Path
+from unittest.mock import patch
+
 import numpy as np
 import sciris as sc
 
 from laser_polio.run_sim import run_sim
 
+test_dir = Path(__file__).parent
+data_path = test_dir / "data"
 
+
+@patch("laser_polio.root", Path("tests/"))
 def test_background_seeding():
     n_days = 90
     seeding_freq = 15
