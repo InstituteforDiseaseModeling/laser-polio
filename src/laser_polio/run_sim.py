@@ -94,8 +94,9 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         init_prevs = init_prevs.astype(int)
     if verbose >= 2:
         print(f"Seeding infection in {len(prev_indices)} nodes at {init_prev:.3f} prevalence.")
-    # Set up background seeding if specified (this overrides any other seed_schedule)
+    # Set up background seeding if specified
     if background_seeding:
+        print("Using background seeding")
         background_seeds = lp.make_background_seeding_schedule(
             node_lookup,
             start_date=lp.date(f"{start_year}-01-01"),
@@ -105,7 +106,11 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
             frequency=background_seeding_freq,
             rng=np.random.default_rng(configs.get("seed", None)),  # Use the seed from configs
         )
-        configs["seed_schedule"] = background_seeds
+        # Merge with existing seed_schedule if it exists
+        if "seed_schedule" in configs and configs["seed_schedule"] is not None:
+            configs["seed_schedule"] += background_seeds
+        else:
+            configs["seed_schedule"] = background_seeds
 
     # SIA schedule
     start_date = lp.date(f"{start_year}-01-01")
