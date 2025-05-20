@@ -1,5 +1,6 @@
 import geopandas as gpd
 import matplotlib.pyplot as plt
+from matplotlib import colors
 
 import laser_polio as lp
 
@@ -40,10 +41,6 @@ for q, shp_q in quarterly_cases.groupby("quarter"):
     ax.axis("off")
     plt.tight_layout()
     plt.show()
-
-import geopandas as gpd
-import matplotlib.pyplot as plt
-from matplotlib import colors
 
 # Prepare data
 quarters = sorted(quarterly_cases["quarter"].unique())
