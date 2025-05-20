@@ -1,11 +1,12 @@
 # PRIORITIES
 
 @Steve
-- Double check the P results - make_synth_data_zamfara is generating ~10K cases when it should generate 45
-- Plot out 'bad' calib trials, get a smattering of options for each r0, both high and low likelihoods
+- Scan over heterogeneity pars and see how they impact both acq risk & the sim
 - Try calibrating risk_mult_var to adjust individual heterogeneity
 - Try calibrating the r0_scalar parameters in run_sim (24 and 0.2)
 - Try calibrating the sia rand effects center and scale values
+- Double check the P results - make_synth_data_zamfara is generating ~10K cases when it should generate 45
+- Plot out 'bad' calib trials, get a smattering of options for each r0, both high and low likelihoods
 - Try adding distance from origin as a calib target
 - Try calibrating to synthetic data for Zamfara (I sent copy to Dan)
 - fix test_sia_schedule() - number of recovered inidividuals does not match expected value
