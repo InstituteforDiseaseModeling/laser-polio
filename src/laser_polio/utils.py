@@ -5,6 +5,7 @@ import datetime as dt
 import json
 import os
 from collections import defaultdict
+from datetime import timedelta
 from time import perf_counter_ns
 from zoneinfo import ZoneInfo  # Python 3.9+
 
@@ -31,6 +32,7 @@ __all__ = [
     "get_tot_pop_and_cbr",
     "get_woy",
     "inv_logit",
+    "make_background_seeding_schedule",
     "pbincount",
     "process_sia_schedule_polio",
     "save_results_to_csv",
@@ -296,6 +298,48 @@ def get_tot_pop_and_cbr(file_path, regions=None, isos=None, year=None):
 
 def inv_logit(x):
     return 1 / (1 + np.exp(-x))
+
+
+def make_background_seeding_schedule(
+    node_lookup,
+    start_date,
+    sim_duration,
+    prevalence,
+    fraction_of_nodes=1.0,
+    frequency=30,
+    rng=None,
+):
+    """
+    Generate a background seed_schedule using dates and dot_names (not timesteps or node_ids).
+
+    Args:
+        node_lookup (dict): Maps node_id → dict with 'dot_name' and other metadata.
+        start_date (datetime.date): Simulation start date.
+        sim_duration (int): Duration in days.
+        prevalence (float): Seeding prevalence per event.
+        fraction_of_nodes (float): Fraction of nodes to randomly select.
+        frequency (int): Number of days between seedings.
+        rng (np.random.Generator): Optional RNG for reproducibility.
+
+    Returns:
+        list[dict]: List of {'date', 'dot_name', 'prevalence'} entries.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+
+    node_ids = list(node_lookup.keys())
+    dot_names = [node_lookup[nid]["dot_name"] for nid in node_ids]
+
+    n_seed_nodes = int(np.ceil(len(dot_names) * fraction_of_nodes))
+    selected_dot_names = rng.choice(dot_names, size=n_seed_nodes, replace=False)
+
+    schedule = []
+    for day in range(0, sim_duration, frequency):
+        date = start_date + timedelta(days=day)
+        for dot_name in selected_dot_names:
+            schedule.append({"date": date, "dot_name": dot_name, "prevalence": prevalence})
+
+    return schedule
 
 
 def process_sia_schedule(csv_path, start_date):

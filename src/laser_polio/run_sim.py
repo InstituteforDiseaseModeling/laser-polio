@@ -63,6 +63,10 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     save_plots = configs.pop("save_plots", False)
     save_data = configs.pop("save_data", False)
     init_pop_file = configs.pop("init_pop_file", init_pop_file)
+    background_seeding = configs.pop("background_seeding", False)
+    background_seeding_freq = configs.pop("background_seeding_freq", 30)
+    background_seeding_node_frac = configs.pop("background_seeding_node_frac", 0.3)
+    background_seeding_prev = configs.pop("background_seeding_prev", 0.0001)
 
     # Geography
     dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", verbose=verbose)
@@ -90,6 +94,18 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         init_prevs = init_prevs.astype(int)
     if verbose >= 2:
         print(f"Seeding infection in {len(prev_indices)} nodes at {init_prev:.3f} prevalence.")
+    # Set up background seeding if specified (this overrides any other seed_schedule)
+    if background_seeding:
+        background_seeds = lp.make_background_seeding_schedule(
+            node_lookup,
+            start_date=lp.date(f"{start_year}-01-01"),
+            sim_duration=n_days,
+            prevalence=background_seeding_prev,
+            fraction_of_nodes=background_seeding_node_frac,
+            frequency=background_seeding_freq,
+            rng=np.random.default_rng(configs.get("seed", None)),  # Use the seed from configs
+        )
+        configs["seed_schedule"] = background_seeds
 
     # SIA schedule
     start_date = lp.date(f"{start_year}-01-01")
