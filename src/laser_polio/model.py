@@ -29,6 +29,7 @@ from laser_core.utils import calc_capacity
 from tqdm import tqdm
 
 import laser_polio as lp
+from laser_polio.cppfuncs import census
 from laser_polio.laserframeio import LaserFrameIO
 from laser_polio.utils import TimingStats
 from laser_polio.utils import pbincount
@@ -468,17 +469,6 @@ def get_node_counts_pre_squash_nb(num_nodes, num_people, filter_mask, node_ids):
             tl_counts[nb.get_thread_id(), node_ids[i]] += 1  # Local accumulation
 
     return tl_counts.sum(axis=0)  # Sum across threads to get the final counts
-
-
-# @nb.njit(parallel=True)
-# def get_eligible_by_node2(num_nodes, num_people, disease_state, dobs, dob_old, dob_young, node_ids):
-#     tls_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)  # Adjust size as needed
-
-#     for i in nb.prange(num_people):
-#         if (disease_state[i] >= 0) and (dobs[i] > dob_old) and (dobs[i] <= dob_young):
-#             tls_counts[nb.get_thread_id(), node_ids[i]] += 1
-
-#     return tls_counts.sum(axis=0)  # Sum across threads to get the final counts
 
 
 @nb.njit(parallel=True)
@@ -969,53 +959,6 @@ class DiseaseState_ABM:
             plt.show()
 
 
-@nb.njit((nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32), nogil=True)  # , cache=True)
-def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
-    """
-    Go through each person exactly once and increment counters for their node.
-
-    node_id:        array of node IDs for each individual
-    disease_state:  array storing each person's disease state (-1=dead/inactive, 0=S, 1=E, 2=I, 3=R)
-    paralyzed:      array (0 or 1) if the person is paralyzed
-    n_nodes:        total number of nodes
-
-    Returns: S, E, I, R, P arrays, each length n_nodes
-    """
-
-    n_threads = nb.get_num_threads()
-    # S = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    # E = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    # I = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    # R = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    SEIR = np.zeros((n_threads, n_nodes, 4), dtype=np.int32)  # S, E, I, R
-    P = np.zeros((n_threads, n_nodes), dtype=np.int32)
-
-    # Single pass over the entire population
-    for i in nb.prange(n_people):
-        if disease_state[i] >= 0:  # Only count those who are alive
-            nd = node_id[i]
-            ds = disease_state[i]
-
-            tid = nb.get_thread_id()
-            # if ds == 0:  # Susceptible
-            #     S[tid, nd] += 1
-            # elif ds == 1:  # Exposed
-            #     E[tid, nd] += 1
-            # elif ds == 2:  # Infected
-            #     I[tid, nd] += 1
-            # elif ds == 3:  # Recovered
-            #     R[tid, nd] += 1
-            # NOTE: This only works if disease_state is contiguous, 0..N
-            SEIR[tid, nd, ds] += 1
-
-            # Check paralyzed
-            if paralyzed[i] == 1:
-                P[tid, nd] += 1
-
-    # return S, E, I, R, P
-    return SEIR[:, :, 0].sum(axis=0), SEIR[:, :, 1].sum(axis=0), SEIR[:, :, 2].sum(axis=0), SEIR[:, :, 3].sum(axis=0), P.sum(axis=0)
-
-
 @nb.njit(parallel=True)
 def tx_step_prep_nb(
     num_nodes,
@@ -1421,21 +1364,16 @@ class Transmission_ABM:
 
     def log(self, t):
         # Get the counts for each node in one pass
-        S_counts, E_counts, I_counts, R_counts, P_counts = count_SEIRP(
-            self.people.node_id,
-            self.people.disease_state,
-            self.people.paralyzed,
-            np.int32(len(self.nodes)),
-            np.int32(self.people.count),
-        )
-
-        # Store them in results
-        self.results.S[t, :] = S_counts
-        self.results.E[t, :] = E_counts
-        self.results.I[t, :] = I_counts
-        # Note that we add to existing non-zero EULA values for R
-        self.results.R[t, :] += R_counts
-        self.results.paralyzed[t, :] = P_counts
+        num_nodes = len(self.nodes)
+        num_people = self.people.count
+        S = self.results.S[t, :]
+        E = self.results.E[t, :]
+        I = self.results.I[t, :]
+        # Store R counts in its own array so we can add to EULA values
+        R = np.empty(num_nodes, dtype=np.int32)
+        P = self.results.paralyzed[t, :]
+        census(num_nodes, num_people, self.people.node_id, self.people.disease_state, self.people.paralyzed, S, E, I, R, P)
+        self.results.R[t, :] += R
 
         if self.verbose >= 3:
             logger.info(f"Exposed logged at end of timestep: {self.results.E[t, :]}")
