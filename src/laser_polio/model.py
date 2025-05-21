@@ -201,31 +201,6 @@ class SEIR_ABM:
             self.common_init(pars, verbose)
             pars = self.pars
 
-            # pars.n_ppl = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
-            # if (pars.cbr is not None) & (len(pars.cbr) == 1):
-            #     capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, pars.cbr[0]))
-            # elif (pars.cbr is not None) & (len(pars.cbr) > 1):
-            #     capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, np.mean(pars.cbr)))
-            # else:
-            #     capacity = int(np.sum(pars.n_ppl))
-            # self.people = LaserFrameIO(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
-            # # We initialize disease_state here since it's required for most other components (which facilitates testing)
-            # self.people.add_scalar_property("disease_state", dtype=np.int32, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
-            # self.people.disease_state[: self.people.count] = 0  # Set initial population as susceptible
-            # self.results = LaserFrame(capacity=1)
-
-            # # Setup spatial component with node IDs
-            # self.people.add_scalar_property("node_id", dtype=np.int32, default=0)
-            # if hasattr(pars, "node_lookup") and pars.node_lookup is not None:
-            #     ordered_node_ids = list(pars.node_lookup.keys())
-            #     self.nodes = np.array(ordered_node_ids)
-            #     node_ids = np.concatenate([np.full(count, node_id) for node_id, count in zip(ordered_node_ids, pars.n_ppl, strict=False)])
-            #     self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids
-            # else:
-            #     self.nodes = np.arange(len(np.atleast_1d(pars.n_ppl)))
-            #     node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_ppl)])
-            #     self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids  # Assign node IDs to initial people
-
             # Components
             self._components = []
 
@@ -600,14 +575,10 @@ class DiseaseState_ABM:
 
                 # Assume everyone older than 15 years of age is immune
                 # We EULA-gize the 15+ first to speedup immunity initialization for <15s
-                # cl o15 = (sim.people.date_of_birth * -1) >= 15 * 365
-                # cl sim.people.disease_state[o15] = 3  # Set as recovered
                 threshold_dob = -15 * 365  # People with a dob before (<) this date are considered recovered
                 set_recovered_by_dob(sim.people.count, sim.people.date_of_birth, sim.people.disease_state, threshold_dob)
 
                 active_count_init = sim.people.count  # This gives the active population size
-                # cl valid_agents = self.people.disease_state[:active_count_init] >= 0  # Apply only to active agents
-                # cl filter_mask = (self.people.disease_state[:active_count_init] < 3) & valid_agents  # Now matches active count
                 filter_mask = np.empty(sim.people.count, dtype=bool)  # Create a boolean mask for the filter
                 set_filter_mask(sim.people.count, self.people.disease_state, filter_mask)
 
@@ -678,18 +649,6 @@ class DiseaseState_ABM:
                     # eligible_mask = alive_mask & (age >= age_min) & (age < age_max)
                     eligible_mask = np.empty(sim.people.count, dtype=bool)
                     set_eligible_mask(sim.people.count, alive_mask, age, age_min, age_max, eligible_mask)
-
-                    # Count eligible individuals per node
-                    ## TODO - consider using this to save creating the eligible_mask above
-                    # _per_node_eligible = get_eligible_by_node2(
-                    #     num_nodes=len(self.nodes),
-                    #     num_people=self.people.count,
-                    #     disease_state=self.people.disease_state,
-                    #     dobs=self.people.date_of_birth,
-                    #     dob_old=-age_max,
-                    #     dob_young=-age_min,
-                    #     node_ids=node_ids,
-                    # )
 
                     per_node_eligible = get_eligible_by_node(
                         num_nodes=len(self.nodes),
@@ -1672,10 +1631,11 @@ def get_vital_statistics(num_nodes, num_people, disease_state, node_id, date_of_
     # Iterate in parallel over all people
     for i in nb.prange(num_people):
         if disease_state[i] >= 0:  # If they're alive ...
-            tl_alive[nb.get_thread_id(), node_id[i]] += 1  # Count 'em
+            tid = nb.get_thread_id()
+            tl_alive[tid, node_id[i]] += 1  # Count 'em
             if date_of_death[i] <= t:  # If they're past their due date ...
                 disease_state[i] = -1  # Mark them as deceased
-                tl_dying[nb.get_thread_id(), node_id[i]] += 1  # Count 'em as deceased
+                tl_dying[tid, node_id[i]] += 1  # Count 'em as deceased
 
     num_alive[:] = tl_alive.sum(axis=0)  # Merge per-thread results
     num_dying[:] = tl_dying.sum(axis=0)  # Merge per-thread results
