@@ -1,7 +1,8 @@
 # PRIORITIES
 
 @Steve
-- Try calibrating individual hetero with underwt R0s
+- Try calibrating individual hetero with gravity model
+- Make synthetic dataset for Nigeria
 - Sweep over hetero with best pars from calib
 - Try calibrating the r0_scalar parameters in run_sim (24 and 0.2)
 - Try calibrating the sia rand effects center and scale values

@@ -13,16 +13,19 @@ import laser_polio as lp
 regions = ["ZAMFARA"]
 start_year = 2019
 n_days = 180
-pop_scale = 1 / 10
+pop_scale = 1
 init_region = "ANKA"
 init_prev = 200
-r0 = 14
-radiation_k = 0.05
+r0 = 19.57
+radiation_k = 0.049
+seasonal_factor = 0.195
+seasonal_phase = 268
+use_pim_scalars = True
 results_path = "results/scan_over_heterogeneity"
 # Define the range of par values to sweep
 n_pts = 8  # Number of points to simulate
 n_reps = 3
-risk_mult_var_values = np.linspace(0.0, 12.0, n_pts)
+risk_mult_var_values = np.linspace(3.0, 12.0, n_pts)
 
 
 ######### END OF USER PARS ########
@@ -54,6 +57,9 @@ for i, risk_mult_var in enumerate(risk_mult_var_values):
             init_prev=init_prev,
             r0=r0,
             radiation_k=radiation_k,
+            use_pim_scalars=use_pim_scalars,
+            seasonal_factor=seasonal_factor,
+            seasonal_phase=seasonal_phase,
             risk_mult_var=risk_mult_var,
             results_path=results_path,
             save_plots=False,

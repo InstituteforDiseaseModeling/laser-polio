@@ -67,6 +67,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     background_seeding_freq = configs.pop("background_seeding_freq", 30)
     background_seeding_node_frac = configs.pop("background_seeding_node_frac", 0.3)
     background_seeding_prev = configs.pop("background_seeding_prev", 0.0001)
+    use_pim_scalars = configs.pop("use_pim_scalars", use_pim_scalars)
 
     # Geography
     dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", verbose=verbose)

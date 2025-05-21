@@ -1,13 +1,13 @@
 parameters:
   r0:
     low: 5.0
-    high: 20.0
+    high: 30.0
   radiation_k:
     low: 0.0
-    high: 0.5
+    high: 1.5
   seasonal_factor:
     low: 0.0
-    high: 0.2
+    high: 0.4
   seasonal_phase:
     low: 0
     high: 364
