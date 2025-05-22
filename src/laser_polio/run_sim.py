@@ -155,11 +155,13 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         results_path = Path("results/default")  # Provide a default path
 
     # Load the actual case data
-    epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
-    epi.rename(columns={"cases": "P"}, inplace=True)
+    def extract_actual_case_data():
+        epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
+        epi.rename(columns={"cases": "P"}, inplace=True)
+        epi.to_csv(results_path / "actual_data.csv", index=False)
+    extract_actual_case_data() # maybe move out of run_sim?
     Path(results_path).mkdir(parents=True, exist_ok=True)
     results_path = Path(results_path)
-    epi.to_csv(results_path / "actual_data.csv", index=False)
 
     # Base parameters (can be overridden)
     base_pars = {
@@ -192,8 +194,6 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     def from_file(init_pop_file):
         #logger.info(f"Initializing SEIR_ABM from file: {init_pop_file}")
-        import pdb
-        pdb.set_trace()
         with h5py.File(init_pop_file, "r") as hdf:
             people = LaserFrameIO.load(hdf, "people")
             results_r = LaserFrameIO.load(hdf, "recovered")
