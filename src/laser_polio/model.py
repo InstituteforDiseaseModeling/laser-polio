@@ -1297,7 +1297,12 @@ class Transmission_ABM:
                     dist_matrix[i, j] = distance(lats[i], lons[i], lats[j], lons[j])
         # Setup the network
         if self.pars.migration_method.lower() == "gravity":
-            k, a, b, c = self.pars.gravity_k, self.pars.gravity_a, self.pars.gravity_b, self.pars.gravity_c
+            k, a, b, c = (
+                self.pars.gravity_k * 10 ** (self.pars.gravity_k_exponent),
+                self.pars.gravity_a,
+                self.pars.gravity_b,
+                self.pars.gravity_c,
+            )
             self.network = gravity(init_pops, dist_matrix, k, a, b, c)
             self.network /= np.power(init_pops.sum(), c)  # Normalize
         elif self.pars.migration_method.lower() == "radiation":

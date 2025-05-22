@@ -40,7 +40,8 @@ default_pars = PropertySet(
         # Migration
         "migration_method": "radiation",  # Migration method: "gravity" or "radiation"
         "radiation_k": 0.5,  # Radiation model scaling constant. Based on testing, this value should be between 0.0 and ~3 for Nigeria.
-        "gravity_k": 0.5,  # Gravity scaling constant
+        "gravity_k": 1.0,  # Gravity scaling constant
+        "gravity_k_exponent": 0.0,  # Exponent of the gravity_k term
         "gravity_a": 1,  # Origin population exponent
         "gravity_b": 1,  # Destination population exponent
         "gravity_c": 2.0,  # Distance exponent
