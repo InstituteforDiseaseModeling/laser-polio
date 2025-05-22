@@ -55,7 +55,7 @@ jobs:
 
       - name: Propagate to IDM Artifactory
         env:
-          TWINE_USERNAME: ${{ secrets.PYPI_STAGING_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.PYPI_STAGING_PASSWORD }}
+          TWINE_USERNAME: ${{ secrets.PYPI_PROD_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_PROD_PASSWORD }}
         run: |
-          python3 -m twine upload --verbose --repository-url https://packages.idmod.org/api/pypi/idm-pypi-staging/ dist/*.whl
+          python3 -m twine upload --verbose --repository-url https://packages.idmod.org/api/pypi/idm-pypi-production/ dist/*.whl
