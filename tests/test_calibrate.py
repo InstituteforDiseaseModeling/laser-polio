@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 
 from click.testing import CliRunner
 
@@ -15,9 +16,9 @@ def test_study_name_override():
     result = run_dry_run_with_args("--study-name", "test123")
     assert result.exit_code == 0
     assert "study_name: test123" in result.output
-    assert "results/test123" in result.output
+    assert str(Path("results") / "test123") in result.output
     assert "actual_data_file: " in result.output
-    assert "test123/actual_data.csv" in result.output
+    assert str(Path("test123") / "actual_data.csv") in result.output
 
 
 def test_model_config_override():
