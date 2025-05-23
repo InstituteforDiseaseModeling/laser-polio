@@ -25,6 +25,7 @@ def run_worker_main(
     results_path=None,
     actual_data_file=None,
     n_replicates=None,
+    dry_run=False,
 ):
     """Run Optuna trials to calibrate the model via CLI or programmatically."""
 
@@ -36,6 +37,9 @@ def run_worker_main(
     results_path = results_path or lp.root / "calib/results" / study_name
     actual_data_file = actual_data_file or lp.root / "examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_250.csv"
     n_replicates = n_replicates or 1
+
+    if dry_run:
+        return [study_name, num_trials, calib_config, model_config, fit_function, results_path, actual_data_file, n_replicates]
 
     sc.printcyan(f"[INFO] Running study: {study_name} with {num_trials} trials")
     storage_url = calib_db.get_storage()
