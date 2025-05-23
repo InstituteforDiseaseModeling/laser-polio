@@ -58,17 +58,8 @@ def main(study_name, model_config, calib_config, results_path=None, actual_data_
     })
 
     # Run calibration and postprocess
-    pars = run_worker_main(study_name=study_name, model_config=model_config, results_path=results_path, fit_function=fit_function, dry_run=dry_run, **kwargs)
-    if pars:
-        study_name, num_trials, calib_config, model_config, fit_function, results_path, actual_data_file, n_replicates = pars
-        print(f"study_name: {study_name}")
-        print(f"num_trials: {num_trials}")
-        print(f"calib_config: {calib_config}")
-        print(f"model_config: {model_config}")
-        print(f"fit_function: {fit_function}")
-        print(f"results_path: {results_path}")
-        print(f"actual_data_file: {actual_data_file}")
-        print(f"n_replicates: {n_replicates}")
+    run_worker_main(study_name=study_name, model_config=model_config, results_path=results_path, fit_function=fit_function, dry_run=dry_run, **kwargs)
+    if dry_run:
         return 
 
     Path(results_path).mkdir(parents=True, exist_ok=True)
