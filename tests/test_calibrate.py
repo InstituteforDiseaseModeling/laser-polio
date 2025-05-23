@@ -1,13 +1,14 @@
-import pytest
-from click.testing import CliRunner
 import sys
-sys.path.append( "calib" )
+
+from click.testing import CliRunner
+
+sys.path.append("calib")
 from calibrate import cli
 
 
 def run_dry_run_with_args(*args):
     runner = CliRunner()
-    return runner.invoke(cli, list(args) + ["--dry-run", "True"])
+    return runner.invoke(cli, [*args, "--dry-run", "True"])
 
 
 def test_study_name_override():
@@ -15,7 +16,8 @@ def test_study_name_override():
     assert result.exit_code == 0
     assert "study_name: test123" in result.output
     assert "results/test123" in result.output
-    assert "actual_data_file: " in result.output and "test123/actual_data.csv" in result.output
+    assert "actual_data_file: " in result.output
+    assert "test123/actual_data.csv" in result.output
 
 
 def test_model_config_override():
@@ -48,6 +50,7 @@ def test_num_trials_override():
     result = run_dry_run_with_args("--num-trials", "7")
     assert result.exit_code == 0
     assert "num_trials: 7" in result.output
+
 
 def test_all_defaults():
     result = run_dry_run_with_args()

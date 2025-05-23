@@ -52,15 +52,19 @@ def main(study_name, model_config, calib_config, results_path=None, actual_data_
     model_config, calib_config, results_path, actual_data_file = resolve_paths(
         study_name, model_config, calib_config, results_path, actual_data_file
     )
-    kwargs.update({
-        "calib_config": calib_config,
-        "actual_data_file": actual_data_file,
-    })
+    kwargs.update(
+        {
+            "calib_config": calib_config,
+            "actual_data_file": actual_data_file,
+        }
+    )
 
     # Run calibration and postprocess
-    run_worker_main(study_name=study_name, model_config=model_config, results_path=results_path, fit_function=fit_function, dry_run=dry_run, **kwargs)
+    run_worker_main(
+        study_name=study_name, model_config=model_config, results_path=results_path, fit_function=fit_function, dry_run=dry_run, **kwargs
+    )
     if dry_run:
-        return 
+        return
 
     Path(results_path).mkdir(parents=True, exist_ok=True)
     shutil.copy(model_config, results_path / "model_config.yaml")
@@ -90,6 +94,7 @@ def main(study_name, model_config, calib_config, results_path=None, actual_data_
 @click.option("--dry-run", default=False, show_default=True, type=bool)
 def cli(**kwargs):
     main(**kwargs)
+
 
 if __name__ == "__main__":
     cli()
