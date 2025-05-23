@@ -69,6 +69,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     background_seeding_node_frac = configs.pop("background_seeding_node_frac", 0.3)
     background_seeding_prev = configs.pop("background_seeding_prev", 0.0001)
     use_pim_scalars = configs.pop("use_pim_scalars", use_pim_scalars)
+    init_immun_scalar = configs.pop("init_immun_scalar", 1.0)
 
     # Geography
     dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", verbose=verbose)
@@ -84,6 +85,10 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     init_immun = pd.read_hdf(lp.root / "data/init_immunity_0.5coverage_january.h5", key="immunity")
     init_immun = init_immun.set_index("dot_name").loc[dot_names]
     init_immun = init_immun[init_immun["period"] == start_year]
+    # Apply scalar multiplier to immunity values, clipping to [0.0, 1.0]
+    immunity_cols = [col for col in init_immun.columns if col.startswith("immunity_")]
+    init_immun[immunity_cols] = init_immun[immunity_cols].clip(lower=0.0, upper=1.0) * init_immun_scalar
+    init_immun[immunity_cols] = init_immun[immunity_cols].clip(upper=1.0, lower=0.0)
 
     # Initial infection seeding
     init_prevs = np.zeros(len(dot_names))
