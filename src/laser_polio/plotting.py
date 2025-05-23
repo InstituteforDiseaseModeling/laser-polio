@@ -35,9 +35,12 @@ def plot_pars(pars, shp, results_path):
         plot_choropleth_and_hist(shp, par, values, plot_path)
 
     # Custom maps: init_immun, sia_schedule, seed_schedule
-    plot_init_immun_grid(shp, pars["init_immun"], plot_path)
-    plot_sia_schedule(shp, pars["sia_schedule"], plot_path)
-    plot_seed_schedule(shp, pars["seed_schedule"], pars["node_lookup"], plot_path)
+    if "init_immun" in pars:
+        plot_init_immun_grid(shp, pars["init_immun"], plot_path)
+    if "sia_schedule" in pars:
+        plot_sia_schedule(shp, pars["sia_schedule"], plot_path)
+    if "seed_schedule" in pars:
+        plot_seed_schedule(shp, pars["seed_schedule"], pars["node_lookup"], plot_path)
 
     # TODO: Other: age_pyramid_path, vx_prob_ri
 

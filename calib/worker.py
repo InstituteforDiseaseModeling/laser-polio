@@ -25,6 +25,7 @@ def run_worker_main(
     results_path=None,
     actual_data_file=None,
     n_replicates=None,
+    dry_run=False,
 ):
     """Run Optuna trials to calibrate the model via CLI or programmatically."""
 
@@ -36,6 +37,19 @@ def run_worker_main(
     results_path = results_path or lp.root / "calib/results" / study_name
     actual_data_file = actual_data_file or lp.root / "examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_250.csv"
     n_replicates = n_replicates or 1
+
+    # We want to show users on console what values we ended up going with based on command line args and defaults.
+    print(f"study_name: {study_name}")
+    print(f"num_trials: {num_trials}")
+    print(f"calib_config: {calib_config}")
+    print(f"model_config: {model_config}")
+    print(f"fit_function: {fit_function}")
+    print(f"results_path: {results_path}")
+    print(f"actual_data_file: {actual_data_file}")
+    print(f"n_replicates: {n_replicates}")
+
+    if dry_run:
+        return
 
     sc.printcyan(f"[INFO] Running study: {study_name} with {num_trials} trials")
     storage_url = calib_db.get_storage()
