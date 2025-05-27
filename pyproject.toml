@@ -40,7 +40,7 @@ dependencies = [
     "geopandas",
     "geopy",
     "h5py",
-    "laser-core~=0.2",
+    "laser-core==0.4.1",
     "matplotlib",
     "numba>=0.59.1",
     "numpy>=1.26.4,<2.0.0",
