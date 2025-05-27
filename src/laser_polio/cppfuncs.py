@@ -128,6 +128,27 @@ def tx_step_part_one(
     return
 
 
+lib.set_recovered_by_dob.argtypes = [
+    ctypes.c_int32,  # num_people
+    np.ctypeslib.ndpointer(dtype=np.int32, flags="C_CONTIGUOUS"),  # dob
+    np.ctypeslib.ndpointer(dtype=np.int32, flags="C_CONTIGUOUS"),  # disease_state
+    ctypes.c_int32,  # threshold_dob
+]
+lib.set_recovered_by_dob.restype = None
+
+
+def set_recovered_by_dob(num_people, dob, disease_state, threshold_dob):
+    lib.set_recovered_by_dob(
+        np.int32(num_people),
+        dob,
+        disease_state,
+        np.int32(threshold_dob),
+    )
+
+    return
+
+
+"""
 lib.get_threadid.argtypes = [
     ctypes.c_int32,  # num
     np.ctypeslib.ndpointer(dtype=np.int32, flags="C_CONTIGUOUS"),  # out`
@@ -152,7 +173,7 @@ def get_uniform(num, out):
     lib.get_uniform(np.int32(num), out)
 
     return
-
+"""
 
 if __name__ == "__main__":
     num_nodes = 100
@@ -295,5 +316,7 @@ if __name__ == "__main__":
     assert np.allclose(ebn, exposure_by_node)
     assert np.all(sbn == sus_by_node)
     print(f"{new_infections.sum()=}, {new_inf.sum()=}")
+
+    # TODO - test set_recovered_by_dob
 
     print("done")

@@ -30,6 +30,7 @@ from tqdm import tqdm
 
 import laser_polio as lp
 from laser_polio.cppfuncs import census
+from laser_polio.cppfuncs import set_recovered_by_dob
 from laser_polio.laserframeio import LaserFrameIO
 from laser_polio.utils import TimingStats
 from laser_polio.utils import pbincount
@@ -418,13 +419,13 @@ def step_nb(disease_state, exposure_timer, infection_timer, acq_risk_multiplier,
     return
 
 
-@nb.njit(parallel=True, cache=True)
-def set_recovered_by_dob(num_people, dob, disease_state, threshold_dob):
-    for i in nb.prange(num_people):
-        if dob[i] < threshold_dob:
-            disease_state[i] = 3  # Set as recovered
+# @nb.njit(parallel=True, cache=True)
+# def set_recovered_by_dob(num_people, dob, disease_state, threshold_dob):
+#     for i in nb.prange(num_people):
+#         if dob[i] < threshold_dob:
+#             disease_state[i] = 3  # Set as recovered
 
-    return
+#     return
 
 
 @nb.njit([(nb.int32, nb.int32[:], nb.boolean[:]), (nb.int64, nb.int32[:], nb.boolean[:])], parallel=True, cache=True)
@@ -1531,7 +1532,7 @@ class VitalDynamics_ABM:
         )
 
         # 2) Compute births
-        expected_births = self.step_size * self.birth_rate * alive_count_by_node
+        expected_births = self.step_size * self.birth_rate * (alive_count_by_node + self.results.R[t, :])
         birth_integer = expected_births.astype(np.int32)
         birth_fraction = expected_births - birth_integer
         birth_rand = np.random.binomial(1, birth_fraction)  # Bernoulli draw

@@ -258,4 +258,26 @@ extern "C" {
         }
     }
 
+    /*
+    def set_recovered_by_dob(num_people, dob, disease_state, threshold_dob):
+        for i in nb.prange(num_people):
+            if dob[i] < threshold_dob:
+                disease_state[i] = 3  # Set as recovered
+
+        return
+    */
+    void set_recovered_by_dob(
+        int32_t num_people,
+        int32_t* dob,
+        int32_t* disease_state,
+        int32_t threshold_dob
+    ) {
+        #pragma omp parallel for
+        for (int i = 0; i < num_people; ++i) {
+            if (dob[i] < threshold_dob) {
+                disease_state[i] = 3;  // Set as recovered
+            }
+        }
+    }
+
 }

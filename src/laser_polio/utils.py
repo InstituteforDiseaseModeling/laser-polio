@@ -636,6 +636,25 @@ class TimingStats:
 
         return
 
+    def print(self):
+        """
+        Logs the elapsed time statistics stored in the `self.stats` dictionary.
+        Each entry in `self.stats` is formatted and printed.
+        The elapsed time is converted from nanoseconds to microseconds and rounded
+        before being printed.
+
+        Returns:
+            None
+        """
+
+        width = max(map(len, self.stats.keys()))
+        fmt = f"{{label:<{width}}} : {{value:11,}} µsecs"
+
+        for label, elapsed in self.stats.items():
+            print(fmt.format(label=label, value=round(elapsed / 1000)))
+
+        return
+
 
 def pbincount(bins, num_bins, weights=None, dtype=None):
     """
