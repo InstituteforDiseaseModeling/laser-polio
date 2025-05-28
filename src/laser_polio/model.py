@@ -410,7 +410,8 @@ class SEIR_ABM:
     def plot_node_pop(self, save=False, results_path=None):
         plt.figure(figsize=(10, 6))
         for node in self.nodes:
-            pop = self.results.S[:, node] + self.results.E[:, node] + self.results.I[:, node] + self.results.R[:, node]
+            #pop = self.results.S[:, node] + self.results.E[:, node] + self.results.I[:, node] + self.results.R[:, node]
+            pop = self.results.pop[:, node]
             plt.plot(pop, label=f"Node {node}")
         plt.title("Node Population")
         plt.xlabel("Time (Timesteps)")
@@ -549,6 +550,8 @@ class DiseaseState_ABM:
         self.results.add_array_property("I", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("R", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.add_array_property("pop", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.pop[0] = self.sim.pars.n_ppl
 
     def __init__(self, sim):
         self._common_init(sim)
@@ -1380,14 +1383,6 @@ class Transmission_ABM:
             risk = self.people.acq_risk_multiplier[: self.people.count]
             num_nodes = len(self.nodes)
             num_people = self.sim.people.count
-            alive_counts = (
-                self.sim.results.S[self.sim.t - 1]
-                + self.sim.results.E[self.sim.t - 1]
-                + self.sim.results.I[self.sim.t - 1]
-                + self.sim.results.R[self.sim.t - 1]
-                + self.sim.results.births[self.sim.t]
-                - self.sim.results.deaths[self.sim.t]
-            )
 
             # Manual validation
             if self.verbose >= 3:
@@ -1413,7 +1408,7 @@ class Transmission_ABM:
                 self.network,
                 beta_seasonality,
                 self.r0_scalars,
-                alive_counts,
+                self.results.pop[self.sim.t],
                 risk,
                 self.sim.pars.node_seeding_dispersion,
                 self.sim.pars.node_seeding_zero_inflation,
@@ -1425,7 +1420,7 @@ class Transmission_ABM:
                 logger.info(f"R0 scalars: {fmt(self.r0_scalars, 2)}")
                 logger.info(f"beta: {fmt(beta, 2)}")
                 logger.info(f"Total beta: {fmt(beta.sum(), 2)}")
-                logger.info(f"Alive counts: {fmt(alive_counts, 2)}")
+                logger.info(f"Alive counts: {fmt(self.results.pop, 2)}")
                 logger.info(f"Base prob infection: {fmt(base_prob_infection, 2)}")
                 logger.info(f"Exp inf (sans acq risk): {fmt(num_susceptibles * base_prob_infection, 2)}")
                 disease_state_pre_infect = disease_state.copy()  # Copy before infection
@@ -1657,29 +1652,32 @@ class VitalDynamics_ABM:
     def step(self):
         t = self.sim.t
         if t % self.step_size != 0:
+            self.results.pop[t] = (
+                self.results.S[t - 1]  # updated last timestep during logging
+                + self.results.E[t - 1]  # updated last timestep during logging
+                + self.results.I[t - 1]  # updated last timestep during logging
+                + self.results.R[t - 1]  # updated last timestep during logging
+            )
             return
 
         # 1) Get vital statistics - alive and newly deceased
         num_nodes = len(self.nodes)
         tl_alive = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
         tl_dying = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
-        alive_count_by_node = np.zeros(num_nodes, dtype=np.int32)
+        #self.alive_count_by_node = np.zeros(num_nodes, dtype=np.int32)
         deaths_count_by_node = np.zeros(num_nodes, dtype=np.int32)
-        get_vital_statistics(
-            num_nodes,
-            self.people.count,
-            self.people.disease_state,
-            self.people.node_id,
-            self.people.date_of_death,
-            t,
-            tl_alive,
-            tl_dying,
-            alive_count_by_node,
-            deaths_count_by_node,
+        get_deaths( num_nodes, self.people.count, self.people.disease_state, self.people.node_id, self.people.date_of_death, t, tl_dying, deaths_count_by_node )
+        self.results.pop[t] = (
+            self.results.S[t - 1]  # updated last timestep during logging
+            + self.results.E[t - 1]  # updated last timestep during logging
+            + self.results.I[t - 1]  # updated last timestep during logging
+            + self.results.R[t - 1]  # updated last timestep during logging
+            + self.results.births[t]  # updated at beginning of current step in vital dynamics
+            - self.results.deaths[t]  # updated at beginning of current step in vital dynamics
         )
 
         # 2) Compute births
-        expected_births = self.step_size * self.birth_rate * alive_count_by_node
+        expected_births = self.step_size * self.birth_rate * self.results.pop[self.sim.t]
         birth_integer = expected_births.astype(np.int32)
         birth_fraction = expected_births - birth_integer
         birth_rand = np.random.binomial(1, birth_fraction)  # Bernoulli draw
@@ -1771,20 +1769,17 @@ class VitalDynamics_ABM:
 
 
 @nb.njit(
-    (nb.int32, nb.int32, nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32[:, :], nb.int32[:, :], nb.int32[:], nb.int32[:]),
+    (nb.int32, nb.int32, nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32[:, :], nb.int32[:]),
     parallel=True,
     cache=True,
 )
-def get_vital_statistics(num_nodes, num_people, disease_state, node_id, date_of_death, t, tl_alive, tl_dying, num_alive, num_dying):
+def get_deaths( num_nodes, num_people, disease_state, node_id, date_of_death, t, tl_dying, num_dying):
     # Iterate in parallel over all people
     for i in nb.prange(num_people):
-        if disease_state[i] >= 0:  # If they're alive ...
-            tl_alive[nb.get_thread_id(), node_id[i]] += 1  # Count 'em
-            if date_of_death[i] <= t:  # If they're past their due date ...
-                disease_state[i] = -1  # Mark them as deceased
-                tl_dying[nb.get_thread_id(), node_id[i]] += 1  # Count 'em as deceased
+        if disease_state[i] >= 0 and date_of_death[i] <= t:  # If they're past their due date ...
+            disease_state[i] = -1  # Mark them as deceased
+            tl_dying[nb.get_thread_id(), node_id[i]] += 1  # Count 'em as deceased
 
-    num_alive[:] = tl_alive.sum(axis=0)  # Merge per-thread results
     num_dying[:] = tl_dying.sum(axis=0)  # Merge per-thread results
 
     return
