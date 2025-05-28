@@ -133,7 +133,7 @@ class SEIR_ABM:
             # Load default parameters and optionally override with user-specified ones
             self.pars = deepcopy(lp.default_pars)
             if pars is not None:
-                self.pars <<= pars  # override default values
+                self.pars <<= pars  # strictly override existing parameters; all keys in `pars` must already exist in `self.pars`
             pars = self.pars
 
             self.verbose = pars["verbose"] if "verbose" in pars else 1
