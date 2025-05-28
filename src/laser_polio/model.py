@@ -1679,7 +1679,7 @@ class VitalDynamics_ABM:
         )
 
         # 2) Compute births
-        R_values = self.results.R[t, :] if hasattr(self.results, "R") else 0
+        R_values = self.results.R[t, :] if hasattr(self.results, "R") else np.zeros_like(alive_count_by_node)
         expected_births = self.step_size * self.birth_rate * (alive_count_by_node + R_values)
         birth_integer = expected_births.astype(np.int32)
         birth_fraction = expected_births - birth_integer
