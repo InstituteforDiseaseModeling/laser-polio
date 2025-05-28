@@ -978,7 +978,7 @@ class DiseaseState_ABM:
             plt.show()
 
 
-@nb.njit((nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32), nogil=True)  # , cache=True)
+@nb.njit((nb.int32, nb.int32[:], nb.int32[:], nb.int32, nb.int32), nogil=True)  # , cache=True)
 def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
     """
     Go through each person exactly once and increment counters for their node.
@@ -1061,8 +1061,10 @@ def tx_step_prep_nb(
     exposure_by_node = tl_exposure_by_node.sum(axis=0)
     sus_by_node = tl_sus_by_node.sum(axis=0)  # Sum across threads
 
-    # Step 2: Compute the force of infection for each node accounting for immigration and emmigration
-    transfer = beta_by_node * network
+    # Step 2: Compute the force of infection for each node accounting for immigration and emigration
+    # NOTE: network is [from, to], so to get transfer[i, j] = beta_by_node[i] * network[i, j],
+    # we must use network.T due to numpy broadcasting rules.
+    transfer = beta_by_node * network.T
     beta_by_node += transfer.sum(axis=1) - transfer.sum(axis=0)  # Add incoming, subtract outgoing
     beta_by_node = np.maximum(beta_by_node, 0)
 
