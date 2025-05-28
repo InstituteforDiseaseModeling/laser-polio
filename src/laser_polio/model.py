@@ -1679,7 +1679,8 @@ class VitalDynamics_ABM:
         )
 
         # 2) Compute births
-        expected_births = self.step_size * self.birth_rate * (alive_count_by_node + self.results.R[t, :])
+        R_values = self.results.R[t, :] if hasattr(self.results, 'R') and t in self.results.R else 0
+        expected_births = self.step_size * self.birth_rate * (alive_count_by_node + R_values)
         birth_integer = expected_births.astype(np.int32)
         birth_fraction = expected_births - birth_integer
         birth_rand = np.random.binomial(1, birth_fraction)  # Bernoulli draw
