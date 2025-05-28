@@ -1652,6 +1652,8 @@ class VitalDynamics_ABM:
     def step(self):
         t = self.sim.t
         if t % self.step_size != 0:
+            # Returning from VD step without doing anything except we need to store the new pop
+            # no births or deaths this cycle.
             self.results.pop[t] = (
                 self.results.S[t - 1]  # updated last timestep during logging
                 + self.results.E[t - 1]  # updated last timestep during logging
@@ -1667,17 +1669,8 @@ class VitalDynamics_ABM:
         #self.alive_count_by_node = np.zeros(num_nodes, dtype=np.int32)
         deaths_count_by_node = np.zeros(num_nodes, dtype=np.int32)
         get_deaths( num_nodes, self.people.count, self.people.disease_state, self.people.node_id, self.people.date_of_death, t, tl_dying, deaths_count_by_node )
-        self.results.pop[t] = (
-            self.results.S[t - 1]  # updated last timestep during logging
-            + self.results.E[t - 1]  # updated last timestep during logging
-            + self.results.I[t - 1]  # updated last timestep during logging
-            + self.results.R[t - 1]  # updated last timestep during logging
-            + self.results.births[t]  # updated at beginning of current step in vital dynamics
-            - self.results.deaths[t]  # updated at beginning of current step in vital dynamics
-        )
-
         # 2) Compute births
-        expected_births = self.step_size * self.birth_rate * self.results.pop[self.sim.t]
+        expected_births = self.step_size * self.birth_rate * self.results.pop[self.sim.t-1]
         birth_integer = expected_births.astype(np.int32)
         birth_fraction = expected_births - birth_integer
         birth_rand = np.random.binomial(1, birth_fraction)  # Bernoulli draw
@@ -1704,6 +1697,15 @@ class VitalDynamics_ABM:
         # 3) Store the death counts
         # Actual "death" handled in get_vital_statistics() as we count newly deceased
         self.results.deaths[t] = deaths_count_by_node
+
+        self.results.pop[t] = (
+            self.results.S[t - 1]  # updated last timestep during logging
+            + self.results.E[t - 1]  # updated last timestep during logging
+            + self.results.I[t - 1]  # updated last timestep during logging
+            + self.results.R[t - 1]  # updated last timestep during logging
+            + self.results.births[t]  # updated at beginning of current step in vital dynamics
+            - self.results.deaths[t]  # updated at beginning of current step in vital dynamics
+        )
 
         return
 
