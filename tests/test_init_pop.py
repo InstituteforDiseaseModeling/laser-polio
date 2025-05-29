@@ -1,16 +1,16 @@
-import tempfile
-from pathlib import Path
-from unittest.mock import patch
+# import tempfile
+# from pathlib import Path
+# from unittest.mock import patch
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from laser_core.random import seed as laser_seed
 
-from laser_polio.run_sim import run_sim
+# from laser_polio.run_sim import run_sim
 
-test_dir = Path(__file__).parent
-data_path = test_dir / "data"
+# test_dir = Path(__file__).parent
+# data_path = test_dir / "data"
 
 
 def plot( loaded, fresh ):
@@ -56,35 +56,33 @@ def test_init_pop_loading(tmp_path):
         "seed": 123,
     }
 
-    # Always create a fresh init file.
-    init_dir.mkdir(parents=True, exist_ok=True)
-    run_sim(**config, results_path=init_dir, run=False)
+     # Always create a fresh init file.
+     init_dir.mkdir(parents=True, exist_ok=True)
+     run_sim(**config, results_path=init_dir, run=False)
 
-    # Load-from-disk sim
-    sim_loaded = run_sim(
-        init_pop_file=init_file,
-        results_path=tmp_path / "loaded_run",
-        run=False,
-        **config,
-    )
+     # Load-from-disk sim
+     sim_loaded = run_sim(
+         init_pop_file=init_file,
+         results_path=tmp_path / "loaded_run",
+         run=False,
+         **config,
+     )
 
-    # Setup a fresh sim
-    sim_fresh = run_sim(
+     # Setup a fresh sim
+     sim_fresh = run_sim(
         init_pop_file=None,
         results_path=tmp_path / "fresh_run",
         run=False,
         **config,
     )
 
-    # 1. Verify population LaserFrame matches after initialization
+     # 1. Verify population LaserFrame matches after initialization
     for prop in sim_loaded.people.__dict__:
         if isinstance(sim_loaded.people.__dict__[prop], np.ndarray):
             a = sim_loaded.people.__dict__[prop][: sim_loaded.people.count]
             b = sim_fresh.people.__dict__[prop][: sim_fresh.people.count]
             assert np.array_equal(a, b), f"Mismatch in LaserFrame property '{prop}'."
-
-    # Run the simulations to completion
-    laser_seed(123)
+    # Run the simulations to completion     laser_seed(123)
     sim_loaded.run()
     laser_seed(123)
     sim_fresh.run()
