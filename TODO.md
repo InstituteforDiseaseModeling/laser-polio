@@ -1,7 +1,7 @@
 # PRIORITIES
 
 @Steve
-- Plot monthly cases likelihood component against phase  
+- Plot monthly cases likelihood component against phase
 - Consider age distribution of cases as a calibration target, which would help parameterize R0
 - Double check that the seasonality phase is correct based on latest calibration results
 - Get cursor

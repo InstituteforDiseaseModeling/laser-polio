@@ -118,13 +118,14 @@ def fmt(arr, precision=2):
         precision=precision,
     )
 
+
 # This utility function is called from two different places; doesn't need to be member of
 # a class
 def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, pars):
     """
     Populates acq_risk_out and infectivity_out arrays in-place using the specified
     correlation structure and parameter set.
-    
+
     Parameters
     ----------
     start : int
@@ -159,8 +160,14 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
     z = np.random.normal(size=(n, 2))
     z_corr = z @ L.T
 
-    acq_risk_out[start:end] = np.exp(mu_ln + sigma_ln * z_corr[:, 0])
-    infectivity_out[start:end] = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)
+    if pars.individual_heterogeneity:
+        acq_risk_out[start:end] = np.exp(mu_ln + sigma_ln * z_corr[:, 0])
+        infectivity_out[start:end] = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)
+    else:
+        sc.printyellow("Warning: manually resetting acq_risk_multiplier and daily_infectivity to 1.0 for testing")
+        acq_risk_out[start:end] = 1.0
+        infectivity_out[start:end] = mean_gamma
+
 
 # SEIR Model
 class SEIR_ABM:
@@ -569,14 +576,9 @@ class DiseaseState_ABM:
         cap = getattr(self.people, "true_capacity", self.people.capacity)
         count = self.people.count
         # We need to set daily_infectivity and acq_risk_multiplier for count:capacity
-        if self.pars.individual_heterogeneity:
-            populate_heterogeneous_values(count, cap, self.people.acq_risk_multiplier, self.people.daily_infectivity, self.pars)
-            sim.people.exposure_timer[count:cap] = self.pars.dur_exp(cap-count) - 1
-            sim.people.infection_timer[count:cap] = self.pars.dur_inf(cap-count)
-        else:
-            sc.printyellow("Warning: manually resetting acq_risk_multiplier and daily_infectivity to 1.0 for testing")
-            self.people.acq_risk_multiplier[count:cap] = 1.0
-            self.people.daily_infectivity[count:cap] = mean_gamma
+        populate_heterogeneous_values(count, cap, self.people.acq_risk_multiplier, self.people.daily_infectivity, self.pars)
+        sim.people.exposure_timer[count:cap] = self.pars.dur_exp(cap - count) - 1
+        sim.people.infection_timer[count:cap] = self.pars.dur_inf(cap - count)
         return self
 
     def _common_init(self, sim):
@@ -1330,14 +1332,8 @@ class Transmission_ABM:
 
         # Step 4: Transform normal variables into target distributions
         # Set individual heterogeneity properties
-        if self.pars.individual_heterogeneity:
-            populate_heterogeneous_values(0, count, self.people.acq_risk_multiplier, self.people.daily_infectivity, self.pars)
-        else:
-            sc.printyellow("Warning: manually resetting acq_risk_multiplier and daily_infectivity to 1.0 for testing")
-            self.people.acq_risk_multiplier[:count] = 1.0
-            self.people.daily_infectivity[:count] = mean_gamma
-
-        #z = np.random.normal(size=(n, 2)) @ L.T
+        populate_heterogeneous_values(0, count, self.people.acq_risk_multiplier, self.people.daily_infectivity, self.pars)
+        # z = np.random.normal(size=(n, 2)) @ L.T
 
     def _initialize_common(self):
         """Initialize shared network and timers."""
@@ -1525,7 +1521,7 @@ def sample_dobs(samples, bin_min_age_days, bin_max_age_days, dobs):
 
 
 def pbincounts(bins, num_nodes, weights):
-    tl_weights = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float32) 
+    tl_weights = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float32)
     tl_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
     nb_bincounts(bins, len(bins), weights, tl_counts, tl_weights)
 
@@ -1685,7 +1681,16 @@ class VitalDynamics_ABM:
         num_nodes = len(self.nodes)
         tl_dying = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
         deaths_count_by_node = np.zeros(num_nodes, dtype=np.int32)
-        get_deaths( num_nodes, self.people.count, self.people.disease_state, self.people.node_id, self.people.date_of_death, t, tl_dying, deaths_count_by_node )
+        get_deaths(
+            num_nodes,
+            self.people.count,
+            self.people.disease_state,
+            self.people.node_id,
+            self.people.date_of_death,
+            t,
+            tl_dying,
+            deaths_count_by_node,
+        )
 
         # 2) Compute births
         expected_births = self.step_size * self.birth_rate * self.results.pop[t - 1]
@@ -1801,7 +1806,7 @@ class VitalDynamics_ABM:
     parallel=True,
     cache=True,
 )
-def get_deaths( num_nodes, num_people, disease_state, node_id, date_of_death, t, tl_dying, num_dying):
+def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, tl_dying, num_dying):
     # Iterate in parallel over all people
     for i in nb.prange(num_people):
         if disease_state[i] >= 0 and date_of_death[i] <= t:  # If they're past their due date ...

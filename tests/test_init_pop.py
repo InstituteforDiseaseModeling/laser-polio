@@ -4,7 +4,6 @@ from unittest.mock import patch
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 import pytest
 
 from laser_core.random import seed as laser_seed
@@ -15,7 +14,7 @@ test_dir = Path(__file__).parent
 data_path = test_dir / "data"
 
 
-def plot( loaded, fresh ):
+def plot(loaded, fresh):
     plt.figure(figsize=(12, 8), constrained_layout=True)
 
     # Plot loaded results (e.g., in blue, dashed)
