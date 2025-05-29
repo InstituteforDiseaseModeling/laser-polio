@@ -1691,7 +1691,6 @@ class VitalDynamics_ABM:
             tl_dying,
             deaths_count_by_node,
         )
-
         # 2) Compute births
         expected_births = self.step_size * self.birth_rate * self.results.pop[t - 1]
         birth_integer = expected_births.astype(np.int32)
