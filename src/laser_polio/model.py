@@ -455,7 +455,6 @@ class SEIR_ABM:
     def plot_node_pop(self, save=False, results_path=None):
         plt.figure(figsize=(10, 6))
         for node in self.nodes:
-            #pop = self.results.S[:, node] + self.results.E[:, node] + self.results.I[:, node] + self.results.R[:, node]
             pop = self.results.pop[:, node]
             plt.plot(pop, label=f"Node {node}")
         plt.title("Node Population")
@@ -1679,25 +1678,17 @@ class VitalDynamics_ABM:
         if t % self.step_size != 0:
             # Returning from VD step without doing anything except we need to store the new pop
             # no births or deaths this cycle.
-            self.results.pop[t] = (
-                self.results.S[t - 1]  # updated last timestep during logging
-                + self.results.E[t - 1]  # updated last timestep during logging
-                + self.results.I[t - 1]  # updated last timestep during logging
-                + self.results.R[t - 1]  # updated last timestep during logging
-            )
+            self.results.pop[t, :] = self.results.pop[t - 1, :]
             return
 
         # 1) Get vital statistics - alive and newly deceased
         num_nodes = len(self.nodes)
-        tl_alive = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
         tl_dying = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
-
         deaths_count_by_node = np.zeros(num_nodes, dtype=np.int32)
         get_deaths( num_nodes, self.people.count, self.people.disease_state, self.people.node_id, self.people.date_of_death, t, tl_dying, deaths_count_by_node )
 
         # 2) Compute births
-        R_values = self.results.R[t, :] if hasattr(self.results, "R") else np.zeros_like(alive_count_by_node)
-        expected_births = self.step_size * self.birth_rate * (alive_count_by_node + R_values)
+        expected_births = self.step_size * self.birth_rate * self.results.pop[t - 1]
         birth_integer = expected_births.astype(np.int32)
         birth_fraction = expected_births - birth_integer
         birth_rand = np.random.binomial(1, birth_fraction)  # Bernoulli draw
@@ -1736,13 +1727,10 @@ class VitalDynamics_ABM:
         # Actual "death" handled in get_vital_statistics() as we count newly deceased
         self.results.deaths[t] = deaths_count_by_node
 
-        self.results.pop[t] = (
-            self.results.S[t - 1]  # updated last timestep during logging
-            + self.results.E[t - 1]  # updated last timestep during logging
-            + self.results.I[t - 1]  # updated last timestep during logging
-            + self.results.R[t - 1]  # updated last timestep during logging
-            + self.results.births[t]  # updated at beginning of current step in vital dynamics
-            - self.results.deaths[t]  # updated at beginning of current step in vital dynamics
+        self.results.pop[t, :] = (
+            self.results.pop[t - 1, :]
+            + self.results.births[t, :]  # updated at beginning of current step in vital dynamics
+            - self.results.deaths[t, :]  # updated at beginning of current step in vital dynamics
         )
 
         return
