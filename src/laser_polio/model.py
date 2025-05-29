@@ -1702,8 +1702,8 @@ class VitalDynamics_ABM:
 
         self.results.pop[t, :] = (
             self.results.pop[t - 1, :]
-            + self.results.births[t,:]  # updated at beginning of current step in vital dynamics
-            - self.results.deaths[t,:]  # updated at beginning of current step in vital dynamics
+            + self.results.births[t, :]  # updated at beginning of current step in vital dynamics
+            - self.results.deaths[t, :]  # updated at beginning of current step in vital dynamics
         )
 
         return
