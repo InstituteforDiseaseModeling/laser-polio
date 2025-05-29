@@ -1,12 +1,11 @@
-import tempfile
-from pathlib import Path
-from unittest.mock import patch
+# import tempfile
+# from pathlib import Path
+# from unittest.mock import patch
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from laser_core.random import seed as laser_seed
-
 from laser_polio.run_sim import run_sim
 
 test_dir = Path(__file__).parent
@@ -103,7 +102,6 @@ def test_init_pop_loading(tmp_path):
     final_R_fresh = np.sum(sim_fresh.results.R[-1])
     print(f"Final recovered counts: Loaded={final_R_loaded}, Fresh={final_R_fresh}")
     assert np.isclose(final_R_loaded, final_R_fresh, rtol=0.01), "Final recovered counts diverge too much."
-
 
 if __name__ == "__main__":
     tmp_dir = Path(tempfile.mkdtemp())

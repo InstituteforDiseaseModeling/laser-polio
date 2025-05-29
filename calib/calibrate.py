@@ -21,7 +21,7 @@ if os.getenv("POLIO_ROOT"):
 
 # ------------------- USER CONFIGS -------------------
 
-study_name = "calib_nigeria_6y_pim_gravity_zinb_20250523"
+study_name = "calib_nigeria_6y_pim_gravity_zinb_birth_fix_20250528"
 model_config = "config_nigeria_6y_pim_gravity_zinb.yaml"
 calib_config = "r0_k_ssn_gravity_zinb.yaml"
 fit_function = "log_likelihood"

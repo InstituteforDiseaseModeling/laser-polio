@@ -5,7 +5,7 @@ This is a spatial polio transmission model built on the LASER framework.
 |-|-|
 |**docs**|[![Documentation Status](https://img.shields.io/readthedocs/laser-polio.svg)](https://docs.idmod.org/projects/laser-polio/en/latest/)|
 |**tests**|[![GitHub Actions Build Status](https://github.com/InstituteforDiseaseModeling/laser-polio/actions/workflows/github-actions.yml/badge.svg)](https://github.com/InstituteforDiseaseModeling/laser-polio/actions) [![Code Coverage](https://codecov.io/gh/InstituteforDiseaseModeling/laser-polio/branch/main/graphs/badge.svg?branch=main)](https://app.codecov.io/github/InstituteforDiseaseModeling/laser-polio)|
-|**package**|[![PyPI Package Latest Release](https://img.shields.io/pypi/v/laser-polio.svg)](https://pypi.org/project/laser-polio) [![PyPI Wheel](https://img.shields.io/pypi/wheel/laser-polio.svg)](https://pypi.org/project/laser-polio) [![Supported Versions](https://img.shields.io/pypi/pyversions/laser-polio.svg)](https://pypi.org/project/laser-polio) [![Supported Implementations](https://img.shields.io/pypi/implementation/laser-polio.svg)](https://pypi.org/project/laser-polio) [![Commits since latest release](https://img.shields.io/github/commits-since/InstituteforDiseaseModeling/laser-polio/v0.1.20.svg)](https://github.com/InstituteforDiseaseModeling/laser-polio/compare/v0.1.20...main)|
+|**package**|[![PyPI Package Latest Release](https://img.shields.io/pypi/v/laser-polio.svg)](https://pypi.org/project/laser-polio) [![PyPI Wheel](https://img.shields.io/pypi/wheel/laser-polio.svg)](https://pypi.org/project/laser-polio) [![Supported Versions](https://img.shields.io/pypi/pyversions/laser-polio.svg)](https://pypi.org/project/laser-polio) [![Supported Implementations](https://img.shields.io/pypi/implementation/laser-polio.svg)](https://pypi.org/project/laser-polio) [![Commits since latest release](https://img.shields.io/github/commits-since/InstituteforDiseaseModeling/laser-polio/v0.1.23.svg)](https://github.com/InstituteforDiseaseModeling/laser-polio/compare/v0.1.23...main)|
 
 ## Installation
 The recommended approach is to use uv to setup your venv and install the package.
@@ -19,6 +19,11 @@ uv venv --python 3.12
 Download the repo, then install with uv:
 ```
 uv pip install -e .
+```
+
+To upgrade to latest laser-core:
+```
+uv pip install --upgrade laser-core
 ```
 
 ## Usage

@@ -70,8 +70,9 @@ default_pars = PropertySet(
         "step_size_RI_ABM": 14,
         "step_size_SIA_ABM": 1,
         "step_size_Transmission_ABM": 1,
-        # Actual data
+        # Actual data & calibration configs
         "actual_data": None,  # Actual dataset
+        "summary_config": None,  # Summary configuration for calibration plotting
         # Verbosity
         "verbose": 1,  # 0 = silent, 1 = info, 2 = debug, 3 = validate with special logging features
         # Stopping rules

@@ -133,7 +133,7 @@ class SEIR_ABM:
             # Load default parameters and optionally override with user-specified ones
             self.pars = deepcopy(lp.default_pars)
             if pars is not None:
-                self.pars += pars  # override default values
+                self.pars <<= pars  # strictly override existing parameters; all keys in `pars` must already exist in `self.pars`
             pars = self.pars
 
             self.verbose = pars["verbose"] if "verbose" in pars else 1
@@ -1670,7 +1670,8 @@ class VitalDynamics_ABM:
         deaths_count_by_node = np.zeros(num_nodes, dtype=np.int32)
         get_deaths( num_nodes, self.people.count, self.people.disease_state, self.people.node_id, self.people.date_of_death, t, tl_dying, deaths_count_by_node )
         # 2) Compute births
-        expected_births = self.step_size * self.birth_rate * self.results.pop[self.sim.t-1]
+        R_values = self.results.R[t, :] if hasattr(self.results, "R") else np.zeros_like(alive_count_by_node)
+        expected_births = self.step_size * self.birth_rate * (alive_count_by_node + R_values)
         birth_integer = expected_births.astype(np.int32)
         birth_fraction = expected_births - birth_integer
         birth_rand = np.random.binomial(1, birth_fraction)  # Bernoulli draw
