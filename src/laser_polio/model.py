@@ -1654,12 +1654,7 @@ class VitalDynamics_ABM:
         if t % self.step_size != 0:
             # Returning from VD step without doing anything except we need to store the new pop
             # no births or deaths this cycle.
-            self.results.pop[t] = (
-                self.results.S[t - 1]  # updated last timestep during logging
-                + self.results.E[t - 1]  # updated last timestep during logging
-                + self.results.I[t - 1]  # updated last timestep during logging
-                + self.results.R[t - 1]  # updated last timestep during logging
-            )
+            self.results.pop[t, :] = self.results.pop[t - 1, :]
             return
 
         # 1) Get vital statistics - alive and newly deceased
@@ -1705,13 +1700,10 @@ class VitalDynamics_ABM:
         # Actual "death" handled in get_vital_statistics() as we count newly deceased
         self.results.deaths[t] = deaths_count_by_node
 
-        self.results.pop[t] = (
-            self.results.S[t - 1]  # updated last timestep during logging
-            + self.results.E[t - 1]  # updated last timestep during logging
-            + self.results.I[t - 1]  # updated last timestep during logging
-            + self.results.R[t - 1]  # updated last timestep during logging
-            + self.results.births[t]  # updated at beginning of current step in vital dynamics
-            - self.results.deaths[t]  # updated at beginning of current step in vital dynamics
+        self.results.pop[t, :] = (
+            self.results.pop[t - 1, :]
+            + self.results.births[t,:]  # updated at beginning of current step in vital dynamics
+            - self.results.deaths[t,:]  # updated at beginning of current step in vital dynamics
         )
 
         return
