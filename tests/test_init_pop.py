@@ -33,7 +33,6 @@ def plot(loaded, fresh):
     plt.show()
 
 
-@pytest.mark.skip(reason="This test is temporarily disabled.")
 @patch("laser_polio.root", Path("tests/"))
 def test_init_pop_loading(tmp_path):
     init_dir = Path("tests/data/initpop_testcase")
