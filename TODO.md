@@ -1,19 +1,23 @@
 # PRIORITIES
 
 @Steve
+- Plot monthly cases likelihood component against phase  
+- Consider age distribution of cases as a calibration target, which would help parameterize R0
+- Double check that the seasonality phase is correct based on latest calibration results
+- Get cursor
+- Calibrate with missed pop
+- Calibrate with individ hetero
+- Plot top 10 trial
+- Try calibrating the timing of seeds???
 - Try a universal scalar for init_immunity
-- Try individ hetero
 - Try calibrating to first 3 years, then run a sim for another 3 y
 - Sweep over radiation k and make a scatterplot like I did for gravity
-- Make synthetic dataset for Nigeria
 - Sweep over hetero with best pars from calib
 - Try calibrating the r0_scalar parameters in run_sim (24 and 0.2)
 - Try calibrating the sia rand effects center and scale values
-- Double check the P results - make_synth_data_zamfara is generating ~10K cases when it should generate 45
 - Plot out 'bad' calib trials, get a smattering of options for each r0, both high and low likelihoods
 - Try adding distance from origin as a calib target
-- Try calibrating to synthetic data for Zamfara (I sent copy to Dan)
-- fix test_sia_schedule() - number of recovered inidividuals does not match expected value
+- Fix test_sia_schedule() - number of recovered inidividuals does not match expected value
 - Adjust vx coverage for non-missed agents by prob/(1-missed_frac)
 
 CALIBRATION
