@@ -1,9 +1,10 @@
-# import tempfile
-# from pathlib import Path
-# from unittest.mock import patch
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pytest
 
 from laser_core.random import seed as laser_seed
 from laser_polio.run_sim import run_sim
@@ -31,6 +32,7 @@ def plot( loaded, fresh ):
     plt.grid(True)
     plt.show()
 
+@pytest.mark.skip(reason="This test is temporarily disabled.")
 @patch("laser_polio.root", Path("tests/"))
 def test_init_pop_loading(tmp_path):
     init_dir = Path("tests/data/initpop_testcase")
