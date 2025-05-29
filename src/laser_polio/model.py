@@ -410,7 +410,7 @@ class SEIR_ABM:
     def plot_node_pop(self, save=False, results_path=None):
         plt.figure(figsize=(10, 6))
         for node in self.nodes:
-            #pop = self.results.S[:, node] + self.results.E[:, node] + self.results.I[:, node] + self.results.R[:, node]
+            # pop = self.results.S[:, node] + self.results.E[:, node] + self.results.I[:, node] + self.results.R[:, node]
             pop = self.results.pop[:, node]
             plt.plot(pop, label=f"Node {node}")
         plt.title("Node Population")
@@ -1664,14 +1664,21 @@ class VitalDynamics_ABM:
 
         # 1) Get vital statistics - alive and newly deceased
         num_nodes = len(self.nodes)
-        tl_alive = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
         tl_dying = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
-        #self.alive_count_by_node = np.zeros(num_nodes, dtype=np.int32)
+        self.alive_count_by_node = np.zeros(num_nodes, dtype=np.int32)
         deaths_count_by_node = np.zeros(num_nodes, dtype=np.int32)
-        get_deaths( num_nodes, self.people.count, self.people.disease_state, self.people.node_id, self.people.date_of_death, t, tl_dying, deaths_count_by_node )
+        get_deaths(
+            num_nodes,
+            self.people.count,
+            self.people.disease_state,
+            self.people.node_id,
+            self.people.date_of_death,
+            t,
+            tl_dying,
+            deaths_count_by_node,
+        )
         # 2) Compute births
-        R_values = self.results.R[t, :] if hasattr(self.results, "R") else np.zeros_like(alive_count_by_node)
-        expected_births = self.step_size * self.birth_rate * (alive_count_by_node + R_values)
+        expected_births = self.step_size * self.birth_rate * self.alive_count_by_node
         birth_integer = expected_births.astype(np.int32)
         birth_fraction = expected_births - birth_integer
         birth_rand = np.random.binomial(1, birth_fraction)  # Bernoulli draw
@@ -1776,7 +1783,7 @@ class VitalDynamics_ABM:
     parallel=True,
     cache=True,
 )
-def get_deaths( num_nodes, num_people, disease_state, node_id, date_of_death, t, tl_dying, num_dying):
+def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, tl_dying, num_dying):
     # Iterate in parallel over all people
     for i in nb.prange(num_people):
         if disease_state[i] >= 0 and date_of_death[i] <= t:  # If they're past their due date ...

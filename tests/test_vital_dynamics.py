@@ -120,7 +120,7 @@ def test_age_progression():
         sim.t - sim.people.date_of_birth[: np.sum(sim.pars.n_ppl)]
     )  # Only focus on active individuals. Unborn agents don't age until born
     sim.run()
-    print( f"{sim.t=}" )
+    print(f"{sim.t=}")
     end_ages = sim.t - sim.people.date_of_birth[: np.sum(sim.pars.n_ppl)]
     assert np.all(end_ages == initial_ages + sim.pars.dur + 1)
 

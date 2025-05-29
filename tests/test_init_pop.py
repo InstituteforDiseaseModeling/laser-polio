@@ -5,32 +5,33 @@ from unittest.mock import patch
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-
 from laser_core.random import seed as laser_seed
+
 from laser_polio.run_sim import run_sim
 
 test_dir = Path(__file__).parent
 data_path = test_dir / "data"
 
 
-def plot( loaded, fresh ):
+def plot(loaded, fresh):
     plt.figure(figsize=(12, 8), constrained_layout=True)
 
     # Plot loaded results (e.g., in blue, dashed)
     for i, arr in enumerate(loaded):
-        plt.plot(arr, label=f'Loaded {i}', color='blue', linestyle='--', alpha=0.6)
+        plt.plot(arr, label=f"Loaded {i}", color="blue", linestyle="--", alpha=0.6)
 
     # Plot fresh results (e.g., in red, solid)
     for i, arr in enumerate(fresh):
-        plt.plot(arr, label=f'Fresh {i}', color='red', linestyle='-', alpha=0.6)
+        plt.plot(arr, label=f"Fresh {i}", color="red", linestyle="-", alpha=0.6)
 
     # Optional: add a legend and labels
-    plt.title('Loaded vs Fresh Results')
-    plt.xlabel('Time')
-    plt.ylabel('Infected (I)')
-    plt.legend(ncol=2, fontsize='small')
+    plt.title("Loaded vs Fresh Results")
+    plt.xlabel("Time")
+    plt.ylabel("Infected (I)")
+    plt.legend(ncol=2, fontsize="small")
     plt.grid(True)
     plt.show()
+
 
 @pytest.mark.skip(reason="This test is temporarily disabled.")
 @patch("laser_polio.root", Path("tests/"))
@@ -97,13 +98,14 @@ def test_init_pop_loading(tmp_path):
     if not np.isclose(final_I_loaded, final_I_fresh, rtol=0.01):
         # Why do we have to transpose???
         # And why are they different when they start the same?
-        plot( sim_loaded.results.I.T, sim_fresh.results.I.T )
+        plot(sim_loaded.results.I.T, sim_fresh.results.I.T)
     assert np.isclose(final_I_loaded, final_I_fresh, rtol=0.01), "Final infected counts diverge too much."
 
     final_R_loaded = np.sum(sim_loaded.results.R[-1])
     final_R_fresh = np.sum(sim_fresh.results.R[-1])
     print(f"Final recovered counts: Loaded={final_R_loaded}, Fresh={final_R_fresh}")
     assert np.isclose(final_R_loaded, final_R_fresh, rtol=0.01), "Final recovered counts diverge too much."
+
 
 if __name__ == "__main__":
     tmp_dir = Path(tempfile.mkdtemp())
