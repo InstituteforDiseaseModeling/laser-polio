@@ -1665,7 +1665,6 @@ class VitalDynamics_ABM:
         # 1) Get vital statistics - alive and newly deceased
         num_nodes = len(self.nodes)
         tl_dying = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
-        self.alive_count_by_node = np.zeros(num_nodes, dtype=np.int32)
         deaths_count_by_node = np.zeros(num_nodes, dtype=np.int32)
         get_deaths(
             num_nodes,
@@ -1678,7 +1677,7 @@ class VitalDynamics_ABM:
             deaths_count_by_node,
         )
         # 2) Compute births
-        expected_births = self.step_size * self.birth_rate * self.alive_count_by_node
+        expected_births = self.step_size * self.birth_rate * self.results.pop[t-1]
         birth_integer = expected_births.astype(np.int32)
         birth_fraction = expected_births - birth_integer
         birth_rand = np.random.binomial(1, birth_fraction)  # Bernoulli draw
