@@ -4,7 +4,6 @@ from unittest.mock import patch
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pytest
 from laser_core.random import seed as laser_seed
 
 from laser_polio.run_sim import run_sim
