@@ -21,6 +21,7 @@ if os.getenv("POLIO_ROOT"):
 
 # ------------------- USER CONFIGS -------------------
 
+# These are basically the defaults
 study_name = "calib_nigeria_6y_pim_gravity_zinb_birth_fix_20250528"
 model_config = "config_nigeria_6y_pim_gravity_zinb.yaml"
 calib_config = "r0_k_ssn_gravity_zinb.yaml"
@@ -30,6 +31,9 @@ n_replicates = 1  # Number of replicates to run for each trial
 
 
 def resolve_paths(study_name, model_config, calib_config, results_path=None, actual_data_file=None):
+    """
+    Build composite paths
+    """
     root = lp.root
 
     model_config = Path(model_config)
@@ -58,9 +62,9 @@ def main(
     fit_function,
     n_replicates,
     n_trials,
+    results_path,
+    actual_data_file,
     dry_run,
-    results_path=None,
-    actual_data_file=None,
 ):
     model_config, calib_config, results_path, actual_data_file = resolve_paths(
         study_name, model_config, calib_config, results_path, actual_data_file
@@ -71,11 +75,11 @@ def main(
         study_name=study_name,
         model_config=model_config,
         calib_config=calib_config,
-        results_path=results_path,
-        actual_data_file=actual_data_file,
         fit_function=fit_function,
         n_replicates=n_replicates,
         n_trials=n_trials,
+        results_path=results_path,
+        actual_data_file=actual_data_file,
         dry_run=dry_run,
     )
     if dry_run:
@@ -109,7 +113,8 @@ def main(
 @click.option("--n-trials", default=n_trials, show_default=True, type=int)
 @click.option("--dry-run", default=False, show_default=True, type=bool)
 def cli(**kwargs):
-    main(**kwargs)
+    # 2 params have None to trigger default behavior. None is not real value.
+    main(results_path=None, actual_data_file=None, **kwargs)
 
 
 if __name__ == "__main__":
