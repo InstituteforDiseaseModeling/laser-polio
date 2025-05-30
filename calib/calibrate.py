@@ -65,14 +65,6 @@ def main(
     model_config, calib_config, results_path, actual_data_file = resolve_paths(
         study_name, model_config, calib_config, results_path, actual_data_file
     )
-    """
-    kwargs.update(
-        {
-            "calib_config": calib_config,
-            "actual_data_file": actual_data_file,
-        }
-    )
-    """
 
     # Run calibration and postprocess
     run_worker_main(
