@@ -28,6 +28,7 @@ fit_function = "log_likelihood"
 n_trials = 2
 n_replicates = 1  # Number of replicates to run for each trial
 
+
 def resolve_paths(study_name, model_config, calib_config, results_path=None, actual_data_file=None):
     root = lp.root
 
@@ -61,7 +62,9 @@ def main(
     results_path=None,
     actual_data_file=None,
 ):
-    model_config, calib_config, results_path, actual_data_file = resolve_paths( study_name, model_config, calib_config, results_path, actual_data_file )
+    model_config, calib_config, results_path, actual_data_file = resolve_paths(
+        study_name, model_config, calib_config, results_path, actual_data_file
+    )
     """
     kwargs.update(
         {
@@ -73,7 +76,15 @@ def main(
 
     # Run calibration and postprocess
     run_worker_main(
-        study_name=study_name, model_config=model_config, calib_config=calib_config, results_path=results_path, actual_data_file=actual_data_file, fit_function=fit_function, n_replicates=n_replicates, n_trials=n_trials, dry_run=dry_run
+        study_name=study_name,
+        model_config=model_config,
+        calib_config=calib_config,
+        results_path=results_path,
+        actual_data_file=actual_data_file,
+        fit_function=fit_function,
+        n_replicates=n_replicates,
+        n_trials=n_trials,
+        dry_run=dry_run,
     )
     if dry_run:
         return
