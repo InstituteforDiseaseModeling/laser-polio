@@ -19,12 +19,14 @@ CONTEXT_SETTINGS = {"help_option_names": ["--help"], "terminal_width": 240}
 if os.getenv("POLIO_ROOT"):
     lp.root = Path(os.getenv("POLIO_ROOT"))
 
-DEFAULT_STUDY_NAME = "calib_nigeria_6y_pim_gravity_zinb_20250523"
-DEFAULT_MODEL_CONFIG = "config_nigeria_6y_pim_gravity_zinb.yaml"
-DEFAULT_CALIB_CONFIG = "r0_k_ssn_gravity_zinb.yaml"
-DEFAULT_FIT_FUNCTION = "log_likelihood"
-DEFAULT_N_REPLICATES = 1
+# ------------------- USER CONFIGS -------------------
 
+study_name = "calib_nigeria_6y_pim_gravity_zinb_birth_fix_20250528"
+model_config = "config_nigeria_6y_pim_gravity_zinb.yaml"
+calib_config = "r0_k_ssn_gravity_zinb.yaml"
+fit_function = "log_likelihood"
+n_trials = 2
+n_replicates = 1  # Number of replicates to run for each trial
 
 def resolve_paths(study_name, model_config, calib_config, results_path=None, actual_data_file=None):
     root = lp.root
@@ -48,20 +50,30 @@ def resolve_paths(study_name, model_config, calib_config, results_path=None, act
     return model_config, calib_config, results_path, actual_data_file
 
 
-def main(study_name, model_config, calib_config, results_path=None, actual_data_file=None, fit_function="mse", dry_run=False, **kwargs):
-    model_config, calib_config, results_path, actual_data_file = resolve_paths(
-        study_name, model_config, calib_config, results_path, actual_data_file
-    )
+def main(
+    study_name,
+    model_config,
+    calib_config,
+    fit_function,
+    n_replicates,
+    n_trials,
+    dry_run,
+    results_path=None,
+    actual_data_file=None,
+):
+    model_config, calib_config, results_path, actual_data_file = resolve_paths( study_name, model_config, calib_config, results_path, actual_data_file )
+    """
     kwargs.update(
         {
             "calib_config": calib_config,
             "actual_data_file": actual_data_file,
         }
     )
+    """
 
     # Run calibration and postprocess
     run_worker_main(
-        study_name=study_name, model_config=model_config, results_path=results_path, fit_function=fit_function, dry_run=dry_run, **kwargs
+        study_name=study_name, model_config=model_config, calib_config=calib_config, results_path=results_path, actual_data_file=actual_data_file, fit_function=fit_function, n_replicates=n_replicates, n_trials=n_trials, dry_run=dry_run
     )
     if dry_run:
         return
@@ -85,12 +97,13 @@ def main(study_name, model_config, calib_config, results_path=None, actual_data_
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option("--study-name", default=DEFAULT_STUDY_NAME, show_default=True)
-@click.option("--model-config", default=DEFAULT_MODEL_CONFIG, show_default=True)
-@click.option("--calib-config", default=DEFAULT_CALIB_CONFIG, show_default=True)
-@click.option("--fit-function", default=DEFAULT_FIT_FUNCTION, show_default=True)
-@click.option("--n-replicates", default=DEFAULT_N_REPLICATES, show_default=True, type=int)
-@click.option("--num-trials", default=2, show_default=True, type=int)
+# The default values used here are from the USER CONFIGS section at the top
+@click.option("--study-name", default=study_name, show_default=True)
+@click.option("--model-config", default=model_config, show_default=True)
+@click.option("--calib-config", default=calib_config, show_default=True)
+@click.option("--fit-function", default=fit_function, show_default=True)
+@click.option("--n-replicates", default=n_replicates, show_default=True, type=int)
+@click.option("--n-trials", default=n_trials, show_default=True, type=int)
 @click.option("--dry-run", default=False, show_default=True, type=bool)
 def cli(**kwargs):
     main(**kwargs)

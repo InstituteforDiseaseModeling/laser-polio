@@ -13,7 +13,15 @@ ENV POLIO_ROOT=/app
 ENV NUMBA_CPU_NAME=generic
 ENV HEADLESS=1
 
-RUN pip3 install https://github.com/InstituteforDiseaseModeling/laser-polio/releases/download/v0.1.20/laser_polio-0.1.20-py3-none-any.whl
+# Get latest release tag and write it to lp_version
+RUN curl -s https://api.github.com/repos/InstituteforDiseaseModeling/laser-polio/releases/latest \
+    | sed -n 's/.*"tag_name": "\(.*\)",/\1/p' > lp_version
+# Use the downloaded version to install the corresponding package
+RUN pip install --pre -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio==$(cat lp_version)
+
+# RUN curl -s https://api.github.com/repos/InstituteforDiseaseModeling/laser-polio/releases/latest \
+#     | sed -n 's/.*"tag_name": "\(.*\)",/\1/p' > lp_version
+# RUN pip install --pre -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio
 
 # Final cleanup
 RUN pip3 cache purge

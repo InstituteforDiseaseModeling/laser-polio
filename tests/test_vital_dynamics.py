@@ -15,10 +15,11 @@ def setup_sim(step_size=1):
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
             "step_size_VitalDynamics_ABM": step_size,
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
         }
     )
     sim = lp.SEIR_ABM(pars)
-    sim.components = [lp.VitalDynamics_ABM]
+    sim.components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM]
     return sim
 
 
@@ -134,10 +135,11 @@ def test_zero_birth_rate():
             "cbr": np.array([0, 0]),  # Birth rate per 1000/year
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
             "step_size_VitalDynamics_ABM": 1,
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
         }
     )
     sim = lp.SEIR_ABM(pars)
-    sim.components = [lp.VitalDynamics_ABM]
+    sim.components = [lp.VitalDynamics_ABM, lp.DiseaseState_ABM, lp.Transmission_ABM]
 
     initial_population = sim.people.count
     sim.run()

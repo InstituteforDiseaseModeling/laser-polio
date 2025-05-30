@@ -344,7 +344,6 @@ def test_init_immun_scalar():
         "init_prev": 0,
         "pop_scale": 0.01,
         "results_path": None,
-        "run": False,
     }
 
     # Run unscaled version
