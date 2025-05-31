@@ -67,12 +67,12 @@ def plot_stuff(study_name, storage_url, output_dir=None):
     fig1 = vis.plot_optimization_history(study)
     fig1.write_html(output_dir / "plot_opt_history.html")
 
-    # Param importances
-    try:
-        fig2 = vis.plot_param_importances(study)
-        fig2.write_html(output_dir / "plot_param_importances.html")
-    except Exception as ex:
-        print("[WARN] Could not plot param importances:", ex)
+    # # Param importances - WARNING! Can be slow for large studies
+    # try:
+    #     fig2 = vis.plot_param_importances(study)
+    #     fig2.write_html(output_dir / "plot_param_importances.html")
+    # except Exception as ex:
+    #     print("[WARN] Could not plot param importances:", ex)
 
     # Slice plots
     params = study.best_params.keys()
@@ -83,7 +83,7 @@ def plot_stuff(study_name, storage_url, output_dir=None):
         # fig.update_layout(width=plot_width)
         fig3.write_html(output_dir / f"plot_slice_{param}.html")
 
-    # Contour plots
+    # Contour plots - WARNING! Can be slow for large studies
     # try:
     #     fig4 = vis.plot_contour(study, params=["r0", "radiation_k"])
     #     fig4.write_html(output_dir / "plot_contour_r0_radiation_k.html")
@@ -93,25 +93,25 @@ def plot_stuff(study_name, storage_url, output_dir=None):
     #     fig4 = vis.plot_contour(study, params=["r0", "gravity_c"])
     #     fig4.write_html(output_dir / "plot_contour_r0_gravity_c.html")
     # Candidate pairs to try
-    param_pairs = [
-        ("r0", "radiation_k"),
-        ("r0", "gravity_k_exponent"),
-        ("r0", "gravity_c"),
-        ("gravity_k_exponent", "gravity_c"),
-    ]
-    # Get set of all parameters in the study
-    all_params = {k for t in study.trials if t.params for k in t.params.keys()}
-    # Loop over param pairs and plot only if both exist
-    for x, y in param_pairs:
-        if x in all_params and y in all_params:
-            try:
-                fig = vis.plot_contour(study, params=[x, y])
-                fig.write_html(output_dir / f"plot_contour_{x}_{y}.html")
-            except Exception as e:
-                print(f"[WARN] Failed to plot {x} vs {y}: {e}")
-        else:
-            print(f"[SKIP] Missing one or both params: {x}, {y}")
-    print("done with countour plots")
+    # param_pairs = [
+    #     ("r0", "radiation_k"),
+    #     ("r0", "gravity_k_exponent"),
+    #     ("r0", "gravity_c"),
+    #     ("gravity_k_exponent", "gravity_c"),
+    # ]
+    # # Get set of all parameters in the study
+    # all_params = {k for t in study.trials if t.params for k in t.params.keys()}
+    # # Loop over param pairs and plot only if both exist
+    # for x, y in param_pairs:
+    #     if x in all_params and y in all_params:
+    #         try:
+    #             fig = vis.plot_contour(study, params=[x, y])
+    #             fig.write_html(output_dir / f"plot_contour_{x}_{y}.html")
+    #         except Exception as e:
+    #             print(f"[WARN] Failed to plot {x} vs {y}: {e}")
+    #     else:
+    #         print(f"[SKIP] Missing one or both params: {x}, {y}")
+    # print("done with countour plots")
 
 
 def plot_targets(study, output_dir=None, shp=None):
@@ -192,6 +192,66 @@ def plot_targets(study, output_dir=None, shp=None):
     plt.tight_layout()
     plt.savefig(output_dir / "plot_best_monthly_timeseries_comparison.png")
     # plt.show()
+
+    # adm0_cases (bar plot)
+    adm0_actual = actual.get("adm0_cases")
+    if adm0_actual:
+        region_labels = sorted(actual["adm0_cases"].keys())
+        x = np.arange(len(region_labels))
+        # Get actual values
+        actual_vals = [actual["adm0_cases"].get(region, 0) for region in region_labels]
+        plt.figure(figsize=(10, 6))
+        plt.title("ADM0 Cases")
+        # Plot actual as outlined bar
+        plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
+        # Plot predicted reps as colored dots
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            rep_vals = [rep["adm0_cases"].get(region, 0) for region in region_labels]
+            plt.scatter(
+                x,
+                rep_vals,
+                label=label,
+                color=color_map[label],  # your original style
+                marker="o",
+                s=50,
+            )
+        # Axis formatting
+        plt.xticks(x, region_labels, rotation=45, ha="right")
+        plt.ylabel("Cases")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(output_dir / "plot_adm0_cases.png")
+
+    # adm01_cases (bar plot)
+    adm01_actual = actual.get("adm01_cases")
+    if adm01_actual:
+        region_labels = sorted(actual["adm01_cases"].keys())
+        x = np.arange(len(region_labels))
+        # Get actual values
+        actual_vals = [actual["adm01_cases"].get(region, 0) for region in region_labels]
+        plt.figure(figsize=(10, 6))
+        plt.title("ADM01 Regional Cases")
+        # Plot actual as outlined bar
+        plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
+        # Plot predicted reps as colored dots
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            rep_vals = [rep["adm01_cases"].get(region, 0) for region in region_labels]
+            plt.scatter(
+                x,
+                rep_vals,
+                label=label,
+                color=color_map[label],  # your original style
+                marker="o",
+                s=50,
+            )
+        # Axis formatting
+        plt.xticks(x, region_labels, rotation=45, ha="right")
+        plt.ylabel("Cases")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(output_dir / "plot_adm01_cases.png")
 
     # Regional Cases (bar plot)
     x = np.arange(len(region_labels))

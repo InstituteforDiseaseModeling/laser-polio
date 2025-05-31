@@ -14,19 +14,22 @@ from worker import run_worker_main
 
 import laser_polio as lp
 
-CONTEXT_SETTINGS = {"help_option_names": ["--help"], "terminal_width": 240}
-
-if os.getenv("POLIO_ROOT"):
-    lp.root = Path(os.getenv("POLIO_ROOT"))
-
 # ------------------- USER CONFIGS -------------------
 
-study_name = "calib_jigawa_test_20250530"
-model_config = "config_jigawa.yaml"
+study_name = "calib_kano_jigawa_test_20250530"
+model_config = "config_kano_jigawa.yaml"
 calib_config = "r0_k_ssn_gravity_zinb.yaml"
 fit_function = "log_likelihood"
 n_trials = 2
 n_replicates = 1  # Number of replicates to run for each trial
+
+# ------------------- END USER CONFIGS -------------------
+
+
+CONTEXT_SETTINGS = {"help_option_names": ["--help"], "terminal_width": 240}
+
+if os.getenv("POLIO_ROOT"):
+    lp.root = Path(os.getenv("POLIO_ROOT"))
 
 
 def resolve_paths(study_name, model_config, calib_config, results_path=None, actual_data_file=None):
@@ -54,17 +57,7 @@ def resolve_paths(study_name, model_config, calib_config, results_path=None, act
     return model_config, calib_config, results_path, actual_data_file
 
 
-def main(
-    study_name,
-    model_config,
-    calib_config,
-    fit_function,
-    n_replicates,
-    n_trials,
-    results_path,
-    actual_data_file,
-    dry_run,
-):
+def main(study_name, model_config, calib_config, fit_function, n_replicates, n_trials, results_path, actual_data_file, dry_run):
     model_config, calib_config, results_path, actual_data_file = resolve_paths(
         study_name, model_config, calib_config, results_path, actual_data_file
     )

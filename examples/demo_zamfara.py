@@ -23,7 +23,7 @@ seed_schedule = [
     {"date": "2018-11-07", "dot_name": "AFRO:NIGERIA:ZAMFARA:GUMMI", "prevalence": 200},  # day 2
 ]
 save_plots = True
-save_data = False
+save_data = True
 plot_pars = True
 seed = 1
 # Diffs from demo_zamfara_load_init_pop.py

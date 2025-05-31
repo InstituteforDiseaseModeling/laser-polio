@@ -15,12 +15,12 @@ from laser_polio.utils import clean_strings
 
 # Define the shapefiles and associated columns
 shapefiles = [
-    ("data/curation_scripts/shp/shape0.gpkg", ["who_region", "adm0_name"], "adm0"),
-    ("data/curation_scripts/shp/shape1.gpkg", ["who_region", "adm0_name", "adm1_name"], "adm1"),
-    ("data/curation_scripts/shp/shape2.gpkg", ["who_region", "adm0_name", "adm1_name", "adm2_name"], "adm2"),
+    ("data_curation_scripts/shp/shape0.gpkg", ["who_region", "adm0_name"], "adm0"),
+    ("data_curation_scripts/shp/shape1.gpkg", ["who_region", "adm0_name", "adm1_name"], "adm1"),
+    ("data_curation_scripts/shp/shape2.gpkg", ["who_region", "adm0_name", "adm1_name", "adm2_name"], "adm2"),
 ]
 output_gpkg_path = Path("data/shp_africa_low_res.gpkg")
-output_dir = Path("data/curation_scripts/shp/plots")
+output_dir = Path("data_curation_scripts/shp/plots")
 tolerance = 0.01  # ≈ 1 km if CRS is WGS84
 
 ######### END OF USER PARS ########
@@ -151,11 +151,19 @@ for shapefile, columns_to_clean, adm_level in shapefiles:
     if adm_level == "adm2":
         # shp_names = filtered_gdf[["who_region", "adm0_name", "adm1_name", "adm2_name", "dot_name", "guid", "center_lon", "center_lat"]]
         # shp_names.to_csv("data/shp_names_africa_adm2.csv", index=False)
-
         node_lookup = {
-            row["dot_name"]: {"dot_name": row["dot_name"], "lat": float(row["center_lat"]), "lon": float(row["center_lon"])}
-            for i, row in filtered_gdf.iterrows()
+            row["dot_name"]: {
+                "dot_name": row["dot_name"],
+                "lat": float(row["center_lat"]),
+                "lon": float(row["center_lon"]),
+                "adm0": row.get("adm0_name", ""),
+                "adm1": row.get("adm1_name", ""),
+                "adm2": row.get("adm2_name", ""),
+                "adm01": f"{row.get('adm0_name', '')}:{row.get('adm1_name', '')}",
+            }
+            for _, row in filtered_gdf.iterrows()
         }
+
         with open("data/node_lookup.json", "w") as f:
             json.dump(node_lookup, f, indent=2)
             f.write("\n")  # <-- adds a clean empty newline at the end
