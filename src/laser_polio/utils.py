@@ -495,21 +495,24 @@ def save_results_to_csv(sim, filename="simulation_results.csv"):
     datevec = sim.datevec
     nodes = len(sim.nodes)
     results = sim.results
+    node_lookup = sim.pars.node_lookup
 
     with open(filename, mode="w", newline="") as file:
         writer = csv.writer(file)
 
         # Write header
-        writer.writerow(["timestep", "date", "node", "S", "E", "I", "R", "P", "new_exposed"])
+        writer.writerow(["timestep", "date", "node", "dot_name", "S", "E", "I", "R", "P", "new_exposed"])
 
         # Write data
         for t in range(timesteps):
             for n in range(nodes):
+                dot_name = node_lookup.get(n, {}).get("dot_name", "UNKNOWN")
                 writer.writerow(
                     [
                         t,
                         datevec[t],
                         n,
+                        dot_name,
                         results.S[t, n],
                         results.E[t, n],
                         results.I[t, n],
