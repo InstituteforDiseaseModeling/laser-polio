@@ -122,6 +122,21 @@ def calc_targets_temporal_regional_nodes(filename, model_config_path=None, is_ac
     targets["monthly_timeseries"] = monthly_df.values
 
     # --- Regional aggregation ---
+    # Split dot_name into columns
+    dot_parts = df["dot_name"].str.split(":", expand=True)
+    df["adm0"] = dot_parts[1]
+    df["adm1"] = dot_parts[2]
+    df["adm01"] = df["adm0"] + ":" + df["adm1"]
+    # Group and sum
+    adm0_cases = df.groupby("adm0")[case_col].sum().to_dict()
+    adm01_cases = df.groupby("adm01")[case_col].sum().to_dict()
+    # Only return multi-region groups
+    if len(adm0_cases) > 1:
+        targets["adm0_cases"] = {k: v * scale_factor for k, v in adm0_cases.items()}
+    if len(adm01_cases) > 1:
+        targets["adm01_cases"] = {k: v * scale_factor for k, v in adm01_cases.items()}
+
+    # Custom regional groups from model_config
     if model_config and "summary_config" in model_config:
         region_groups = model_config["summary_config"].get("region_groups", {})
         regional_cases = []

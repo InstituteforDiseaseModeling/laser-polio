@@ -193,6 +193,66 @@ def plot_targets(study, output_dir=None, shp=None):
     plt.savefig(output_dir / "plot_best_monthly_timeseries_comparison.png")
     # plt.show()
 
+    # adm0_cases (bar plot)
+    adm0_actual = actual.get("adm0_cases")
+    if adm0_actual:
+        region_labels = sorted(actual["adm0_cases"].keys())
+        x = np.arange(len(region_labels))
+        # Get actual values
+        actual_vals = [actual["adm0_cases"].get(region, 0) for region in region_labels]
+        plt.figure(figsize=(10, 6))
+        plt.title("ADM0 Cases")
+        # Plot actual as outlined bar
+        plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
+        # Plot predicted reps as colored dots
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            rep_vals = [rep["adm0_cases"].get(region, 0) for region in region_labels]
+            plt.scatter(
+                x,
+                rep_vals,
+                label=label,
+                color=color_map[label],  # your original style
+                marker="o",
+                s=50,
+            )
+        # Axis formatting
+        plt.xticks(x, region_labels, rotation=45, ha="right")
+        plt.ylabel("Cases")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(output_dir / "plot_adm0_cases.png")
+
+    # adm01_cases (bar plot)
+    adm01_actual = actual.get("adm01_cases")
+    if adm01_actual:
+        region_labels = sorted(actual["adm01_cases"].keys())
+        x = np.arange(len(region_labels))
+        # Get actual values
+        actual_vals = [actual["adm01_cases"].get(region, 0) for region in region_labels]
+        plt.figure(figsize=(10, 6))
+        plt.title("ADM01 Regional Cases")
+        # Plot actual as outlined bar
+        plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
+        # Plot predicted reps as colored dots
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            rep_vals = [rep["adm01_cases"].get(region, 0) for region in region_labels]
+            plt.scatter(
+                x,
+                rep_vals,
+                label=label,
+                color=color_map[label],  # your original style
+                marker="o",
+                s=50,
+            )
+        # Axis formatting
+        plt.xticks(x, region_labels, rotation=45, ha="right")
+        plt.ylabel("Cases")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(output_dir / "plot_adm01_cases.png")
+
     # Regional Cases (bar plot)
     x = np.arange(len(region_labels))
     width = 0.1

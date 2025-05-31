@@ -38,63 +38,74 @@ def compute_fit(actual, predicted, use_squared=False, normalize=False, weights=N
     return fit
 
 
-def compute_log_likelihood_fit(actual, predicted, method="poisson", dispersion=1.0, weights=None, norm_by_n=True):
+def compute_log_likelihood_fit(
+    actual,
+    predicted,
+    method="poisson",
+    dispersion=1.0,
+    weights=None,
+    norm_by_n=True,
+):
     """
-    Compute log-likelihood of actual data given predicted data.
+    Compute log-likelihood of actual data given predicted data, including nested dicts.
 
     Parameters:
-        actual (dict): Dict of observed summary statistics.
-        predicted (dict): Dict of simulated summary statistics.
-        method (str): Distribution to use ("poisson" or "neg_binomial").
-        dispersion (float): Dispersion parameter for neg_binomial (var = mu + mu^2 / r).
-        weights (dict): Optional weights for each target.
+        actual (dict): Observed summary statistics. Can include nested dicts.
+        predicted (dict): Simulated summary statistics. Must mirror actual.
+        method (str): Distribution to use.
+        dispersion (float): Used for neg_binomial.
+        weights (dict): Optional weights per target.
+        norm_by_n (bool): Normalize by data length.
 
     Returns:
-        float: Total log-likelihood (higher is better).
+        dict: log-likelihoods per key + total.
     """
     log_likelihoods = {}
     weights = weights or {}
 
-    # Validate weight keys
-    actual_keys = set(actual.keys())
-    weight_keys = set(weights.keys())
-    if not actual_keys <= weight_keys:
-        missing = actual_keys - weight_keys
-        print(f"[WARN] Missing weights for: {missing}. Defaulting to 1.0.")
-
     for key in actual:
         try:
-            v_obs = np.array(actual[key], dtype=float)
-            v_sim = np.array(predicted[key], dtype=float)
-            v_sim = np.clip(v_sim, 1e-6, None)  # Prevent log(0) in Poisson
+            a = actual[key]
+            p = predicted[key]
 
+            # Handle nested dictionaries
+            if isinstance(a, dict) and isinstance(p, dict):
+                if set(a.keys()) != set(p.keys()):
+                    raise ValueError(f"Key mismatch in nested dict '{key}': {set(a.keys()) ^ set(p.keys())}")
+                subkeys = sorted(a.keys())  # enforce consistent order
+                v_obs = np.array([a[k] for k in subkeys], dtype=float)
+                v_sim = np.array([p[k] for k in subkeys], dtype=float)
+
+            # Handle flat arrays or lists
+            else:
+                v_obs = np.array(a, dtype=float)
+                v_sim = np.array(p, dtype=float)
+
+            # Ensure shape match
             if v_obs.shape != v_sim.shape:
                 sc.printyellow(f"[WARN] Shape mismatch on '{key}': {v_obs.shape} vs {v_sim.shape}")
                 continue
 
+            # Clip simulation values to avoid log(0)
+            v_sim = np.clip(v_sim, 1e-6, None)
+
             if method == "poisson":
                 logp = poisson.logpmf(v_obs, v_sim)
             elif method == "neg_binomial":
-                # NB parameterization via mean (mu) and dispersion (r)
-                # r = dispersion; p = r / (r + mu)
-                mu = v_sim
                 r = dispersion
-                p = r / (r + mu)
+                p = r / (r + v_sim)
                 logp = nbinom.logpmf(v_obs, r, p)
             else:
                 raise ValueError(f"Unknown method '{method}'")
 
-            # Sum log-likelihoods, but normalize by number of observations (e.g., total_infected has 1 value, while monthly_cases has 12)
-            weight = weights.get(key, 1)
+            weight = weights.get(key, 1.0)
             n = len(logp)
             normalizer = n if norm_by_n else 1
-            ll = -1.0 * weight * logp.sum() / normalizer  # NEGATE for Optuna
-            log_likelihoods[key] = ll
+            neg_ll = -1.0 * weight * logp.sum() / normalizer
+            log_likelihoods[key] = neg_ll
 
         except Exception as e:
             print(f"[ERROR] Skipping '{key}' due to: {e}")
 
-    total_ll = sum(log_likelihoods.values())
-    log_likelihoods["total_log_likelihood"] = total_ll
-
+    log_likelihoods["total_log_likelihood"] = sum(log_likelihoods.values())
     return log_likelihoods
