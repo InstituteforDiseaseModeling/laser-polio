@@ -1,19 +1,11 @@
 # PRIORITIES
 
 @Steve
-- copy optuna db to local machine
-Dirchlet multi for likelihood on counts: https://github.com/starsimhub/starsim/blob/a253336142f499d0afc93693614830bce9c30a6d/starsim/calib_components.py#L431
-Spatial array
-Gravity pars
-init_immun_scalar
-sia_re_center
-sia_re_scale
-
+- Gravity pars
 - Go back to two time periods
 - Shift timing of seeding
 - Plot spatial mismatch
 - Take notes in Obsidian
-
 - Try building dockerfile - does it get the correct version???
 - Debug seasonality
 - Plot monthly cases likelihood component against phase
@@ -38,6 +30,12 @@ sia_re_scale
 CALIBRATION
 - Refine how regional groupings are made for N/S Nigeria
 - Update README with usage instructions
+
+STRETCH
+- Dirchlet multi for likelihood on counts: https://github.com/starsimhub/starsim/blob/a253336142f499d0afc93693614830bce9c30a6d/starsim/calib_components.py#L431
+- sia_re_center
+- sia_re_scale
+- init_immun_scalar
 
 # REFINEMENT
 
