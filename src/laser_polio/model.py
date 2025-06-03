@@ -606,12 +606,19 @@ class DiseaseState_ABM:
                 print(f"Before immune initialization, we have {sim.people.count} active agents.")
 
             # Initialize immunity
-            if isinstance(pars.init_immun, (float, list)):  # Handle both float and list cases
+            if isinstance(pars.init_immun, (float, list)):  # Handle float and list cases
                 init_immun_value = pars.init_immun[0] if isinstance(pars.init_immun, list) else pars.init_immun
                 num_recovered = int(sum(pars.n_ppl) * init_immun_value)
                 recovered_indices = np.random.choice(sum(pars.n_ppl), size=num_recovered, replace=False)
                 sim.people.disease_state[recovered_indices] = 3
-            else:
+            elif isinstance(pars.init_immun, np.ndarray):
+                assert pars.init_immun.shape == pars.n_ppl.shape, "init_immun must match n_ppl shape"
+                for nid, (immun_frac, node_pop) in enumerate(zip(pars.init_immun, pars.n_ppl, strict=True)):
+                    assert 0 <= immun_frac <= 1.0, f"Invalid immun_frac {immun_frac} for node {nid}. Must be between 0 and 1."
+                    num_recovered = int(immun_frac * node_pop)
+                    recovered_indices = np.random.choice(np.where(sim.people.node_id == nid)[0], size=num_recovered, replace=False)
+                    sim.people.disease_state[recovered_indices] = 3
+            elif isinstance(pars.init_immun, pd.DataFrame):
                 # Initialize by node
                 # Extract age bins dynamically from column names
                 age_bins = {}
@@ -776,6 +783,8 @@ class DiseaseState_ABM:
                 if self.verbose >= 2:
                     print(f"After immune initialization and EULA-gizing, we have {sim.people.count} active agents.")
                 # viz()
+            else:
+                raise ValueError(f"Unsupported init_immun type: {type(pars.init_immun)}")
 
         do_init_imm()
 
@@ -1350,9 +1359,13 @@ class Transmission_ABM:
 
         with self.step_stats.start("Part 2b"):
             # Step 2: Compute the force of infection for each node accounting for immigration and emmigration
-            transfer = beta_by_node * self.network
-            beta_by_node += transfer.sum(axis=1) - transfer.sum(axis=0)  # Add incoming, subtract outgoing
-            beta_by_node = np.maximum(beta_by_node, 0)
+            # network is a square matrix where network[i, j] is the migration fraction from node i to node j
+            # beta_by_node is a vector where beta_by_node[i] is the contagion/transmission rate for node i
+            # This formulation, (beta * network.T).T, returns transfer so transfer[i, j] is the contagion transferred from node i to node j
+            transfer = (beta_by_node * self.network.T).T  # beta_j * network_ij
+            # sum(axis=0) sums each column, i.e., _incoming_ contagion to each node
+            # sum(axis=1) sums each row, i.e., _outgoing_ contagion from each node
+            beta_by_node += transfer.sum(axis=0) - transfer.sum(axis=1)  # Add incoming, subtract outgoing
 
             # Step 3: Scale by seasonality and R0 scalars
             beta_by_node = beta_by_node * beta_seasonality * self.r0_scalars

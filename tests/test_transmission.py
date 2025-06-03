@@ -14,7 +14,7 @@ def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=N
     if n_ppl is None:
         n_ppl = np.array([10000, 10000])
     if r0_scalars is None:
-        r0_scalars = [0.5, 2.0]
+        r0_scalars = np.array([0.5, 2.0], dtype=np.float32)
     # if dur_exp is None:
     #     dur_exp = lp.constant(value=2)
     # if dur_inf is None:
@@ -138,8 +138,104 @@ def test_double_trans(n_reps=10):
     check_ratio("init_prev", E_init_prev_2x, "init_prev")
 
 
+def setup_NxN_sim(N=4, duration=365, r0=14, init_immun=None, init_prev=None):
+    if init_immun is None:
+        init_immun = np.array([0.8] * N, dtype=np.float32)
+    if init_prev is None:
+        init_prev = np.array([0.01] * N, dtype=np.float32)
+
+    pars = PropertySet(
+        {
+            "start_date": lp.date("2020-01-01"),
+            "dur": duration,
+            "n_ppl": np.array([10000] * N),
+            "cbr": np.array([36.5] * N, dtype=np.float32),  # Birth rate per 1000/year
+            "r0_scalars": np.ones(N, dtype=np.float32),  # Spatial transmission scalar (multiplied by global rate)
+            "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
+            "init_immun": init_immun,  # initially immune
+            "init_prev": init_prev,  # initially infected from any age
+            "p_paralysis": 1 / 2000,  # 1% paralysis probability
+            "r0": r0,  # Basic reproduction number
+            "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
+            "corr_risk_inf": 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
+            "seasonal_amplitude": 0.0,  # Seasonal variation in transmission
+            "seasonal_peak_doy": 180,  # Phase of seasonal variation
+            "distances": np.ones((N, N)) * 50,  # Distance in km between nodes
+            "gravity_k": 0.5,  # Gravity scaling constant
+            "gravity_a": 1,  # Origin population exponent
+            "gravity_b": 1,  # Destination population exponent
+            "gravity_c": 2.0,  # Distance exponent
+            "max_migr_frac": 0.01,  # Fraction of population that migrates
+            "dur_exp": lp.normal(mean=7, std=1),  # arbitrarily a bit longer than the default
+        }
+    )
+    sim = lp.SEIR_ABM(pars)
+    sim.components = [lp.DiseaseState_ABM, lp.Transmission_ABM, lp.VitalDynamics_ABM]
+
+    return sim
+
+
+def test_linear_transmission():
+    # Initially only node 0 has infected
+    sim = setup_NxN_sim(N=4, init_prev=np.array([0.05, 0.0, 0.0, 0.0], dtype=np.float32))
+
+    # Modify network to transmit 0 -> 1 -> 2 -> 3
+    index = next(i for i, inst in enumerate(sim.instances) if isinstance(inst, lp.Transmission_ABM))
+    tx = sim.instances[index]
+    tx.network = np.array(
+        [
+            [0, 1, 0, 0],  # Node 0 can only transmit to Node 1
+            [0, 0, 1, 0],  # Node 1 can only transmit to Node 2
+            [0, 0, 0, 1],  # Node 2 can only transmit to Node 3
+            [0, 0, 0, 0],  # Node 3 cannot transmit to anyone
+        ],
+        dtype=tx.network.dtype,
+    )
+
+    sim.run()
+
+    # Assert: Node 0 infections should decay to zero and then stay that way
+    I_node0 = sim.results.I[:, 0]
+    assert np.all(np.diff(I_node0) <= 0), "Infections in node 0 should not increase - all contagion is going to node 1."
+    # Look for the first timestep with zero infections and ensure it remains zero
+    first_zero_idx = np.where(I_node0 == 0)[0][0]
+    assert np.all(I_node0[first_zero_idx:] == 0), "Node 0 infections should decay to zero and stay there."
+
+    # Assert: Node 1 infections should peak ~25+ timesteps in
+    I_node1 = sim.results.I[:, 1]
+    max_idx1 = np.argmax(I_node1)
+    assert 20 < max_idx1 < 30, "Node 1 should peak between 20-30 timesteps after the start."
+
+    # Assert: Node 1 infections should decay to zero after peaking and then stay at zero
+    zeros_after_peak = np.where(I_node1[max_idx1:] == 0)[0]
+    assert zeros_after_peak.size > 0, "Node 1 infections should eventually reach zero after peaking."
+    first_zero_idx = max_idx1 + zeros_after_peak[0]
+    assert np.all(I_node1[first_zero_idx:] == 0), "Node 1 infections should remain zero after first reaching zero post-peak."
+
+    # Assert: Node 2 infections should peak after Node 1 and then decay to zero
+    I_node2 = sim.results.I[:, 2]
+    max_idx2 = np.argmax(I_node2)
+    assert max_idx2 > max_idx1, "Node 2 should peak after Node 1."
+    zeros_after_peak = np.where(I_node2[max_idx2:] == 0)[0]
+    assert zeros_after_peak.size > 0, "Node 2 infections should eventually reach zero after peaking."
+    first_zero_idx = max_idx2 + zeros_after_peak[0]
+    assert np.all(I_node2[first_zero_idx:] == 0), "Node 2 infections should remain zero after first reaching zero post-peak."
+
+    # Assert: Node 3 infections should peak after Node 2 and then decay to zero
+    I_node3 = sim.results.I[:, 3]
+    max_idx3 = np.argmax(I_node3)
+    assert max_idx3 > max_idx2, "Node 3 should peak after Node 2."
+    zeros_after_peak = np.where(I_node3[max_idx3:] == 0)[0]
+    assert zeros_after_peak.size > 0, "Node 3 infections should eventually reach zero after peaking."
+    first_zero_idx = max_idx3 + zeros_after_peak[0]
+    assert np.all(I_node3[first_zero_idx:] == 0), "Node 3 infections should remain zero after first reaching zero post-peak."
+
+    return
+
+
 if __name__ == "__main__":
     test_trans_default()
     test_zero_trans()
     test_double_trans()
+    test_linear_transmission()
     print("All transmission tests passed!")
