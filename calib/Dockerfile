@@ -12,11 +12,7 @@ ENV NUMBA_CPU_NAME=generic
 ENV HEADLESS=1
 
 # Use the downloaded version to install the corresponding package
-RUN pip install -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio
-
-# RUN curl -s https://api.github.com/repos/InstituteforDiseaseModeling/laser-polio/releases/latest \
-#     | sed -n 's/.*"tag_name": "\(.*\)",/\1/p' > lp_version
-# RUN pip install --pre -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio
+RUN pip3 install -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio
 
 # Final cleanup
 RUN pip3 cache purge
