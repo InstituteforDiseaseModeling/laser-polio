@@ -70,6 +70,8 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     background_seeding_prev = configs.pop("background_seeding_prev", 0.0001)
     use_pim_scalars = configs.pop("use_pim_scalars", use_pim_scalars)
     init_immun_scalar = configs.pop("init_immun_scalar", 1.0)
+    r0_scalar_wt_slope = configs.pop("r0_scalar_wt_slope", 24)
+    r0_scalar_wt_intercept = configs.pop("r0_scalar_wt_intercept", 0.2)
 
     # Geography
     dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", verbose=verbose)
@@ -136,7 +138,9 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=0.5, scale=1.0)
     # R0 scalars
     underwt = df_comp.set_index("dot_name").loc[dot_names, "prop_underwt"].values
-    r0_scalars_wt = (1 / (1 + np.exp(24 * (0.22 - underwt)))) + 0.2  # The 0.22 is the mean of Nigeria underwt
+    r0_scalars_wt = (
+        1 / (1 + np.exp(r0_scalar_wt_slope * (0.22 - underwt)))
+    ) + r0_scalar_wt_intercept  # The 0.22 is the mean of Nigeria underwt
     # Scale PIM estimates using Nigeria mins and maxes to keep this consistent with the underweight scaling when geography is not Nigeria
     # TODO: revisit this section if using geography outside Nigeria
     pim_re = df_comp["reff_random_effect"].values  # get all values
