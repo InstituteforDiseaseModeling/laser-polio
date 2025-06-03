@@ -8,8 +8,8 @@ import laser_polio as lp
 
 
 def analyze_r0_scalars(
-    slopes=np.linspace(0, 100, 10),
-    intercepts=np.linspace(0, 1, 10),
+    slopes=None,
+    intercepts=None,
     data_path="data/compiled_cbr_pop_ri_sia_underwt_africa.csv",
     save_plot=True,
     output_dir="results/sweep_over_r0_scalar_pars",
@@ -25,6 +25,9 @@ def analyze_r0_scalars(
         save_plot (bool): Whether to save the plots
         output_dir (str): Directory to save plots
     """
+    slopes = np.linspace(0, 100, 10) if slopes is None else slopes
+    intercepts = np.linspace(0, 1, 10) if intercepts is None else intercepts
+
     # Load data and get prop_underwt values
     df = pd.read_csv(lp.root / data_path)
     underwt = df["prop_underwt"].values
