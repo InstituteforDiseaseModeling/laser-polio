@@ -260,7 +260,7 @@ class SEIR_ABM:
             self._components = []
 
     @classmethod
-    def init_from_file(cls, people, pars: PropertySet = None):
+    def init_from_file(cls, people: LaserFrame, pars: PropertySet = None):
         # initialize model
         model = cls.__new__(cls)
         model.common_init(pars, verbose=2)  # TBD: add nasty verbose param
