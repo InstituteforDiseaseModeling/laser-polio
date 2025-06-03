@@ -1101,6 +1101,7 @@ def tx_step_prep_nb(
 
     return beta_by_node, exposure_by_node, sus_by_node
 
+
 @nb.njit(parallel=True)
 def tx_infect_nb(
     num_nodes,
