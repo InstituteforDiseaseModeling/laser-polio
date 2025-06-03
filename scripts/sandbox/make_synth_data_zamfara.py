@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import sciris as sc
 
@@ -89,10 +90,17 @@ def make_synth_df_from_results(sim):
     df["month_start"] = df["date"].values.astype("datetime64[M]")  # fast way
 
     # Group by dot_name and month_start, then sum the P column
-    grouped = df.groupby(["dot_name", "month_start"])["P"].sum().reset_index()
+    grouped = df.groupby(["dot_name", "month_start"])["new_exposed"].sum().reset_index()
 
-    # Rename for clarity
-    grouped = grouped.rename(columns={"P": "cases"})
+    # Divide by 2000 & convert to integers
+    grouped["new_exposed"] /= 2000
+
+    cases = []
+    for i in range(len(grouped["new_exposed"])):
+        expected = grouped["new_exposed"][i]
+        paralytic_cases = np.random.poisson(expected)
+        cases.append(paralytic_cases)
+    grouped["cases"] = cases
 
     return grouped
 

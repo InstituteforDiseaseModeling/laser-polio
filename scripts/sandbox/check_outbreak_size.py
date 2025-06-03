@@ -80,7 +80,7 @@ for r0 in r0_values:
                 n_ppl=n_ppl,
                 r0=r0,
                 init_immun=[0.0],
-                seasonal_factor=0.0,
+                seasonal_amplitude=0.0,
                 cbr=np.array([0]),
                 vx_prob_ri=None,
                 vx_prob_sia=None,

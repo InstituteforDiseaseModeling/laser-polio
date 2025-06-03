@@ -24,8 +24,8 @@ seed_schedule = [
 ]
 r0 = 18.42868241650029
 radiation_k = 0.0956175096168661
-seasonal_factor = 0.19102804223372347
-seasonal_phase = 193
+seasonal_amplitude = 0.19102804223372347
+seasonal_peak_doy = 193
 
 ######### END OF USER PARS ########
 ###################################
@@ -50,8 +50,8 @@ sim = lp.run_sim(
     seed=1,
     save_pop=False,
     seed_schedule=seed_schedule,
-    seasonal_factor=seasonal_factor,
-    seasonal_phase=seasonal_phase,
+    seasonal_amplitude=seasonal_amplitude,
+    seasonal_peak_doy=seasonal_peak_doy,
 )
 
 

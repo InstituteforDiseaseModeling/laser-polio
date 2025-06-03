@@ -2,7 +2,7 @@
 REM Launcher script for Zamfara R0 calibration
 python calib\calibrate.py ^
   --study-name calib_demo_zamfara_r0_v2 ^
-  --num-trials 2 ^
+  --n-trials 2 ^
   --calib-config calib\calib_configs\calib_pars_r0.yaml ^
   --model-config calib\model_configs\config_zamfara.yaml ^
   --sim-path calib\setup_sim.py ^

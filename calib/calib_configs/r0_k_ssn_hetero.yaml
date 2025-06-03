@@ -1,0 +1,20 @@
+parameters:
+  r0:
+    low: 5.0
+    high: 30.0
+  radiation_k:
+    low: 0.0
+    high: 1.5
+  seasonal_amplitude:
+    low: 0.0
+    high: 0.4
+  seasonal_peak_doy:
+    low: 0
+    high: 364
+  risk_mult_var:
+    low: 0.0
+    high: 12.0
+
+metadata:
+  scoring_fn: compute_log_likelihood_fit
+  target_fn: calc_targets_temporal_regional_nodes

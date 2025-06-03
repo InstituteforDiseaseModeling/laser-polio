@@ -24,8 +24,8 @@ default_pars = PropertySet(
         "seed_schedule": None,  # Schedule for seeding cases (list of dicts with either: 1)'date', 'dot_name', 'prevalence' or 2)'timestep', 'node_id', 'prevalence')
         "r0": 14,  # Basic reproduction number
         "r0_scalars": [0.8, 1.2],  # Spatial transmission scalar (multiplied by global rate)
-        "seasonal_factor": 0.125,  # Seasonal variation in transmission
-        "seasonal_phase": 180,  # Phase of seasonal variation
+        "seasonal_amplitude": 0.125,  # Seasonal variation in transmission
+        "seasonal_peak_doy": 180,  # Phase of seasonal variation
         "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
         "corr_risk_inf": 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
         "individual_heterogeneity": True,  # Whether to use individual heterogeneity in acquisition and infectivity or set to mean values
@@ -38,9 +38,12 @@ default_pars = PropertySet(
         "node_lookup": None,  # Node info (node_id are keys, dict contains dot_name, lat, lon)
         "distances": np.array([[0, 100], [100, 0]]),  # Distance in km between nodes
         # Migration
+        "node_seeding_dispersion": 1000,  # INTEGER (or will round) - negative binomial "k" parameter for the first importation into each node. Larger values -> Poisson.
+        "node_seeding_zero_inflation": 0.0,  # Fraction of node seeding events to zero out, float value between 0 and 1; 0.0 -> no zero inflation.
         "migration_method": "radiation",  # Migration method: "gravity" or "radiation"
         "radiation_k": 0.5,  # Radiation model scaling constant. Based on testing, this value should be between 0.0 and ~3 for Nigeria.
-        "gravity_k": 0.5,  # Gravity scaling constant
+        "gravity_k": 1.0,  # Gravity scaling constant
+        "gravity_k_exponent": 0.0,  # Exponent of the gravity_k term
         "gravity_a": 1,  # Origin population exponent
         "gravity_b": 1,  # Destination population exponent
         "gravity_c": 2.0,  # Distance exponent
@@ -67,8 +70,9 @@ default_pars = PropertySet(
         "step_size_RI_ABM": 14,
         "step_size_SIA_ABM": 1,
         "step_size_Transmission_ABM": 1,
-        # Actual data
+        # Actual data & calibration configs
         "actual_data": None,  # Actual dataset
+        "summary_config": None,  # Summary configuration for calibration plotting
         # Verbosity
         "verbose": 1,  # 0 = silent, 1 = info, 2 = debug, 3 = validate with special logging features
         # Stopping rules

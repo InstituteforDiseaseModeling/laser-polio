@@ -5,6 +5,7 @@ import datetime as dt
 import json
 import os
 from collections import defaultdict
+from datetime import timedelta
 from time import perf_counter_ns
 from zoneinfo import ZoneInfo  # Python 3.9+
 
@@ -31,6 +32,7 @@ __all__ = [
     "get_tot_pop_and_cbr",
     "get_woy",
     "inv_logit",
+    "make_background_seeding_schedule",
     "pbincount",
     "process_sia_schedule_polio",
     "save_results_to_csv",
@@ -298,6 +300,48 @@ def inv_logit(x):
     return 1 / (1 + np.exp(-x))
 
 
+def make_background_seeding_schedule(
+    node_lookup,
+    start_date,
+    sim_duration,
+    prevalence,
+    fraction_of_nodes=1.0,
+    frequency=30,
+    rng=None,
+):
+    """
+    Generate a background seed_schedule using dates and dot_names (not timesteps or node_ids).
+
+    Args:
+        node_lookup (dict): Maps node_id → dict with 'dot_name' and other metadata.
+        start_date (datetime.date): Simulation start date.
+        sim_duration (int): Duration in days.
+        prevalence (float): Seeding prevalence per event.
+        fraction_of_nodes (float): Fraction of nodes to randomly select.
+        frequency (int): Number of days between seedings.
+        rng (np.random.Generator): Optional RNG for reproducibility.
+
+    Returns:
+        list[dict]: List of {'date', 'dot_name', 'prevalence'} entries.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+
+    node_ids = list(node_lookup.keys())
+    dot_names = [node_lookup[nid]["dot_name"] for nid in node_ids]
+
+    n_seed_nodes = int(np.ceil(len(dot_names) * fraction_of_nodes))
+    selected_dot_names = rng.choice(dot_names, size=n_seed_nodes, replace=False)
+
+    schedule = []
+    for day in range(0, sim_duration, frequency):
+        date = start_date + timedelta(days=day)
+        for dot_name in selected_dot_names:
+            schedule.append({"date": date, "dot_name": dot_name, "prevalence": prevalence})
+
+    return schedule
+
+
 def process_sia_schedule(csv_path, start_date):
     """
     Load an SIA schedule from a CSV file and convert real-world dates to simulation timesteps.
@@ -338,14 +382,17 @@ def process_sia_schedule(csv_path, start_date):
     return sia_schedule
 
 
-def process_sia_schedule_polio(df, region_names, sim_start_date, filter_to_type2=True):
+def process_sia_schedule_polio(df, region_names, sim_start_date, n_days, filter_to_type2=True):
     """
     Processes an SIA schedule into a dictionary readable by the sim.
      The output file contains a list of the unique SIA dates and corresponding region_name indices included in that campaign.
 
     Parameters:
+    - df (pd.DataFrame): DataFrame containing the SIA schedule with columns:
     - region_names (list of str): List of full region names (e.g., 'AFRO:NIGERIA:ZAMFARA:ANKA').
     - sim_start_date (str): The beginning date in 'YYYY-MM-DD' format.
+    - n_days (int): The number of days to include in the simulation.
+    - filter_to_type2 (bool): If True, filter to only type 2 campaigns.
 
     Returns:
     - List of dictionaries in the format:
@@ -378,6 +425,8 @@ def process_sia_schedule_polio(df, region_names, sim_start_date, filter_to_type2
     # Filter for start dates on or after the simulation beginning date
     summary["date"] = date(summary["date"])
     summary = summary[summary["date"] >= sim_start_date]
+    sim_end_date = sim_start_date + datetime.timedelta(days=n_days)
+    summary = summary[summary["date"] <= sim_end_date]
 
     # Convert to dictionary format
     result = summary.to_dict(orient="records")
@@ -431,7 +480,7 @@ def get_woy(sim):
 
 def get_seasonality(sim):
     woy = get_woy(sim)
-    return 1 + sim.pars["seasonal_factor"] * np.cos((2 * np.pi * woy / 52) + sim.pars["seasonal_phase"])
+    return 1 + sim.pars["seasonal_amplitude"] * np.cos((2 * np.pi * woy / 52) + (2 * np.pi * sim.pars["seasonal_peak_doy"] / 365))
 
 
 def save_results_to_csv(sim, filename="simulation_results.csv"):
@@ -446,21 +495,24 @@ def save_results_to_csv(sim, filename="simulation_results.csv"):
     datevec = sim.datevec
     nodes = len(sim.nodes)
     results = sim.results
+    node_lookup = sim.pars.node_lookup
 
     with open(filename, mode="w", newline="") as file:
         writer = csv.writer(file)
 
         # Write header
-        writer.writerow(["timestep", "date", "node", "S", "E", "I", "R", "P", "new_exposed"])
+        writer.writerow(["timestep", "date", "node", "dot_name", "S", "E", "I", "R", "P", "new_exposed"])
 
         # Write data
         for t in range(timesteps):
             for n in range(nodes):
+                dot_name = node_lookup.get(n, {}).get("dot_name", "UNKNOWN")
                 writer.writerow(
                     [
                         t,
                         datevec[t],
                         n,
+                        dot_name,
                         results.S[t, n],
                         results.E[t, n],
                         results.I[t, n],

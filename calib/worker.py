@@ -18,18 +18,19 @@ def load_function(module_path: str, function_name: str):
 
 def run_worker_main(
     study_name=None,
-    num_trials=None,
+    n_trials=None,
     calib_config=None,
     model_config=None,
     fit_function=None,
     results_path=None,
     actual_data_file=None,
     n_replicates=None,
+    dry_run=False,
 ):
     """Run Optuna trials to calibrate the model via CLI or programmatically."""
 
     # 👇 Provide defaults for programmatic use
-    num_trials = num_trials or 5
+    n_trials = n_trials or 1
     calib_config = calib_config or lp.root / "calib/calib_configs/calib_pars_r0.yaml"
     model_config = model_config or lp.root / "calib/model_configs/config_zamfara.yaml"
     fit_function = fit_function or "mse"  # options are "log_likelihood" or "mse"
@@ -37,7 +38,20 @@ def run_worker_main(
     actual_data_file = actual_data_file or lp.root / "examples/calib_demo_zamfara/synthetic_infection_counts_zamfara_250.csv"
     n_replicates = n_replicates or 1
 
-    sc.printcyan(f"[INFO] Running study: {study_name} with {num_trials} trials")
+    # We want to show users on console what values we ended up going with based on command line args and defaults.
+    print(f"study_name: {study_name}")
+    print(f"n_trials: {n_trials}")
+    print(f"calib_config: {calib_config}")
+    print(f"model_config: {model_config}")
+    print(f"fit_function: {fit_function}")
+    print(f"results_path: {results_path}")
+    print(f"actual_data_file: {actual_data_file}")
+    print(f"n_replicates: {n_replicates}")
+
+    if dry_run:
+        return
+
+    sc.printcyan(f"[INFO] Running study: {study_name} with {n_trials} trials")
     storage_url = calib_db.get_storage()
 
     # sampler = optuna.samplers.RandomSampler(seed=42)  # seed is optional for reproducibility
@@ -79,4 +93,4 @@ def run_worker_main(
         target_fn=target_fn,
     )
 
-    study.optimize(wrapped_objective, n_trials=num_trials)
+    study.optimize(wrapped_objective, n_trials=n_trials)

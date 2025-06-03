@@ -23,7 +23,8 @@ seed_schedule = [
     {"date": "2018-11-07", "dot_name": "AFRO:NIGERIA:ZAMFARA:GUMMI", "prevalence": 200},  # day 2
 ]
 save_plots = True
-save_data = False
+save_data = True
+plot_pars = True
 seed = 1
 # Diffs from demo_zamfara_load_init_pop.py
 results_path = "results/demo_zamfara"
@@ -45,6 +46,7 @@ sim = lp.run_sim(
     results_path=results_path,
     save_plots=save_plots,
     save_data=save_data,
+    plot_pars=plot_pars,
     verbose=verbose,
     seed=seed,
     r0=r0,
@@ -56,6 +58,7 @@ sim = lp.run_sim(
     init_pop_file=init_pop_file,
     seed_schedule=seed_schedule,
     missed_frac=missed_frac,
+    use_pim_scalars=True,
 )
 
 sc.printcyan("Done.")

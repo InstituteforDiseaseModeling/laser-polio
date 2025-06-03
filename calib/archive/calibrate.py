@@ -70,10 +70,10 @@ def objective(trial, calib_config, model_config_path):
 
 @click.command()
 @click.option("--study_name", default=str(study_name), help="Name of the Optuna study.")
-@click.option("--num-trials", default=1, type=int, help="Number of optimization trials.")
+@click.option("--n-trials", default=1, type=int, help="Number of optimization trials.")
 @click.option("--calib-config", default=str(calib_config), type=str, help="Calibration configuration file.")
 @click.option("--model-config", default=str(model_config), type=str, help="Model configuration file.")
-def run_worker(study_name, num_trials, calib_config, model_config):
+def run_worker(study_name, n_trials, calib_config, model_config):
     """Run Optuna trials with imported configuration and scoring logic."""
 
     storage_url = calib_db.get_storage()
@@ -96,7 +96,7 @@ def run_worker(study_name, num_trials, calib_config, model_config):
         study.set_user_attr(key, value)
 
     wrapped_objective = partial(objective, calib_config=calib_config_dict, model_config=model_config_path)
-    study.optimize(wrapped_objective, n_trials=num_trials)
+    study.optimize(wrapped_objective, n_trials=n_trials)
 
     # Output results
     best = study.best_trial

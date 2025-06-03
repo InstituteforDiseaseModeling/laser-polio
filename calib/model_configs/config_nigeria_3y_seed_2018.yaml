@@ -2,7 +2,7 @@ regions: ["NIGERIA"]
 start_year: 2018
 n_days: 1095
 pop_scale: 1
-vx_ri_prob: None
+vx_prob_ri: null
 init_region: "BIRINIWA"
 init_prev: 0
 seed_schedule:

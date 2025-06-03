@@ -1,0 +1,21 @@
+regions: ["KANO", "JIGAWA"]
+start_year: 2018
+n_days: 365
+pop_scale: 1
+vx_prob_ri: null
+init_region: "BIRINIWA"
+init_prev: 0
+seed_schedule:
+  - date: "2018-02-06"
+    dot_name: "AFRO:NIGERIA:JIGAWA:BIRINIWA"
+    prevalence: 200
+migration_method: "radiation"
+max_migr_frac: 1.0
+results_path: "results/demo_jigawa"
+save_plots: false
+save_data: true
+summary_config:
+  region_groups:
+    northern_nigeria: [0, 1, 2]
+    southern_nigeria: [3, 4, 5]
+    major_hubs: [0, 5]

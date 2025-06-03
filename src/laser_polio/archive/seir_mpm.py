@@ -188,8 +188,8 @@ if __name__ == "__main__":
             # Disease
             "init_prev": np.array([0, 0.01, 0, 0, 0]),  # Initial prevalence per node (1% infected)
             "beta_global": 0.3,  # Global infection rate
-            "seasonal_factor": 0.125,  # Seasonal variation in transmission
-            "seasonal_phase": 180,  # Phase of seasonal variation
+            "seasonal_amplitude": 0.125,  # Seasonal variation in transmission
+            "seasonal_peak_doy": 180,  # Phase of seasonal variation
             "sigma": 1 / 5,  # Incubation period ~5 days
             "gamma": 1 / 10,  # Recovery period ~10 days
             "p_paralysis": 1 / 20,  # Probability of paralysis

@@ -35,8 +35,8 @@ def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=N
             "r0": r0,  # Basic reproduction number
             "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
             "corr_risk_inf": 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
-            "seasonal_factor": 0.0,  # Seasonal variation in transmission
-            "seasonal_phase": 180,  # Phase of seasonal variation
+            "seasonal_amplitude": 0.0,  # Seasonal variation in transmission
+            "seasonal_peak_doy": 180,  # Phase of seasonal variation
             "distances": np.array([[0, 1], [1, 0]]),  # Distance in km between nodes
             "gravity_k": 0.5,  # Gravity scaling constant
             "gravity_a": 1,  # Origin population exponent

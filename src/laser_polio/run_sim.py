@@ -9,9 +9,9 @@ import pandas as pd
 import sciris as sc
 import yaml
 from laser_core.propertyset import PropertySet
+from laser_core.laserframe import LaserFrame
 
 import laser_polio as lp
-from laser_polio.laserframeio import LaserFrameIO
 
 __all__ = ["run_sim"]
 
@@ -20,9 +20,19 @@ if os.getenv("POLIO_ROOT"):
     lp.root = Path(os.getenv("POLIO_ROOT"))
 
 
-def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False, **kwargs):
+def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False, plot_pars=False, use_pim_scalars=False, **kwargs):
     """
     Set up simulation from config file (YAML + overrides) or kwargs.
+
+    Parameters:
+        config (dict): Configuration dictionary with simulation parameters.
+        init_pop_file (str): Path to initial population file.
+        verbose (int): Verbosity level for logging.
+        run (bool): Whether to run the simulation.
+        save_pop (bool): Whether to save the initial population file.
+        plot_pars (bool): Whether to plot the parameters.
+        use_pim_scalars (bool): Whether to use R0 scalars based on polio immunity mapper (PIM) random effects or under weight fraction.
+        kwargs (dict): Additional parameters to override in the config.
 
     Example usage:
         # Use kwargs
@@ -51,7 +61,14 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     actual_data = configs.pop("actual_data", "data/epi_africa_20250421.h5")
     save_plots = configs.pop("save_plots", False)
     save_data = configs.pop("save_data", False)
+    plot_pars = configs.pop("plot_pars", plot_pars)
     init_pop_file = configs.pop("init_pop_file", init_pop_file)
+    background_seeding = configs.pop("background_seeding", False)
+    background_seeding_freq = configs.pop("background_seeding_freq", 30)
+    background_seeding_node_frac = configs.pop("background_seeding_node_frac", 0.3)
+    background_seeding_prev = configs.pop("background_seeding_prev", 0.0001)
+    use_pim_scalars = configs.pop("use_pim_scalars", use_pim_scalars)
+    init_immun_scalar = configs.pop("init_immun_scalar", 1.0)
 
     # Geography
     dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", verbose=verbose)
@@ -67,6 +84,10 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     init_immun = pd.read_hdf(lp.root / "data/init_immunity_0.5coverage_january.h5", key="immunity")
     init_immun = init_immun.set_index("dot_name").loc[dot_names]
     init_immun = init_immun[init_immun["period"] == start_year]
+    # Apply scalar multiplier to immunity values, clipping to [0.0, 1.0]
+    immunity_cols = [col for col in init_immun.columns if col.startswith("immunity_")]
+    init_immun[immunity_cols] = init_immun[immunity_cols].clip(lower=0.0, upper=1.0) * init_immun_scalar
+    init_immun[immunity_cols] = init_immun[immunity_cols].clip(upper=1.0, lower=0.0)
 
     # Initial infection seeding
     init_prevs = np.zeros(len(dot_names))
@@ -79,12 +100,29 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         init_prevs = init_prevs.astype(int)
     if verbose >= 2:
         print(f"Seeding infection in {len(prev_indices)} nodes at {init_prev:.3f} prevalence.")
+    # Set up background seeding if specified
+    if background_seeding:
+        print("Using background seeding")
+        background_seeds = lp.make_background_seeding_schedule(
+            node_lookup,
+            start_date=lp.date(f"{start_year}-01-01"),
+            sim_duration=n_days,
+            prevalence=background_seeding_prev,
+            fraction_of_nodes=background_seeding_node_frac,
+            frequency=background_seeding_freq,
+            rng=np.random.default_rng(configs.get("seed", None)),  # Use the seed from configs
+        )
+        # Merge with existing seed_schedule if it exists
+        if "seed_schedule" in configs and configs["seed_schedule"] is not None:
+            configs["seed_schedule"] += background_seeds
+        else:
+            configs["seed_schedule"] = background_seeds
 
     # SIA schedule
     start_date = lp.date(f"{start_year}-01-01")
     historic = pd.read_csv(lp.root / "data/sia_historic_schedule.csv")
     future = pd.read_csv(lp.root / "data/sia_scenario_1.csv")
-    sia_schedule = lp.process_sia_schedule_polio(pd.concat([historic, future]), dot_names, start_date, filter_to_type2=True)
+    sia_schedule = lp.process_sia_schedule_polio(pd.concat([historic, future]), dot_names, start_date, n_days, filter_to_type2=True)
 
     # Demographics and risk
     df_comp = pd.read_csv(lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
@@ -92,17 +130,26 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     pop = df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values * pop_scale
     cbr = df_comp.set_index("dot_name").loc[dot_names, "cbr"].values
     ri = df_comp.set_index("dot_name").loc[dot_names, "ri_eff"].values
+    # SIA probabilities
     sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values
-    # reff_re = df_comp.set_index("dot_name").loc[dot_names, "reff_random_effect"].values
-    # TODO Need to REDO random effect probs since they might've been based on the wrong data. Also, need to do the processing before filtering because of the centering & scaling
     sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=0.5, scale=1.0)
-    # r0_scalars = lp.calc_r0_scalars_from_rand_eff(reff_re)
-    # Calcultate geographic R0 modifiers based on underweight data (one for each node)
+    # R0 scalars
     underwt = df_comp.set_index("dot_name").loc[dot_names, "prop_underwt"].values
-    r0_scalars = (1 / (1 + np.exp(24 * (0.22 - underwt)))) + 0.2  # The 0.22 is the mean of Nigeria underwt
-    # # Check Zamfara means
-    # print(f"{underwt[-14:]}")
-    # print(f"{r0_scalars[-14:]}")
+    r0_scalars_wt = (1 / (1 + np.exp(24 * (0.22 - underwt)))) + 0.2  # The 0.22 is the mean of Nigeria underwt
+    # Scale PIM estimates using Nigeria mins and maxes to keep this consistent with the underweight scaling when geography is not Nigeria
+    # TODO: revisit this section if using geography outside Nigeria
+    pim_re = df_comp["reff_random_effect"].values  # get all values
+    nig_min = -0.0786359245626656
+    nig_max = 2.200145038240859
+    pim_scaled = (pim_re - nig_min) / (nig_max - nig_min)
+    # pim_scaled = (pim_re - pim_re.min()) / (pim_re.max() - pim_re.min())  # Rescale to [0, 1]
+    df_comp.loc[:, "pim_scaled"] = pim_scaled
+    pim_scaled = df_comp.set_index("dot_name").loc[dot_names, "pim_scaled"].values
+    r0_scalar_pim = pim_scaled * (r0_scalars_wt.max() - r0_scalars_wt.min()) + r0_scalars_wt.min()
+    if use_pim_scalars:
+        r0_scalars = r0_scalar_pim
+    else:
+        r0_scalars = r0_scalars_wt
 
     # Validate all arrays match
     assert all(len(arr) == len(dot_names) for arr in [shp, init_immun, node_lookup, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
@@ -141,13 +188,15 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     # Dynamic values passed by user/CLI/Optuna
     pars = PropertySet({**base_pars, **configs})
 
-    # Print pars
-    # TODO: make this optional
-    # sc.pp(pars.to_dict())
+    # Plot pars
+    if plot_pars:
+        lp.plot_pars(pars, shp, results_path)
+    if verbose >= 3:
+        sc.pp(pars.to_dict())
 
     def from_file(init_pop_file):
         # logger.info(f"Initializing SEIR_ABM from file: {init_pop_file}")
-        people, results_R, pars_loaded = LaserFrameIO.load_snapshot(init_pop_file)
+        people, results_R, pars_loaded = LaserFrame.load_snapshot(init_pop_file,capacity_frac=2.0)
 
         sim = lp.SEIR_ABM.init_from_file(people, pars)
         if pars_loaded and "r0" in pars_loaded:

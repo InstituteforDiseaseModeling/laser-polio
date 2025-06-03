@@ -94,7 +94,7 @@ def setup_sim(seed):
     historic_sia_schedule = pd.read_csv("data/sia_historic_schedule.csv")
     future_sia_schedule = pd.read_csv("data/sia_scenario_1.csv")
     sia_schedule_raw = pd.concat([historic_sia_schedule, future_sia_schedule], ignore_index=True)  # combine the two schedules
-    sia_schedule = lp.process_sia_schedule_polio(sia_schedule_raw, dot_names, start_date)  # Load sia schedule
+    sia_schedule = lp.process_sia_schedule_polio(sia_schedule_raw, dot_names, start_date, n_days)  # Load sia schedule
 
     ### Load the demographic, coverage, and risk data
     # Age pyramid
@@ -131,8 +131,8 @@ def setup_sim(seed):
             "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
             "corr_risk_inf": 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
             "r0_scalars": r0_scalars,  # Spatial transmission scalar (multiplied by global rate)
-            "seasonal_factor": 0.125,  # Seasonal variation in transmission
-            "seasonal_phase": 180,  # Phase of seasonal variation
+            "seasonal_amplitude": 0.125,  # Seasonal variation in transmission
+            "seasonal_peak_doy": 180,  # Phase of seasonal variation
             "p_paralysis": 1 / 50,  # Probability of paralysis (up from 1 / 2000)
             "dur_exp": lp.normal(mean=3, std=1),  # Duration of the exposed state
             "dur_inf": lp.gamma(shape=4.51, scale=5.32),  # Duration of the infectious state

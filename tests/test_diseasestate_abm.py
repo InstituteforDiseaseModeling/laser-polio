@@ -2,9 +2,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+import pandas as pd
 from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
+from laser_polio.run_sim import run_sim
 
 test_dir = Path(__file__).parent
 data_path = test_dir / "data"
@@ -115,8 +117,8 @@ def test_progression_with_transmission():
             "r0": 999,  # Basic reproduction number
             "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
             "corr_risk_inf": 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
-            "seasonal_factor": 0.125,  # Seasonal variation in transmission
-            "seasonal_phase": 180,  # Phase of seasonal variation
+            "seasonal_amplitude": 0.125,  # Seasonal variation in transmission
+            "seasonal_peak_doy": 180,  # Phase of seasonal variation
             "distances": np.array([[0, 1], [1, 0]]),  # Distance in km between nodes
             "gravity_k": 0.5,  # Gravity scaling constant
             "gravity_a": 1,  # Origin population exponent
@@ -331,6 +333,37 @@ def test_seed_schedule():
     assert n_inf_seed_schedule3 > 0, f"No infections seeded with seed_schedule in {dot_name} at t={t}"
 
 
+@patch("laser_polio.root", Path("tests/"))
+def test_init_immun_scalar():
+    scalar = 0.5
+    common_config = {
+        "regions": ["ZAMFARA"],
+        "start_year": 2018,
+        "n_days": 1,
+        "init_region": "ZAMFARA",
+        "init_prev": 0,
+        "pop_scale": 0.01,
+        "results_path": None,
+    }
+
+    # Run unscaled version
+    sim_unscaled = run_sim(config=common_config.copy(), run=False)
+    df_unscaled = sim_unscaled.pars.init_immun.copy()
+    cols = [col for col in df_unscaled.columns if col.startswith("immunity_")]
+
+    # Run scaled version
+    scaled_config = common_config.copy()
+    scaled_config["init_immun_scalar"] = scalar
+    sim_scaled = run_sim(config=scaled_config, run=False)
+    df_scaled = sim_scaled.pars.init_immun.copy()
+
+    # Check scaling: scaled = clip(unscaled * scalar)
+    expected_scaled = df_unscaled[cols] * scalar
+    expected_scaled = expected_scaled.clip(0.0, 1.0)
+
+    pd.testing.assert_frame_equal(df_scaled[cols], expected_scaled, atol=1e-6, check_dtype=False)
+
+
 if __name__ == "__main__":
     test_disease_state_initialization()
     test_initial_population_counts()
@@ -339,4 +372,5 @@ if __name__ == "__main__":
     test_paralysis_probability()
     test_run_sim()
     test_seed_schedule()
+    test_init_immun_scalar()
     print("All disease state tests passed!")

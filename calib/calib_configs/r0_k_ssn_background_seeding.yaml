@@ -1,0 +1,26 @@
+parameters:
+  r0:
+    low: 5.0
+    high: 20.0
+  radiation_k:
+    low: 0.0
+    high: 0.5
+  seasonal_amplitude:
+    low: 0.0
+    high: 0.2
+  seasonal_peak_doy:
+    low: 0
+    high: 364
+  background_seeding_freq:
+    low: 0
+    high: 365
+  background_seeding_node_frac:
+    low: 0.0
+    high: 1.0
+  background_seeding_prev:
+    low: 0
+    high: 100
+
+metadata:
+  scoring_fn: compute_log_likelihood_fit
+  target_fn: calc_targets_temporal_regional_nodes

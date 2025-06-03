@@ -1,0 +1,20 @@
+parameters:
+  r0:
+    low: 5.0
+    high: 30.0
+  seasonal_amplitude:
+    low: 0.0
+    high: 0.4
+  seasonal_peak_doy:
+    low: 0
+    high: 364
+  gravity_k_exponent:
+    low: -20.0
+    high: 0.0
+  gravity_c:
+    low: 0.01
+    high: 2.0
+
+metadata:
+  scoring_fn: compute_log_likelihood_fit
+  target_fn: calc_targets_temporal_regional_nodes

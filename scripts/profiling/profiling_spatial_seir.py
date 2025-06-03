@@ -31,8 +31,8 @@ def make_sim(n_ppl=100e3, n_nodes=1, dur=365):
             "init_prev": init_prev,  # Initial prevalence per node (1% infected)
             "beta_global": 0.3,  # Global infection rate
             "r0_scalars": r0_scalars,  # Spatial transmission scalar (multiplied by global rate)
-            "seasonal_factor": 0.125,  # Seasonal variation in transmission
-            "seasonal_phase": 180,  # Phase of seasonal variation
+            "seasonal_amplitude": 0.125,  # Seasonal variation in transmission
+            "seasonal_peak_doy": 180,  # Phase of seasonal variation
             "p_paralysis": 1 / 20,  # Probability of paralysis
             # Migration
             "gravity_k": 1,  # Gravity scaling constant

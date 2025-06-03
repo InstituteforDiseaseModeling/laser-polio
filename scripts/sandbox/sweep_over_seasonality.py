@@ -19,8 +19,8 @@ results_path = "results/scan_over_seasonality_zamfara"
 # Define the range of par values to sweep
 n_pts = 5  # Number of points to simulate
 n_reps = 3
-seasonal_factor_values = np.linspace(0, 1, n_pts)
-seasonal_phase_values = np.linspace(1.0, 364.9, n_pts)
+seasonal_amplitude_values = np.linspace(0, 1, n_pts)
+seasonal_peak_doy_values = np.linspace(1.0, 364.9, n_pts)
 
 
 ######### END OF USER PARS ########
@@ -28,17 +28,17 @@ seasonal_phase_values = np.linspace(1.0, 364.9, n_pts)
 
 
 # Create result matrices
-total_infected_matrix = np.zeros((len(seasonal_phase_values), len(seasonal_factor_values)))
+total_infected_matrix = np.zeros((len(seasonal_peak_doy_values), len(seasonal_amplitude_values)))
 num_nodes_infected_matrix = np.zeros_like(total_infected_matrix)
 
 
 # Run sweep
-for i, seasonal_phase in enumerate(seasonal_phase_values):
-    for j, seasonal_factor in enumerate(seasonal_factor_values):
+for i, seasonal_peak_doy in enumerate(seasonal_peak_doy_values):
+    for j, seasonal_amplitude in enumerate(seasonal_amplitude_values):
         total_infected_accum = 0.0
         nodes_infected_accum = 0.0
 
-        print(f"\nRunning {n_reps} reps for R0 = {seasonal_factor:.2f}, seasonal_phase = {seasonal_phase:.2f}")
+        print(f"\nRunning {n_reps} reps for R0 = {seasonal_amplitude:.2f}, seasonal_peak_doy = {seasonal_peak_doy:.2f}")
 
         for rep in range(n_reps):
             print(f"  ↳ Rep {rep + 1}/{n_reps}")
@@ -53,8 +53,8 @@ for i, seasonal_phase in enumerate(seasonal_phase_values):
                 results_path=results_path,
                 save_plots=False,
                 save_data=False,
-                seasonal_factor=seasonal_factor,
-                seasonal_phase=seasonal_phase,
+                seasonal_amplitude=seasonal_amplitude,
+                seasonal_peak_doy=seasonal_peak_doy,
                 seed=rep,  # Optional: control randomness
             )
 
@@ -89,22 +89,22 @@ def plot_heatmap(matrix, title, filename, xlabel, ylabel, xticks, yticks):
 
 plot_heatmap(
     total_infected_matrix,
-    title="Total Infected vs seasonal_factor and seasonal_phase",
+    title="Total Infected vs seasonal_amplitude and seasonal_peak_doy",
     filename="total_infected_heatmap_avg.png",
-    xlabel="seasonal_factor",
-    ylabel="seasonal_phase",
-    xticks=seasonal_factor_values,
-    yticks=seasonal_phase_values,
+    xlabel="seasonal_amplitude",
+    ylabel="seasonal_peak_doy",
+    xticks=seasonal_amplitude_values,
+    yticks=seasonal_peak_doy_values,
 )
 
 plot_heatmap(
     num_nodes_infected_matrix,
-    title="Number of Nodes Infected vs seasonal_factor and seasonal_phase",
+    title="Number of Nodes Infected vs seasonal_amplitude and seasonal_peak_doy",
     filename="nodes_infected_heatmap_avg.png",
-    xlabel="seasonal_factor",
-    ylabel="seasonal_phase",
-    xticks=seasonal_factor_values,
-    yticks=seasonal_phase_values,
+    xlabel="seasonal_amplitude",
+    ylabel="seasonal_peak_doy",
+    xticks=seasonal_amplitude_values,
+    yticks=seasonal_peak_doy_values,
 )
 
 sc.printcyan("Sweep complete.")
