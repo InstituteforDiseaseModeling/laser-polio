@@ -1,7 +1,9 @@
-import docker
-import tarfile
 import io
 import os
+import tarfile
+
+import docker
+
 
 def extract_file_from_image(image_name, container_path, local_path):
     client = docker.from_env()
@@ -18,7 +20,7 @@ def extract_file_from_image(image_name, container_path, local_path):
             member = tar.getmembers()[0]
             extracted_file = tar.extractfile(member)
             if extracted_file:
-                with open(local_path, 'wb') as f:
+                with open(local_path, "wb") as f:
                     f.write(extracted_file.read())
                 print(f"✅ File extracted: {os.path.abspath(local_path)}")
             else:
@@ -31,14 +33,15 @@ def extract_file_from_image(image_name, container_path, local_path):
 
     # Simulate `grep laser` output
     # print(f"\n🔍 Lines containing 'laser' in {local_path}:")
-    with open(local_path, 'r') as f:
+    with open(local_path) as f:
         for line in f:
-            if 'laser' in line.lower():
+            if "laser" in line.lower():
                 print(line.rstrip())
+
 
 # Example usage
 extract_file_from_image(
     image_name="idm-docker-staging.packages.idmod.org/laser/laser-polio:latest",
     container_path="/app/laser_polio_deps.txt",
-    local_path="./laser_polio_deps.txt"
+    local_path="./laser_polio_deps.txt",
 )
