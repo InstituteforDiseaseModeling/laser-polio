@@ -263,25 +263,17 @@ class SEIR_ABM:
     def init_from_file(cls, people, pars: PropertySet = None):
         # initialize model
         model = cls.__new__(cls)
-        # model.pars = deepcopy(lp.default_pars)
-        # if pars is not None:
-        #    model.pars += pars
         model.common_init(pars, verbose=2)  # TBD: add nasty verbose param
-        # model.nt = model.pars["dur"] + 1
-        # model.datevec = lp.daterange(model.pars["start_date"], days=model.nt)
 
-        # Use LaserFrameIO to load people
         # Use same logic as elsewhere to set capacity multiplier on count for expansion from vital dynamics
         num_timesteps = pars.dur + 1
-        # 1.1 below is 'fudge factor'
+        # 1.1 below is 'fudge factor' to give a bit of breathing room for stochasticity
         if (pars.cbr is not None) & (len(pars.cbr) == 1):
             capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), num_timesteps, pars.cbr[0]))
         elif (pars.cbr is not None) & (len(pars.cbr) > 1):
             capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), num_timesteps, np.mean(pars.cbr)))
         model.people = people
         model._capacity = capacity
-
-        # We need to set daily_infectivity and acq_risk_multiplier for count:capacity
 
         # Setup node list
         model.nodes = np.unique(model.people.node_id[: model.people.count])
