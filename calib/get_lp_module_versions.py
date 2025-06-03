@@ -1,6 +1,7 @@
 import io
 import os
 import tarfile
+from pathlib import Path
 
 import docker
 
@@ -22,7 +23,8 @@ def extract_file_from_image(image_name, container_path, local_path):
             if extracted_file:
                 with open(local_path, "wb") as f:
                     f.write(extracted_file.read())
-                print(f"✅ File extracted: {os.path.abspath(local_path)}")
+                local_path_absolute = Path(local_path).resolve()
+                print(f"✅ File extracted: {local_path_absolute}")
             else:
                 print("❌ Failed to extract file.")
                 return
