@@ -24,9 +24,19 @@ def run_docker_commands():
 
         # Show where it is and grep for 'laser'
         deps_file = "laser_polio_deps.txt"
-        print(f"\nFile '{deps_file}' saved in current directory. Matches for 'laser':\n")
-        subprocess.run(["grep", "laser", deps_file])
+        # print(f"\nFile '{deps_file}' saved in current directory. Matches for 'laser':\n")
+        # subprocess.run(["grep", "laser", deps_file])
 
+        # Python-native search instead of grep
+        try:
+            with open(deps_file) as f:
+                for line_num, line in enumerate(f, 1):
+                    if "laser" in line.lower():
+                        print(f"{line_num}: {line.strip()}")
+        except FileNotFoundError:
+            print(f"Error: Could not find {deps_file}")
+        except Exception as e:
+            print(f"Error reading file: {e}")
         # Push image
         subprocess.run(push_cmd, check=True)
         print("Docker image pushed successfully.")
