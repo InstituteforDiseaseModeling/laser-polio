@@ -10,7 +10,7 @@ import laser_polio as lp
 # Test impact of differnt dur_inf
 
 
-def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=None, init_immun=0.8, init_prev=0.01):
+def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=None, init_immun=0.8, init_prev=0.01, seed=None):
     if n_ppl is None:
         n_ppl = np.array([10000, 10000])
     if r0_scalars is None:
@@ -21,6 +21,7 @@ def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=N
     #     dur_inf = lp.constant(value=1)
     pars = PropertySet(
         {
+            "seed": seed,
             "start_date": lp.date("2020-01-01"),
             "dur": dur,
             "n_ppl": n_ppl,  # Two nodes with populations
@@ -105,16 +106,17 @@ def test_zero_trans():
 
 
 # Test DOUBLE transmission scenarios
-def test_double_trans(n_reps=10):
+def test_double_trans():
     init_immun = 0.0
     r0 = 5
     r0_scalars = np.array([1.0, 1.0])
     init_prev = 0.01
+    seeds = [12345, 23456, 34567, 45678, 56789, 67890, 78901, 89012, 90123, 11234]  # Fixed seeds for reproducibility
 
     def run_exposures(r0_val, r0_scalars_val, init_prev_val):
         exposures = []
-        for _ in range(n_reps):
-            sim = setup_sim(init_immun=init_immun, r0=r0_val, r0_scalars=r0_scalars_val, init_prev=init_prev_val)
+        for seed in seeds:
+            sim = setup_sim(init_immun=init_immun, r0=r0_val, r0_scalars=r0_scalars_val, init_prev=init_prev_val, seed=seed)
             sim.run()
             exposures.append(sim.results.E[1:].sum())
         return np.array(exposures)
