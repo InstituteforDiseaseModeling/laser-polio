@@ -99,7 +99,7 @@ def clean_strings(revval):
     # Remove ASCII characters
     revval = revval.replace("'", "")
     revval = revval.replace('"', "")
-    revval = revval.replace("’", "")
+    revval = revval.replace("'", "")
     revval = revval.replace(".", "")
     revval = revval.replace("(", "")
     revval = revval.replace(")", "")
@@ -463,24 +463,43 @@ def get_epi_data(filename, dot_names, node_lookup, start_year, n_days):
     return df
 
 
-def get_woy(sim):
+def get_doy(sim):
+    """
+    Get the day of year (1-365/366) for the current simulation time.
+
+    Args:
+        sim: Simulation object with datevec[t] containing the current date
+
+    Returns:
+        int: Day of year (1-based, January 1st is day 1)
+    """
     time = sim.datevec[sim.t]
+    year = time.year
+
+    # Check if it's a leap year
+    is_leap_year = calendar.isleap(year)
 
     if isinstance(time, dt.date):
-        date = time
+        return time.timetuple().tm_yday
     else:
-        days = int((time - int(time)) * 365.25)
-        base_date = pd.to_datetime(f"{int(time)}-01-01")
+        # Handle floating point time
+        days_in_year = 366 if is_leap_year else 365
+        days = int((time - int(time)) * days_in_year)
+        base_date = pd.to_datetime(f"{year}-01-01")
         datetime = base_date + pd.DateOffset(days=days)
-        date = date(datetime)
-
-    woy = date.isocalendar()[1]
-    return woy
+        return datetime.timetuple().tm_yday
 
 
 def get_seasonality(sim):
-    woy = get_woy(sim)
-    return 1 + sim.pars["seasonal_amplitude"] * np.cos((2 * np.pi * woy / 52) + (2 * np.pi * sim.pars["seasonal_peak_doy"] / 365))
+    doy = get_doy(sim)
+
+    # Check if it's a leap year
+    year = sim.datevec[sim.t].year
+    is_leap_year = calendar.isleap(year)
+    # Adjust period for leap year (366 days) or normal year (365 days)
+    days_in_year = 366 if is_leap_year else 365
+
+    return 1 + sim.pars["seasonal_amplitude"] * np.cos(2 * np.pi * (doy - sim.pars["seasonal_peak_doy"]) / days_in_year)
 
 
 def save_results_to_csv(sim, filename="simulation_results.csv"):
