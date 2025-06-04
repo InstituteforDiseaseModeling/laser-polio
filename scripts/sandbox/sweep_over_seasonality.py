@@ -15,7 +15,7 @@ class MockSim:
         self.pars = {"seasonal_amplitude": seasonal_amplitude, "seasonal_peak_doy": seasonal_peak_doy}
         self.t = 0
         # Create a full year of dates starting from Jan 1, 2024
-        start_date = datetime(2024, 1, 1)
+        start_date = datetime(2024, 1, 1)  # noqa: DTZ001
         self.datevec = [start_date + timedelta(days=x) for x in range(365)]
 
 
@@ -29,7 +29,7 @@ def plot_seasonality_sweep(results_path=results_path):
     fig.suptitle("Seasonality Patterns for Different Parameter Values", fontsize=16)
 
     # Create x-axis dates for plotting
-    dates = [datetime(2024, 1, 1) + timedelta(days=x) for x in range(365)]
+    dates = [datetime(2024, 1, 1) + timedelta(days=x) for x in range(365)]  # noqa: DTZ001
 
     # Calculate overall y-axis limits
     all_seasonality = []

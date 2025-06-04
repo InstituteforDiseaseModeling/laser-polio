@@ -11,7 +11,7 @@ class MockSim:
         self.pars = {"seasonal_amplitude": seasonal_amplitude, "seasonal_peak_doy": seasonal_peak_doy}
         self.t = 0
         # Create a full year of dates starting from Jan 1, 2024 (leap year)
-        start_date = datetime(2024, 1, 1)
+        start_date = datetime(2024, 1, 1)  # noqa: DTZ001
         self.datevec = [start_date + timedelta(days=x) for x in range(364)]
 
 
