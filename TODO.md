@@ -6,7 +6,6 @@
 - Take notes in Obsidian
 
 - Run sim for top 1-10 calibrations
-- Debug seasonality & double check that the seasonality phase is correct based on latest calibration results
 - Plot monthly cases likelihood component against phase
 - Consider age distribution of cases as a calibration target, which would help parameterize R0
 - Try a missed pop frac scalar based on X (immunity, underwt, sia_coverage)
