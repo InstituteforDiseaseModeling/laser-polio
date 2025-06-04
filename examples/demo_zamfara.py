@@ -28,7 +28,7 @@ plot_pars = True
 seed = 1
 # Diffs from demo_zamfara_load_init_pop.py
 results_path = "results/demo_zamfara"
-save_pop = True
+save_pop = False
 init_pop_file = None
 
 

@@ -1,110 +1,82 @@
 import os
+from datetime import datetime
+from datetime import timedelta
 
 import matplotlib.pyplot as plt
 import numpy as np
-import sciris as sc
 
-import laser_polio as lp
+from laser_polio.utils import get_seasonality
 
-###################################
-######### USER PARAMETERS #########
-
-regions = ["ZAMFARA"]
-start_year = 2019
-n_days = 180
-pop_scale = 1 / 10
-init_region = "ANKA"
-init_prev = 0.01
-results_path = "results/scan_over_seasonality_zamfara"
-# Define the range of par values to sweep
-n_pts = 5  # Number of points to simulate
-n_reps = 3
-seasonal_amplitude_values = np.linspace(0, 1, n_pts)
-seasonal_peak_doy_values = np.linspace(1.0, 364.9, n_pts)
+results_path = "results/sweep_over_seasonality"
 
 
-######### END OF USER PARS ########
-###################################
+class MockSim:
+    def __init__(self, seasonal_amplitude, seasonal_peak_doy):
+        self.pars = {"seasonal_amplitude": seasonal_amplitude, "seasonal_peak_doy": seasonal_peak_doy}
+        self.t = 0
+        # Create a full year of dates starting from Jan 1, 2024
+        start_date = datetime(2024, 1, 1)
+        self.datevec = [start_date + timedelta(days=x) for x in range(365)]
 
 
-# Create result matrices
-total_infected_matrix = np.zeros((len(seasonal_peak_doy_values), len(seasonal_amplitude_values)))
-num_nodes_infected_matrix = np.zeros_like(total_infected_matrix)
+def plot_seasonality_sweep(results_path=results_path):
+    # Create parameter ranges
+    amplitudes = np.linspace(0, 0.4, 5)  # 5 values from 0 to 1
+    peak_doys = np.linspace(120, 300, 5)  # 5 values spread across the year
 
+    # Create figure with subplots
+    fig, axes = plt.subplots(len(amplitudes), 1, figsize=(12, 15))
+    fig.suptitle("Seasonality Patterns for Different Parameter Values", fontsize=16)
 
-# Run sweep
-for i, seasonal_peak_doy in enumerate(seasonal_peak_doy_values):
-    for j, seasonal_amplitude in enumerate(seasonal_amplitude_values):
-        total_infected_accum = 0.0
-        nodes_infected_accum = 0.0
+    # Create x-axis dates for plotting
+    dates = [datetime(2024, 1, 1) + timedelta(days=x) for x in range(365)]
 
-        print(f"\nRunning {n_reps} reps for R0 = {seasonal_amplitude:.2f}, seasonal_peak_doy = {seasonal_peak_doy:.2f}")
+    # Calculate overall y-axis limits
+    all_seasonality = []
+    for amplitude in amplitudes:
+        for peak_doy in peak_doys:
+            sim = MockSim(amplitude, peak_doy)
+            seasonality = []
+            for day in range(365):
+                sim.t = day
+                seasonality.append(get_seasonality(sim))
+            all_seasonality.extend(seasonality)
 
-        for rep in range(n_reps):
-            print(f"  ↳ Rep {rep + 1}/{n_reps}")
+    y_min = min(all_seasonality)
+    y_max = max(all_seasonality)
 
-            sim = lp.run_sim(
-                regions=regions,
-                start_year=start_year,
-                n_days=n_days,
-                pop_scale=pop_scale,
-                init_region=init_region,
-                init_prev=init_prev,
-                results_path=results_path,
-                save_plots=False,
-                save_data=False,
-                seasonal_amplitude=seasonal_amplitude,
-                seasonal_peak_doy=seasonal_peak_doy,
-                seed=rep,  # Optional: control randomness
-            )
+    # Plot each combination
+    for i, amplitude in enumerate(amplitudes):
+        ax = axes[i]
+        for peak_doy in peak_doys:
+            # Create mock sim object with parameters
+            sim = MockSim(amplitude, peak_doy)
 
-            total_infected = sim.results.I.sum()
-            num_nodes_infected = np.sum(sim.results.I.sum(axis=0) > 0)
+            # Calculate seasonality for each day
+            seasonality = []
+            for day in range(365):
+                sim.t = day
+                seasonality.append(get_seasonality(sim))
 
-            total_infected_accum += total_infected
-            nodes_infected_accum += num_nodes_infected
+            # Plot the seasonality curve
+            label = f"Peak DoY: {int(peak_doy)}"
+            ax.plot(dates, seasonality, label=label)
 
-        # Store averages
-        total_infected_matrix[i, j] = total_infected_accum / n_reps
-        num_nodes_infected_matrix[i, j] = nodes_infected_accum / n_reps
+        ax.set_title(f"Seasonal Amplitude: {amplitude:.2f}")
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Seasonality Factor")
+        ax.grid(True)
+        ax.legend()
 
+        # Set consistent axis limits
+        ax.set_xlim(dates[0], dates[-1])
+        ax.set_ylim(y_min, y_max)
 
-# Plot heatmaps
-os.makedirs(results_path, exist_ok=True)
-
-
-def plot_heatmap(matrix, title, filename, xlabel, ylabel, xticks, yticks):
-    plt.figure(figsize=(8, 6))
-    im = plt.imshow(matrix, origin="lower", cmap="viridis", aspect="auto")
-    plt.colorbar(im, label="Value")
-    plt.xticks(ticks=np.arange(len(xticks)), labels=[f"{x:.1f}" for x in xticks])
-    plt.yticks(ticks=np.arange(len(yticks)), labels=[f"{y:.1f}" for y in yticks])
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.title(title)
     plt.tight_layout()
-    plt.savefig(os.path.join(results_path, filename))
-    plt.show()
+    os.makedirs(results_path, exist_ok=True)
+    plt.savefig(os.path.join(results_path, "seasonality_sweep.png"))
+    plt.close()
 
 
-plot_heatmap(
-    total_infected_matrix,
-    title="Total Infected vs seasonal_amplitude and seasonal_peak_doy",
-    filename="total_infected_heatmap_avg.png",
-    xlabel="seasonal_amplitude",
-    ylabel="seasonal_peak_doy",
-    xticks=seasonal_amplitude_values,
-    yticks=seasonal_peak_doy_values,
-)
-
-plot_heatmap(
-    num_nodes_infected_matrix,
-    title="Number of Nodes Infected vs seasonal_amplitude and seasonal_peak_doy",
-    filename="nodes_infected_heatmap_avg.png",
-    xlabel="seasonal_amplitude",
-    ylabel="seasonal_peak_doy",
-    xticks=seasonal_amplitude_values,
-    yticks=seasonal_peak_doy_values,
-)
-
-sc.printcyan("Sweep complete.")
+if __name__ == "__main__":
+    plot_seasonality_sweep()
