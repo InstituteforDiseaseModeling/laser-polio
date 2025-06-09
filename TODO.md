@@ -1,5 +1,5 @@
 # --- PRIORITIES ---
-0) Add print statements to main and put in some try excepts
+0) Review KEPS paper
 1) Running the top 1-10 calibration sims on aks and downloading the results.
 2) Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
 3) Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
@@ -7,6 +7,7 @@
 5) Account for IPV coverage in S Nigeria - thin out cases, perhaps in calibration, not in model
 6) Try playing with links between N & S Nigeria in network (maybe a scalar???)
 7) Account for IPV: IPV from Amine or Tove (RISP?), maybe dpt3 or mcv1 from IHME, or https://www.healthdata.org/research-analysis/health-risks-issues/vaccine-coverage-data
+8) Consider a 'potential_case' attribute that we can meddle with instead of 'recent_exposure' or whatever it is. That'd also give us a lever for delaying by the onset of paralysis.
 
 CALIBRATION
 - Try calibrating with underwt
@@ -43,6 +44,7 @@ NEW FEATURES
 # --- REFINEMENT/STRETCH ---
 
  NEW FEATURES
+- Revisit how we initialize the population. Should we just initialize a laserframe for under 15 year olds? 
 - Add rule for blackouts (e.g., limiting number of campaigns / year) of maybe 1-2 years
 - Count number of Sabin2 or nOPV2 transmissions
 - Count number of exportations for calibration
