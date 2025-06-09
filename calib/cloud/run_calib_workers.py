@@ -29,6 +29,11 @@ container = client.V1Container(
     env_from=[client.V1EnvFromSource(secret_ref=client.V1SecretEnvSource(name="mysql-secrets"))],
     # resources=client.V1ResourceRequirements(requests={"cpu": "6"}, limits={"cpu": "7"}),
     resources=client.V1ResourceRequirements(requests={"memory": "25Gi"}),
+    volume_mounts=[
+        client.V1VolumeMount(
+            name="shared-data",
+            mount_path="/shared"
+        )]
 )
 
 # Pod spec
@@ -39,6 +44,13 @@ template = client.V1PodTemplateSpec(
         image_pull_secrets=[client.V1LocalObjectReference(name="idmodregcred3")],
         node_selector={"nodepool": "highcpu"},
         tolerations=[client.V1Toleration(key="nodepool", operator="Equal", value="highcpu", effect="NoSchedule")],
+        volumes=[
+            client.V1Volume(
+                name="shared-data",
+                persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+                    claim_name="laser-stg-pvc"
+                ))
+        ]
     )
 )
 
