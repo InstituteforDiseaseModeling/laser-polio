@@ -16,7 +16,7 @@ migration_method = "radiation"
 radiation_k = 0.5
 max_migr_frac = 1.0
 verbose = 1
-vx_prob_ri = None
+# vx_prob_ri = None
 missed_frac = 0.1
 seed_schedule = [
     {"date": "2018-01-02", "dot_name": "AFRO:NIGERIA:ZAMFARA:BAKURA", "prevalence": 200},  # day 1
@@ -54,7 +54,7 @@ sim = lp.run_sim(
     radiation_k=radiation_k,
     max_migr_frac=max_migr_frac,
     save_pop=save_pop,
-    vx_prob_ri=vx_prob_ri,
+    # vx_prob_ri=vx_prob_ri,
     init_pop_file=init_pop_file,
     seed_schedule=seed_schedule,
     missed_frac=missed_frac,

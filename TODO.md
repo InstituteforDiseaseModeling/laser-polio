@@ -1,12 +1,15 @@
 # --- PRIORITIES ---
+0) Add RI Start year
+Check time to paralysis
+Ensure RI has IPV for newborns
+Update initialization to account for RI protection to those already born
+Need to set RI vx probability to 0, but still allow for IPV
 0) Review KEPS paper
-1) Running the top 1-10 calibration sims on aks and downloading the results.
 2) Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
 3) Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
 4) Double check deaths. For some, I thought I saw on of my sims plot that no deaths were happening so we gotta check that.
 5) Account for IPV coverage in S Nigeria - thin out cases, perhaps in calibration, not in model
 6) Try playing with links between N & S Nigeria in network (maybe a scalar???)
-7) Account for IPV: IPV from Amine or Tove (RISP?), maybe dpt3 or mcv1 from IHME, or https://www.healthdata.org/research-analysis/health-risks-issues/vaccine-coverage-data
 8) Consider a 'potential_case' attribute that we can meddle with instead of 'recent_exposure' or whatever it is. That'd also give us a lever for delaying by the onset of paralysis.
 
 CALIBRATION

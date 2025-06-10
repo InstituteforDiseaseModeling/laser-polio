@@ -132,6 +132,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     pop = df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values * pop_scale
     cbr = df_comp.set_index("dot_name").loc[dot_names, "cbr"].values
     ri = df_comp.set_index("dot_name").loc[dot_names, "ri_eff"].values
+    ipv = df_comp.set_index("dot_name").loc[dot_names, "dpt3"].values
     # SIA probabilities
     sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values
     sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=0.5, scale=1.0)
