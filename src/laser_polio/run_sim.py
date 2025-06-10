@@ -270,7 +270,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 @click.option(
     "--results-path",
     type=str,
-    default="simulation_results.csv",
+    default="output",
     show_default=True,
     help="Path to write simulation results (CSV format)",
 )

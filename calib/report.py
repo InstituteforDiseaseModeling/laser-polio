@@ -23,23 +23,27 @@ import laser_polio as lp
 
 
 def run_best_on_comps(study):
+    import cloud_calib_config as cfg
+
     best = study.best_trial
 
+    # Create overrides/overrides.json from best params
     overrides = best.params
     overrides["save_plots"] = True
+    # You can override other control params, e.g., overrides["dur"] = 1460
 
     with open("comps/overrides/overrides.json", "w") as fp:
         json.dump(overrides, fp, indent=4)
 
-    Platform("SLURM_Prod")
+    Platform("Idm", endpoint="https://comps.idmod.org", environment="CALCULON", type="COMPS")
     command = CommandLine(
-        "singularity exec --no-mount /app Assets/laser-polio_latest.sif python3 -m laser_polio.run_sim --model-config /app/calib/model_configs/config_nigeria_6y_underwt_gravity.yaml --params-file Assets/overrides.json"
+        f"singularity exec --no-mount /app Assets/laser-polio_latest.sif python3 -m laser_polio.run_sim --model-config /app/calib/model_configs/{cfg.model_config} --params-file Assets/overrides.json"
     )
 
     task = CommandTask(command=command)
-    # Add our image
+    # Add our SIF
     task.common_assets.add_assets(AssetCollection.from_id_file("comps/laser.id"))
-    # Create overrides/overrides.json from best params
+    # Add overrides/overrides.json from best params
     task.common_assets.add_directory("comps/overrides")
 
     experiment = Experiment.from_task(task, name="laser-polio best from calib", tags={"type": "singularity", "description": "laser"})
