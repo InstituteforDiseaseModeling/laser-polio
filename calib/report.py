@@ -16,6 +16,39 @@ from matplotlib.colors import Normalize
 
 import laser_polio as lp
 
+from idmtools.assets import AssetCollection
+from idmtools.core.platform_factory import Platform
+from idmtools.entities import CommandLine
+from idmtools.entities.command_task import CommandTask
+from idmtools.entities.experiment import Experiment
+
+
+def run_best_on_comps( study ):
+    best = study.best_trial
+
+    overrides = best.params
+    overrides["save_plots"] = True
+    
+    with open( "comps/overrides/overrides.json", "w" ) as fp:
+        json.dump( overrides, fp, indent=4 )
+
+    platform = Platform("SLURM_Prod")
+    command = CommandLine(f"singularity exec --no-mount /app Assets/laser-polio_latest.sif python3 -m laser_polio.run_sim --model-config /app/calib/model_configs/config_nigeria_6y_underwt_gravity.yaml --params-file Assets/overrides.json" )
+
+    task = CommandTask(command=command)
+    # Add our image
+    task.common_assets.add_assets(AssetCollection.from_id_file("comps/laser.id"))
+    # Create overrides/overrides.json from best params
+    task.common_assets.add_directory( "comps/overrides" )
+
+    experiment = Experiment.from_task(
+        task,
+        name="laser-polio best from calib",
+        tags=dict(type='singularity', description='laser')
+    )
+    experiment.run(wait_until_done=True)
+    #if experiment.succeeded:
+        #experiment.to_id_file("experiment.id")
 
 def save_study_results(study, output_dir: Path, csv_name: str = "trials.csv"):
     """

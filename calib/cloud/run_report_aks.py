@@ -13,7 +13,7 @@ from report import plot_runtimes
 from report import plot_targets
 from report import plot_top_trials
 from report import save_study_results
-
+from report import run_best_on_comps
 
 def port_forward():
     print("🔌 Setting up port forwarding to MySQL...")
@@ -32,6 +32,7 @@ def main():
 
         results_path = Path("results") / cfg.study_name
         results_path.mkdir(parents=True, exist_ok=True)
+        run_best_on_comps( study ) 
 
         print("💾 Saving results...")
         save_study_results(study, output_dir=results_path)
