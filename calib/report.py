@@ -22,15 +22,15 @@ from matplotlib.colors import Normalize
 
 import laser_polio as lp
 
+
 def run_top_n_on_comps(study, n=10):
     import cloud_calib_config as cfg
-    # Sort trials by best objective value (lower is better)
-    top_trials = sorted([t for t in study.trials if t.state.name == "COMPLETE"],
-                        key=lambda t: t.value)[:n]
 
-    platform = Platform("Idm", endpoint="https://comps.idmod.org", environment="CALCULON", type="COMPS")
-    experiment = Experiment(name="laser-polio top N from Optuna",
-                            tags={"source": "optuna", "mode": "top-n"} ) 
+    # Sort trials by best objective value (lower is better)
+    top_trials = sorted([t for t in study.trials if t.state.name == "COMPLETE"], key=lambda t: t.value)[:n]
+
+    Platform("Idm", endpoint="https://comps.idmod.org", environment="CALCULON", type="COMPS")
+    experiment = Experiment(name="laser-polio top N from Optuna", tags={"source": "optuna", "mode": "top-n"})
 
     for rank, trial in enumerate(top_trials, start=1):
         overrides = trial.params.copy()
@@ -52,17 +52,13 @@ def run_top_n_on_comps(study, n=10):
         task = CommandTask(command=command)
         task.common_assets.add_assets(AssetCollection.from_id_file("comps/laser.id"))
         task.common_assets.add_directory("comps/overrides")  # Assumes all override files are in here
-        task.tags = {
-            "type": "singularity",
-            "description": "laser",
-            "trial_rank": str(rank),
-            "trial_value": str(trial.value)
-        }
+        task.tags = {"type": "singularity", "description": "laser", "trial_rank": str(rank), "trial_value": str(trial.value)}
 
         # Wrap task in Simulation and add to experiment
         simulation = Simulation(task=task)
         experiment.add_simulation(simulation)
     experiment.run(wait_until_done=True)
+
 
 def run_best_on_comps(study):
     import cloud_calib_config as cfg
