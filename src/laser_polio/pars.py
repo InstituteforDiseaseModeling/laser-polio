@@ -32,7 +32,7 @@ default_pars = PropertySet(
         "infection_method": "fast",  # Options: "classic" or "fast"
         "dur_exp": lp.normal(mean=3, std=1),  # Duration of the exposed state
         "dur_inf": lp.gamma(shape=4.51, scale=5.32),  # Duration of the infectious state
-        "t_to_paralysis": lp.lognormal(mean=10, std=0.3),  # Time to paralysis
+        "t_to_paralysis": lp.lognormal(mean=9, sigma=4),  # Time to paralysis
         "p_paralysis": 1 / 2000,  # Probability of paralysis
         # Geography
         "shp": None,  # Shapefile of the region
