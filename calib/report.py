@@ -11,12 +11,6 @@ import optuna.visualization as vis
 import pandas as pd
 import sciris as sc
 import yaml
-from idmtools.assets import AssetCollection
-from idmtools.core.platform_factory import Platform
-from idmtools.entities import CommandLine
-from idmtools.entities.command_task import CommandTask
-from idmtools.entities.experiment import Experiment
-from idmtools.entities.simulation import Simulation
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 
@@ -25,6 +19,12 @@ import laser_polio as lp
 
 def run_top_n_on_comps(study, n=10):
     import cloud_calib_config as cfg
+    from idmtools.assets import AssetCollection
+    from idmtools.core.platform_factory import Platform
+    from idmtools.entities import CommandLine
+    from idmtools.entities.command_task import CommandTask
+    from idmtools.entities.experiment import Experiment
+    from idmtools.entities.simulation import Simulation
 
     # Sort trials by best objective value (lower is better)
     top_trials = sorted([t for t in study.trials if t.state.name == "COMPLETE"], key=lambda t: t.value)[:n]
@@ -62,6 +62,11 @@ def run_top_n_on_comps(study, n=10):
 
 def run_best_on_comps(study):
     import cloud_calib_config as cfg
+    from idmtools.assets import AssetCollection
+    from idmtools.core.platform_factory import Platform
+    from idmtools.entities import CommandLine
+    from idmtools.entities.command_task import CommandTask
+    from idmtools.entities.experiment import Experiment
 
     best = study.best_trial
 
