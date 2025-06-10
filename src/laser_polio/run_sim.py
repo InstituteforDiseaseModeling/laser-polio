@@ -248,7 +248,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
             sim.plot(save=True, results_path=results_path)
         if save_data:
             Path(results_path).mkdir(parents=True, exist_ok=True)
-            lp.save_results_to_csv(sim, filename=Path( results_path ) / "simulation_results.csv")
+            lp.save_results_to_csv(sim, filename=Path(results_path) / "simulation_results.csv")
 
     return sim
 
