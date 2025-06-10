@@ -231,9 +231,13 @@ class SEIR_ABM:
             else:
                 capacity = int(np.sum(pars.n_ppl))
             self.people = LaserFrame(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
-            # We initialize disease_state here since it's required for most other components (which facilitates testing)
+
+            # Initialize disease_state, ipv_protected, paralyzed, and potentially_paralyzed here since they're required for most other components
             self.people.add_scalar_property("disease_state", dtype=np.int32, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
             self.people.disease_state[: self.people.count] = 0  # Set initial population as susceptible
+            self.people.add_scalar_property("potentially_paralyzed", dtype=np.int32, default=0)
+            self.people.add_scalar_property("paralyzed", dtype=np.int32, default=0)
+            self.people.add_scalar_property("ipv_protected", dtype=np.int32, default=0)
             self.results = LaserFrame(capacity=1)
 
             # Setup spatial component with node IDs
@@ -448,22 +452,64 @@ class SEIR_ABM:
 
 
 @nb.njit(parallel=True)
-def step_nb(disease_state, exposure_timer, infection_timer, acq_risk_multiplier, daily_infectivity, paralyzed, p_paralysis, active_count):
+def disease_state_step_nb(
+    node_id,
+    n_nodes,
+    disease_state,
+    active_count,
+    exposure_timer,
+    infection_timer,
+    potentially_paralyzed,
+    paralyzed,
+    ipv_protected,
+    paralysis_timer,
+    p_paralysis,
+    new_potential,
+    new_paralyzed,
+):
+    # ---- Setup thread-local buffers to avoid write conflicts ----
+    local_new_potential = np.zeros((nb.get_num_threads(), n_nodes), dtype=np.int32)
+    local_new_paralyzed = np.zeros((nb.get_num_threads(), n_nodes), dtype=np.int32)
+
     for i in nb.prange(active_count):
+        tid = nb.get_thread_id()
+        nid = node_id[i]
+        was_potentially_paralyzed = False
+        was_paralyzed = False
+
+        # ---- Exposed to Infected Transition ----
         if disease_state[i] == 1:  # Exposed
             if exposure_timer[i] <= 0:
                 disease_state[i] = 2  # Become infected
-                # Apply paralysis probability immediately after infection
-                if np.random.random() < p_paralysis:
-                    paralyzed[i] = 1
             exposure_timer[i] -= 1  # Decrement exposure timer so that they become infected on the next timestep
 
-        if disease_state[i] == 2:  # Infected
+        # ---- Infected to Recovered Transition ----
+        elif disease_state[i] == 2:  # Infected
             if infection_timer[i] <= 0:
                 disease_state[i] = 3  # Become recovered
-                # acq_risk_multiplier[i] = 0.0  # Reset risk
-                # daily_infectivity[i] = 0.0  # Reset infectivity
             infection_timer[i] -= 1  # Decrement infection timer so that they recover on the next timestep
+
+        # ---- Paralysis ----
+        # Can happen during infection (2) or after recovery (3) due to delays in symptom onset and surveillance
+        if disease_state[i] in (2, 3) and potentially_paralyzed[i] == -1:  # Infected or recovered but not yet potentially paralyzed
+            if paralysis_timer[i] == 0:
+                if ipv_protected[i] == 0:
+                    potentially_paralyzed[i] = 1
+                    was_potentially_paralyzed = True
+                    if np.random.random() < p_paralysis:
+                        paralyzed[i] = 1
+                        was_paralyzed = True
+            elif paralysis_timer[i] > 0:
+                paralysis_timer[i] -= 1  # Decrement paralysis timer so that they become paralyzed on the next timestep
+
+        if was_potentially_paralyzed:
+            local_new_potential[tid, nid] += 1
+        if was_paralyzed:
+            local_new_paralyzed[tid, nid] += 1
+
+    # Parallel-safe reduction
+    new_potential[:] += local_new_potential.sum(axis=0)
+    new_paralyzed[:] += local_new_paralyzed.sum(axis=0)
 
     return
 
@@ -552,6 +598,7 @@ class DiseaseState_ABM:
         populate_heterogeneous_values(count, cap, self.people.acq_risk_multiplier, self.people.daily_infectivity, self.pars)
         sim.people.exposure_timer[count:cap] = self.pars.dur_exp(cap - count) - 1
         sim.people.infection_timer[count:cap] = self.pars.dur_inf(cap - count)
+        sim.people.paralysis_timer[count:cap] = self.pars.t_to_paralysis(cap - count)
         return self
 
     def _common_init(self, sim):
@@ -580,7 +627,10 @@ class DiseaseState_ABM:
         self.results.add_array_property("E", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("I", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("R", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.add_array_property("potentially_paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.add_array_property("new_potentially_paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.add_array_property("new_paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("pop", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.pop[0] = self.sim.pars.n_ppl
 
@@ -589,14 +639,14 @@ class DiseaseState_ABM:
         self._initialize_results_arrays()
         self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
-        # Setup the SEIR components
-        sim.people.add_scalar_property("paralyzed", dtype=np.int32, default=0)
-        # Initialize all agents with an exposure_timer & infection_timer
+        # Initialize all agents with an exposure_timer, infection_timer, and paralysis_timer
         sim.people.add_scalar_property("exposure_timer", dtype=np.int32, default=0)
         # Subtract 1 to account for the fact that we expose people in transmission component after the disease state component (newly exposed miss their first timer decrement)
         sim.people.exposure_timer[:] = self.pars.dur_exp(self.people.capacity) - 1
         sim.people.add_scalar_property("infection_timer", dtype=np.int32, default=0)
         sim.people.infection_timer[:] = self.pars.dur_inf(self.people.capacity)
+        sim.people.add_scalar_property("paralysis_timer", dtype=np.int32, default=0)
+        sim.people.paralysis_timer[:] = self.pars.t_to_paralysis(self.people.capacity)
 
         pars = self.pars
 
@@ -831,26 +881,31 @@ class DiseaseState_ABM:
         sim.people.disease_state[infected_indices] = 2
 
     def step(self):
-        # Add these if they don't exist from the Transmission_ABM component (e.g., if running DiseaseState_ABM alone for testing)
-        if not hasattr(self.people, "acq_risk_multiplier"):
-            self.people.add_scalar_property("acq_risk_multiplier", dtype=np.float32, default=1.0)
-        if not hasattr(self.people, "daily_infectivity"):
-            self.people.add_scalar_property("daily_infectivity", dtype=np.float32, default=1.0)
+        t = self.sim.t
+        n_nodes = len(self.nodes)
 
-        # Do nothing. Susceptibility is lost in the Transmission component.
-        step_nb(
-            self.people.disease_state,
-            self.people.exposure_timer,
-            self.people.infection_timer,
-            self.people.acq_risk_multiplier,
-            self.people.daily_infectivity,
-            self.people.paralyzed,
-            self.pars.p_paralysis,
-            self.people.count,
+        # Progress disease state & check for paralysis
+        new_potential = np.zeros(n_nodes, dtype=np.int32)
+        new_paralyzed = np.zeros(n_nodes, dtype=np.int32)
+        disease_state_step_nb(
+            node_id=self.people.node_id,
+            n_nodes=n_nodes,
+            disease_state=self.people.disease_state,
+            active_count=self.people.count,
+            exposure_timer=self.people.exposure_timer,
+            infection_timer=self.people.infection_timer,
+            potentially_paralyzed=self.people.potentially_paralyzed,
+            paralyzed=self.people.paralyzed,
+            ipv_protected=self.people.ipv_protected,
+            paralysis_timer=self.people.paralysis_timer,
+            p_paralysis=nb.float32(self.pars.p_paralysis),
+            new_potential=new_potential,
+            new_paralyzed=new_paralyzed,
         )
+        self.results.new_potentially_paralyzed[t, :] = new_potential
+        self.results.new_paralyzed[t, :] = new_paralyzed
 
         # Seed infections after initialization
-        t = self.sim.t
         if t in self.seed_schedule:
             for node_id, value in self.seed_schedule[t]:
                 node_mask = (self.people.node_id[: self.people.count] == node_id) & (self.people.disease_state[: self.people.count] >= 0)
@@ -1021,13 +1076,14 @@ class DiseaseState_ABM:
             plt.show()
 
 
-@nb.njit((nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32), nogil=True)  # , cache=True)
-def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
+@nb.njit((nb.int32[:], nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32), nogil=True)  # , cache=True)
+def count_SEIRP(node_id, disease_state, potentially_paralyzed, paralyzed, n_nodes, n_people):
     """
     Go through each person exactly once and increment counters for their node.
 
     node_id:        array of node IDs for each individual
     disease_state:  array storing each person's disease state (-1=dead/inactive, 0=S, 1=E, 2=I, 3=R)
+    potentially_paralyzed: array (0 or 1) if the person is potentially paralyzed
     paralyzed:      array (0 or 1) if the person is paralyzed
     n_nodes:        total number of nodes
 
@@ -1035,11 +1091,8 @@ def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
     """
 
     n_threads = nb.get_num_threads()
-    # S = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    # E = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    # I = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    # R = np.zeros((n_threads, n_nodes), dtype=np.int32)
     SEIR = np.zeros((n_threads, n_nodes, 4), dtype=np.int32)  # S, E, I, R
+    POTP = np.zeros((n_threads, n_nodes), dtype=np.int32)
     P = np.zeros((n_threads, n_nodes), dtype=np.int32)
 
     # Single pass over the entire population
@@ -1049,23 +1102,24 @@ def count_SEIRP(node_id, disease_state, paralyzed, n_nodes, n_people):
             ds = disease_state[i]
 
             tid = nb.get_thread_id()
-            # if ds == 0:  # Susceptible
-            #     S[tid, nd] += 1
-            # elif ds == 1:  # Exposed
-            #     E[tid, nd] += 1
-            # elif ds == 2:  # Infected
-            #     I[tid, nd] += 1
-            # elif ds == 3:  # Recovered
-            #     R[tid, nd] += 1
             # NOTE: This only works if disease_state is contiguous, 0..N
             SEIR[tid, nd, ds] += 1
 
             # Check paralyzed
+            if potentially_paralyzed[i] == 1:
+                POTP[tid, nd] += 1
             if paralyzed[i] == 1:
                 P[tid, nd] += 1
 
     # return S, E, I, R, P
-    return SEIR[:, :, 0].sum(axis=0), SEIR[:, :, 1].sum(axis=0), SEIR[:, :, 2].sum(axis=0), SEIR[:, :, 3].sum(axis=0), P.sum(axis=0)
+    return (
+        SEIR[:, :, 0].sum(axis=0),
+        SEIR[:, :, 1].sum(axis=0),
+        SEIR[:, :, 2].sum(axis=0),
+        SEIR[:, :, 3].sum(axis=0),
+        POTP.sum(axis=0),
+        P.sum(axis=0),
+    )
 
 
 @nb.njit(parallel=True)
@@ -1431,7 +1485,7 @@ class Transmission_ABM:
 
     def log(self, t):
         # Get the counts for each node in one pass
-        S_counts, E_counts, I_counts, R_counts, P_counts = count_SEIRP(
+        S_counts, E_counts, I_counts, R_counts, POTP_counts, P_counts = count_SEIRP(
             self.people.node_id,
             self.people.disease_state,
             self.people.paralyzed,
@@ -1445,6 +1499,7 @@ class Transmission_ABM:
         self.results.I[t, :] = I_counts
         # Note that we add to existing non-zero EULA values for R
         self.results.R[t, :] += R_counts
+        self.results.potentially_paralyzed[t, :] = POTP_counts
         self.results.paralyzed[t, :] = P_counts
 
         if self.verbose >= 3:
@@ -1768,7 +1823,20 @@ def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, 
 
 
 @nb.njit(
-    (nb.int64, nb.int32[:], nb.int32[:], nb.int32[:], nb.int64, nb.float64[:], nb.int64, nb.int32[:, :], nb.uint8[:]),
+    (
+        nb.int64,
+        nb.int32[:],
+        nb.int32[:],
+        nb.int32[:],
+        nb.int32[:],
+        nb.int64,
+        nb.float64[:],
+        nb.float64[:],
+        nb.int64,
+        nb.int32[:, :],
+        nb.int32[:, :],
+        nb.uint8[:],
+    ),
     parallel=True,
     cache=True,
 )
@@ -1776,11 +1844,14 @@ def fast_ri(
     step_size,
     node_id,
     disease_state,
+    ipv_protected,
     ri_timer,
     sim_t,
     vx_prob_ri,
+    vx_prob_ipv,
     num_people,
-    local_counts,
+    local_ri_counts,
+    local_ipv_counts,
     chronically_missed,
 ):
     """
@@ -1794,7 +1865,8 @@ def fast_ri(
             continue
 
         node = node_id[i]
-        prob_vx = vx_prob_ri[node]
+        prob_ri = vx_prob_ri[node]
+        prob_ipv = vx_prob_ipv[node]
         timer = ri_timer[i] - step_size
         ri_timer[i] = timer
         eligible = False
@@ -1805,11 +1877,14 @@ def fast_ri(
             eligible = timer <= 0 and timer > -step_size
 
         if eligible:
-            if np.random.rand() < prob_vx:
-                local_counts[nb.get_thread_id(), node] += 1
+            if np.random.rand() < prob_ri:
+                local_ri_counts[nb.get_thread_id(), node] += 1
                 if state == 0:
-                    # We don't check for vx_eff here, since that is already accounted for in the prob_vx file
+                    # We don't check for vx_eff here, since that is already accounted for in the prob_ri file
                     disease_state[i] = 3
+            if np.random.rand() < prob_ipv:
+                local_ipv_counts[nb.get_thread_id(), node] += 1
+                ipv_protected[i] = 1
 
     return
 
@@ -1859,33 +1934,52 @@ class RI_ABM:
             shape=(self.sim.nt, len(self.sim.nodes)),
             dtype=np.int32,
         )
+        self.sim.results.add_array_property(
+            "ipv_vaccinated",
+            shape=(self.sim.nt, len(self.sim.nodes)),
+            dtype=np.int32,
+        )
         self.results = self.sim.results
 
     def step(self):
+        # Handle OPV RI. If vx_prob_ri is None, we don't run this step.
         if self.pars["vx_prob_ri"] is None:
             return
-
         vx_prob_ri = self.pars["vx_prob_ri"]  # Includes coverage & efficacy
         num_nodes = len(self.sim.nodes)
+
+        # Handle IPV RI. If vx_prob_ipv is None, fill with zeros so that IPV is not impactful.
+        if self.pars["vx_prob_ipv"] is None:
+            vx_prob_ipv = np.zeros(len(self.sim.nodes), dtype=np.float64)
+        else:
+            vx_prob_ipv = self.pars["vx_prob_ipv"]
+
         # Promote to 1D arrays if needed
         if np.isscalar(vx_prob_ri):
             vx_prob_ri = np.full(num_nodes, vx_prob_ri, dtype=np.float64)
+        if np.isscalar(vx_prob_ipv):
+            vx_prob_ipv = np.full(num_nodes, vx_prob_ipv, dtype=np.float64)
 
         if self.sim.t % self.step_size == 0:
-            local_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+            local_ri_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+            local_ipv_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
             fast_ri(
                 np.int32(self.step_size),
                 self.people.node_id,
                 self.people.disease_state,
+                self.people.ipv_protected,
                 self.people.ri_timer,
                 np.int32(self.sim.t),
                 vx_prob_ri,
+                vx_prob_ipv,
                 np.int32(self.people.count),
-                local_counts,
+                local_ri_counts,
+                local_ipv_counts,
                 self.people.chronically_missed,
             )
             # Sum up the counts from all threads
-            self.results.ri_vaccinated[self.sim.t] = local_counts.sum(axis=0)
+            self.results.ri_vaccinated[self.sim.t] = local_ri_counts.sum(axis=0)
+            self.results.ipv_vaccinated[self.sim.t] = local_ipv_counts.sum(axis=0)
 
         return
 
