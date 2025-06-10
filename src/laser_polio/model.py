@@ -235,9 +235,9 @@ class SEIR_ABM:
             # Initialize disease_state, ipv_protected, paralyzed, and potentially_paralyzed here since they're required for most other components
             self.people.add_scalar_property("disease_state", dtype=np.int32, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
             self.people.disease_state[: self.people.count] = 0  # Set initial population as susceptible
-            self.people.add_scalar_property("potentially_paralyzed", dtype=np.int32, default=0)
-            self.people.add_scalar_property("paralyzed", dtype=np.int32, default=0)
-            self.people.add_scalar_property("ipv_protected", dtype=np.int32, default=0)
+            self.people.add_scalar_property("potentially_paralyzed", dtype=np.int32, default=-1)
+            self.people.add_scalar_property("paralyzed", dtype=np.int32, default=-1)
+            self.people.add_scalar_property("ipv_protected", dtype=np.int32, default=-1)
             self.results = LaserFrame(capacity=1)
 
             # Setup spatial component with node IDs
@@ -484,7 +484,7 @@ def disease_state_step_nb(
             exposure_timer[i] -= 1  # Decrement exposure timer so that they become infected on the next timestep
 
         # ---- Infected to Recovered Transition ----
-        elif disease_state[i] == 2:  # Infected
+        if disease_state[i] == 2:  # Infected
             if infection_timer[i] <= 0:
                 disease_state[i] = 3  # Become recovered
             infection_timer[i] -= 1  # Decrement infection timer so that they recover on the next timestep
@@ -493,12 +493,17 @@ def disease_state_step_nb(
         # Can happen during infection (2) or after recovery (3) due to delays in symptom onset and surveillance
         if disease_state[i] in (2, 3) and potentially_paralyzed[i] == -1:  # Infected or recovered but not yet potentially paralyzed
             if paralysis_timer[i] == 0:
-                if ipv_protected[i] == 0:
+                if ipv_protected[i] < 1:
                     potentially_paralyzed[i] = 1
                     was_potentially_paralyzed = True
                     if np.random.random() < p_paralysis:
                         paralyzed[i] = 1
                         was_paralyzed = True
+                    else:
+                        paralyzed[i] = 0
+                else:
+                    potentially_paralyzed[i] = 0
+                    paralyzed[i] = 0
             elif paralysis_timer[i] > 0:
                 paralysis_timer[i] -= 1  # Decrement paralysis timer so that they become paralyzed on the next timestep
 
@@ -1486,11 +1491,12 @@ class Transmission_ABM:
     def log(self, t):
         # Get the counts for each node in one pass
         S_counts, E_counts, I_counts, R_counts, POTP_counts, P_counts = count_SEIRP(
-            self.people.node_id,
-            self.people.disease_state,
-            self.people.paralyzed,
-            np.int32(len(self.nodes)),
-            np.int32(self.people.count),
+            node_id=self.people.node_id,
+            disease_state=self.people.disease_state,
+            potentially_paralyzed=self.people.potentially_paralyzed,
+            paralyzed=self.people.paralyzed,
+            n_nodes=np.int32(len(self.nodes)),
+            n_people=np.int32(self.people.count),
         )
 
         # Store them in results

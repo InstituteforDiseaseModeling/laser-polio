@@ -64,38 +64,48 @@ def test_initial_population_counts():
 # Test Disease Progression without transmission
 def test_progression_without_transmission():
     # Setup sim with 0 infections
-    pars = PropertySet(
-        {
-            "start_date": lp.date("2020-01-01"),
-            "dur": 1,
-            "n_ppl": np.array([1000, 500]),  # Two nodes with populations
-            "cbr": np.array([30, 25]),  # Birth rate per 1000/year
-            "r0_scalars": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
-            "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
-            "init_immun": 0.0,  # 20% initially immune
-            "init_prev": 0.0,  # 5% initially infected
-            "dur_exp": lp.constant(value=1),  # Duration of the exposed state
-            "dur_inf": lp.constant(value=1),  # Duration of the infectious state
-            "p_paralysis": 1 / 2000,  # 1% paralysis probability
-            "stop_if_no_cases": False,  # Stop simulation if no cases are present
-        }
-    )
-    sim = lp.SEIR_ABM(pars)
-    sim.components = [lp.DiseaseState_ABM]
-    assert np.all(sim.people.exposure_timer[: pars["n_ppl"].sum()] == 0), "The exposure timer was not initialized correctly"
-    assert np.all(sim.people.infection_timer[: pars["n_ppl"].sum()] == 1), "The infection timer was not initialized correctly"
-    sim.people.disease_state[: sim.pars.n_ppl.sum()] = 1  # Set all to Exposed
-    sim.run()  # Run for one day
+    pars = {
+        "start_date": lp.date("2020-01-01"),
+        "dur": 1,
+        "n_ppl": np.array([1000, 500]),  # Two nodes with populations
+        "cbr": np.array([30, 25]),  # Birth rate per 1000/year
+        "r0_scalars": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
+        "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
+        "init_immun": 0.0,  # 20% initially immune
+        "init_prev": 0.0,  # 5% initially infected
+        "dur_exp": lp.constant(value=1),  # Duration of the exposed state
+        "dur_inf": lp.constant(value=1),  # Duration of the infectious state
+        "p_paralysis": 1 / 2000,  # 1% paralysis probability
+        "stop_if_no_cases": False,  # Stop simulation if no cases are present
+    }
+    pars_1day = PropertySet(pars)
+    pars["dur"] = 2
+    pars_2days = PropertySet(pars)
+    sim_1day = lp.SEIR_ABM(pars_1day)
+    sim_2days = lp.SEIR_ABM(pars_2days)
+    sim_1day.components = [lp.DiseaseState_ABM]
+    sim_2days.components = [lp.DiseaseState_ABM]
+
+    # Test the initalized counts
+    assert np.all(sim_1day.people.exposure_timer[: pars_1day["n_ppl"].sum()] == 0), "The exposure timer was not initialized correctly"
+    assert np.all(sim_1day.people.infection_timer[: pars_1day["n_ppl"].sum()] == 1), "The infection timer was not initialized correctly"
+
+    # Test a sim with one day
+    sim_1day.people.disease_state[: sim_1day.pars.n_ppl.sum()] = 1  # Set all to Exposed
+    sim_1day.run()  # Run for one day
     # Remember that results are not tallied in the DiseaseState_ABM component (results are tallied in Transmission_ABM) so we have to sum them up manually
-    assert np.sum(sim.people.disease_state == 0) == 0  # No one should be Susceptible
-    assert np.sum(sim.people.disease_state == 1) == 0  # No one should be Exposed
-    assert np.sum(sim.people.disease_state == 2) == pars["n_ppl"].sum()  # Everyone should be Infected
-    assert np.sum(sim.people.disease_state == 3) == 0  # No one should be Recovered
-    sim.run()  # Run for another day
-    assert np.sum(sim.people.disease_state == 0) == 0  # No one should be Susceptible
-    assert np.sum(sim.people.disease_state == 1) == 0  # No one should be Exposed
-    assert np.sum(sim.people.disease_state == 2) == 0  # No one should be Infected
-    assert np.sum(sim.people.disease_state == 3) == pars["n_ppl"].sum()  # Everyone should be Recovered
+    assert np.sum(sim_1day.people.disease_state == 0) == 0  # No one should be Susceptible
+    assert np.sum(sim_1day.people.disease_state == 1) == 0  # No one should be Exposed
+    assert np.sum(sim_1day.people.disease_state == 2) == pars_1day["n_ppl"].sum()  # Everyone should be Infected
+    assert np.sum(sim_1day.people.disease_state == 3) == 0  # No one should be Recovered
+
+    # Test a sim with two days
+    sim_2days.people.disease_state[: sim_2days.pars.n_ppl.sum()] = 1  # Set all to Exposed
+    sim_2days.run()  # Run for two days
+    assert np.sum(sim_2days.people.disease_state == 0) == 0  # No one should be Susceptible
+    assert np.sum(sim_2days.people.disease_state == 1) == 0  # No one should be Exposed
+    assert np.sum(sim_2days.people.disease_state == 2) == 0  # No one should be Infected
+    assert np.sum(sim_2days.people.disease_state == 3) == pars_2days["n_ppl"].sum()  # Everyone should be Recovered
 
 
 # Test Disease Progression with transmission
@@ -236,7 +246,7 @@ def test_paralysis_probability():
     pars = PropertySet(
         {
             "start_date": lp.date("2020-01-01"),
-            "dur": 1,
+            "dur": 100,
             "n_ppl": np.array([50000, 50000]),  # Two nodes
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
             "r0_scalars": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
@@ -364,6 +374,13 @@ def test_init_immun_scalar():
     pd.testing.assert_frame_equal(df_scaled[cols], expected_scaled, atol=1e-6, check_dtype=False)
 
 
+def test_time_to_paralysis():
+    sim = setup_sim()
+    dist = sim.pars.t_to_paralysis
+    assert np.isclose(dist.mean(), 9, atol=2)
+    assert np.isclose(dist.std(), 4, atol=2)
+
+
 if __name__ == "__main__":
     test_disease_state_initialization()
     test_initial_population_counts()
@@ -373,4 +390,5 @@ if __name__ == "__main__":
     test_run_sim()
     test_seed_schedule()
     test_init_immun_scalar()
+    test_time_to_paralysis()
     print("All disease state tests passed!")
