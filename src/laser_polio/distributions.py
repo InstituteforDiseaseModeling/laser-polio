@@ -128,7 +128,7 @@ def nb_normal(mean, std, size, dest):
     return
 
 
-@nb.njit((nb.float64, nb.float64, nb.int32, nb.float64[:]), parallel=True, cache=True)
+@nb.njit((nb.float64, nb.float64, nb.int32, nb.float64[:]), parallel=True, cache=False)
 def nb_gamma(shape, scale, size, dest):
     for i in nb.prange(size):
         dest[i] = np.random.gamma(shape, scale)

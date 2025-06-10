@@ -773,7 +773,7 @@ def pbincount(bins, num_bins, weights=None, dtype=None):
 #     tls (np.ndarray): Thread-local storage array for counting.
 # Returns:
 #     None: The results are stored in the tls array.
-@nb.njit(parallel=True, cache=True)
+@nb.njit(parallel=True, cache=False)
 def nb_bincount(bins, num_indices, tls):
     for i in nb.prange(num_indices):
         tls[nb.get_thread_id(), bins[i]] += 1
@@ -788,7 +788,7 @@ def nb_bincount(bins, num_indices, tls):
 #     tls (np.ndarray): Thread-local storage array for counting.
 # Returns:
 #     None: The results are stored in the tls array.
-@nb.njit(parallel=True, cache=True)
+@nb.njit(parallel=True, cache=False)
 def nb_bincount_weighted(bins, num_indices, weights, tls):
     for i in nb.prange(num_indices):
         tls[nb.get_thread_id(), bins[i]] += weights[i]

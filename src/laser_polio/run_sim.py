@@ -74,9 +74,9 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     # Geography
     dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", verbose=verbose)
-    node_lookup = lp.get_node_lookup("data/node_lookup.json", dot_names)
+    node_lookup = lp.get_node_lookup(lp.root / "data/node_lookup.json", dot_names)
     # dist_matrix = lp.get_distance_matrix(lp.root / "data/distance_matrix_africa_adm2.h5", dot_names)
-    shp = gpd.read_file(filename="data/shp_africa_low_res.gpkg", layer="adm2")
+    shp = gpd.read_file(filename=lp.root / "data/shp_africa_low_res.gpkg", layer="adm2")
     shp = shp[shp["dot_name"].isin(dot_names)]
     # Sort the GeoDataFrame by the order of dot_names
     shp.set_index("dot_name", inplace=True)
@@ -163,11 +163,12 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         results_path = Path("results/default")  # Provide a default path
 
     # Load the actual case data
-    epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
-    epi.rename(columns={"cases": "P"}, inplace=True)
-    Path(results_path).mkdir(parents=True, exist_ok=True)
-    results_path = Path(results_path)
-    epi.to_csv(results_path / "actual_data.csv", index=False)
+    if False:
+        epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
+        epi.rename(columns={"cases": "P"}, inplace=True)
+        Path(results_path).mkdir(parents=True, exist_ok=True)
+        results_path = Path(results_path)
+        epi.to_csv(results_path / "actual_data.csv", index=False)
 
     # Base parameters (can be overridden)
     base_pars = {
@@ -247,7 +248,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
             sim.plot(save=True, results_path=results_path)
         if save_data:
             Path(results_path).mkdir(parents=True, exist_ok=True)
-            lp.save_results_to_csv(sim, filename=results_path / "simulation_results.csv")
+            lp.save_results_to_csv(sim, filename=Path( results_path ) / "simulation_results.csv")
 
     return sim
 
