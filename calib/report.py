@@ -49,15 +49,15 @@ def run_top_n_on_comps(study, n=10):
 
         task = CommandTask(command=command)
         task.common_assets.add_assets(AssetCollection.from_id_file("comps/laser.id"))
-        task.tags = {"type": "singularity", "description": "laser", "trial_rank": str(rank), "trial_value": str(trial.value)}
         task.transient_assets.add_asset(Asset(filename="overrides.json", content=json.dumps(overrides)))
 
         # Wrap task in Simulation and add to experiment
         simulation = Simulation(task=task)
+        simulation.tags.update({"description": "LASER-Polio", ".trial_rank": str(rank), ".trial_value": str(trial.value)})
         experiment.add_simulation(simulation)
 
         add_schedule_config(
-            simulation, command=command, NumNodes=1, NumCores=8, NodeGroupName="idm_abcd", Environment={"NUMBA_NUM_THREADS": str(8)}
+            simulation, command=command, NumNodes=1, NumCores=12, NodeGroupName="idm_abcd", Environment={"NUMBA_NUM_THREADS": str(12)}
         )
     experiment.run(wait_until_done=True)
 
