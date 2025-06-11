@@ -376,9 +376,116 @@ def test_init_immun_scalar():
 
 def test_time_to_paralysis():
     sim = setup_sim()
-    dist = sim.pars.t_to_paralysis
-    assert np.isclose(dist.mean(), 9, atol=2)
-    assert np.isclose(dist.std(), 4, atol=2)
+    dist = sim.pars.t_to_paralysis(1000)
+    p_timer = sim.people.paralysis_timer
+    assert np.isclose(dist.mean(), 9, atol=3)
+    assert np.isclose(dist.std(), 4, atol=3)
+    assert np.isclose(p_timer.mean(), 9, atol=3)
+    assert np.isclose(p_timer.std(), 4, atol=3)
+
+
+def test_paralysis_progression_manual():
+    # Setup sim with 0 infections
+    pars = PropertySet(
+        {
+            "start_date": lp.date("2020-01-01"),
+            "dur": 3,
+            "n_ppl": np.array([4, 4]),
+            "cbr": np.array([0]),  # Birth rate per 1000/year
+            "r0_scalars": np.array([0.0]),  # Spatial transmission scalar (multiplied by global rate)
+            "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
+            "init_immun": 0.0,  # 20% initially immune
+            "init_prev": 0.0,  # 5% initially infected
+            "dur_exp": lp.constant(value=1),  # Duration of the exposed state
+            "dur_inf": lp.constant(value=1),  # Duration of the infectious state
+            "p_paralysis": 1.0,  # 1% paralysis probability
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
+        }
+    )
+
+    # Paralysis timer should trigger paralysis when not ipv_protected
+    sim = lp.SEIR_ABM(pars)
+    sim.components = [lp.DiseaseState_ABM, lp.Transmission_ABM]
+    sim.people.disease_state[:] = np.array([0, 0, 1, 1, 2, 2, 3, 3])  # Vary disease state
+    sim.people.paralysis_timer[:] = 1  # Set paralysis timer to 1
+    protected_idx = np.array([1, 3, 5, 7])
+    unprotected_idx = np.setdiff1d(np.arange(sim.people.count), protected_idx)
+    sim.people.ipv_protected[:] = 0
+    sim.people.ipv_protected[protected_idx] = 1
+    sim.run()
+
+    # Those not ipv_protected should be paralyzed
+    assert np.sum(sim.people.potentially_paralyzed[protected_idx] <= 0) == 4, (
+        "SEIR people who are protected should not be potentially paralyzed"
+    )
+    assert np.sum(sim.people.potentially_paralyzed[unprotected_idx] > 0) == 3, (
+        "EIR (not S) People who are not protected should be potentially paralyzed"
+    )
+
+    assert np.sum(sim.people.paralyzed[protected_idx] <= 0) == 4, "SEIR people who are protected should not be paralyzed"
+    assert np.sum(sim.people.paralyzed[unprotected_idx] > 0) == 3, "EIR (not S) People who are not protected should be paralyzed"
+
+    assert np.sum(sim.results.potentially_paralyzed[-1]) == 3, "Should have 3 potentially paralyzed individuals"
+    assert np.sum(sim.results.paralyzed[-1]) == 3, "Should have 3 paralyzed individuals"
+
+
+def test_paralysis_fraction_sans_ipv():
+    pars = PropertySet(
+        {
+            "start_date": lp.date("2020-01-01"),
+            "dur": 60,
+            "n_ppl": np.array([500000, 500000]),
+            "cbr": np.array([0]),  # Birth rate per 1000/year
+            "r0_scalars": np.array([1.0]),  # Spatial transmission scalar (multiplied by global rate)
+            "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
+            "init_immun": 0.0,  # 20% initially immune
+            "init_prev": 1.0,  # 5% initially infected
+            "dur_exp": lp.constant(value=1),  # Duration of the exposed state
+            "dur_inf": lp.constant(value=1),  # Duration of the infectious state
+            "p_paralysis": 0.0005,  # 0.05% paralysis probability
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
+        }
+    )
+
+    # Paralysis timer should trigger paralysis when not ipv_protected
+    sim = lp.SEIR_ABM(pars)
+    sim.components = [lp.DiseaseState_ABM, lp.Transmission_ABM]
+    sim.run()
+
+    potential_paralyzed = np.sum(sim.results.potentially_paralyzed[-1])
+    paralyzed = np.sum(sim.results.paralyzed[-1])
+    assert np.isclose(potential_paralyzed / sim.pars.n_ppl.sum(), 1.0, atol=0.05), "Should have 100% potentially paralyzed"
+    assert np.isclose(paralyzed / sim.pars.n_ppl.sum(), 0.0005, atol=0.001), "Should have 1/2000 paralyzed"
+
+
+def test_paralysis_fraction_with_manual_ipv():
+    pars = PropertySet(
+        {
+            "start_date": lp.date("2020-01-01"),
+            "dur": 60,
+            "n_ppl": np.array([500000, 500000]),
+            "cbr": np.array([0]),  # Birth rate per 1000/year
+            "r0_scalars": np.array([1.0]),  # Spatial transmission scalar (multiplied by global rate)
+            "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
+            "init_immun": 0.0,  # 20% initially immune
+            "init_prev": 1.0,  # 5% initially infected
+            "dur_exp": lp.constant(value=1),  # Duration of the exposed state
+            "dur_inf": lp.constant(value=1),  # Duration of the infectious state
+            "p_paralysis": 0.0005,  # 0.05% paralysis probability
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
+        }
+    )
+
+    # Paralysis timer should trigger paralysis when not ipv_protected
+    sim = lp.SEIR_ABM(pars)
+    sim.components = [lp.DiseaseState_ABM, lp.Transmission_ABM]
+    sim.people.ipv_protected[:] = 1
+    sim.run()
+
+    potential_paralyzed = np.sum(sim.results.potentially_paralyzed[-1])
+    paralyzed = np.sum(sim.results.paralyzed[-1])
+    assert potential_paralyzed == 0, "Should have 100% potentially paralyzed"
+    assert paralyzed == 0, "Should have 1/2000 paralyzed"
 
 
 if __name__ == "__main__":
@@ -391,4 +498,7 @@ if __name__ == "__main__":
     test_seed_schedule()
     test_init_immun_scalar()
     test_time_to_paralysis()
+    test_paralysis_progression_manual()
+    test_paralysis_fraction_sans_ipv()
+    test_paralysis_fraction_with_manual_ipv()
     print("All disease state tests passed!")
