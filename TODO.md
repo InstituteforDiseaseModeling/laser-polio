@@ -1,6 +1,6 @@
 # --- PRIORITIES ---
 0) Add RI Start year
-Check time to paralysis
+Double check timing of E, I, & P states when normal transmission is occurring - I'm worried we're off by 1 after initialization
 Ensure RI has IPV for newborns
 Update initialization to account for RI protection to those already born
 Need to set RI vx probability to 0, but still allow for IPV
