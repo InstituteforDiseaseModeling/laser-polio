@@ -454,6 +454,10 @@ def test_paralysis_fraction_sans_ipv():
 
     potential_paralyzed = np.sum(sim.results.potentially_paralyzed[-1])
     paralyzed = np.sum(sim.results.paralyzed[-1])
+    sum_new_potential = np.sum(sim.results.new_potentially_paralyzed)
+    sum_new_paralyzed = np.sum(sim.results.new_paralyzed)
+    assert sum_new_potential == potential_paralyzed, "Potential paralyzed should be the sum of new potentially paralyzed"
+    assert sum_new_paralyzed == paralyzed, "Paralyzed should be the sum of new paralyzed"
     assert np.isclose(potential_paralyzed / sim.pars.n_ppl.sum(), 1.0, atol=0.05), "Should have 100% potentially paralyzed"
     assert np.isclose(paralyzed / sim.pars.n_ppl.sum(), 0.0005, atol=0.001), "Should have 1/2000 paralyzed"
 
@@ -484,21 +488,25 @@ def test_paralysis_fraction_with_manual_ipv():
 
     potential_paralyzed = np.sum(sim.results.potentially_paralyzed[-1])
     paralyzed = np.sum(sim.results.paralyzed[-1])
+    sum_new_potential = np.sum(sim.results.new_potentially_paralyzed)
+    sum_new_paralyzed = np.sum(sim.results.new_paralyzed)
+    assert sum_new_potential == potential_paralyzed, "Potential paralyzed should be the sum of new potentially paralyzed"
+    assert sum_new_paralyzed == paralyzed, "Paralyzed should be the sum of new paralyzed"
     assert potential_paralyzed == 0, "Should have 100% potentially paralyzed"
     assert paralyzed == 0, "Should have 1/2000 paralyzed"
 
 
 if __name__ == "__main__":
-    test_disease_state_initialization()
-    test_initial_population_counts()
-    test_progression_without_transmission()
-    test_progression_with_transmission()
-    test_paralysis_probability()
-    test_run_sim()
-    test_seed_schedule()
-    test_init_immun_scalar()
-    test_time_to_paralysis()
-    test_paralysis_progression_manual()
+    # test_disease_state_initialization()
+    # test_initial_population_counts()
+    # test_progression_without_transmission()
+    # test_progression_with_transmission()
+    # test_paralysis_probability()
+    # test_run_sim()
+    # test_seed_schedule()
+    # test_init_immun_scalar()
+    # test_time_to_paralysis()
+    # test_paralysis_progression_manual()
     test_paralysis_fraction_sans_ipv()
     test_paralysis_fraction_with_manual_ipv()
     print("All disease state tests passed!")
