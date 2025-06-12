@@ -496,6 +496,70 @@ def test_paralysis_fraction_with_manual_ipv():
     assert paralyzed == 0, "Should have 1/2000 paralyzed"
 
 
+@patch("laser_polio.root", Path("tests/"))
+def test_potential_paralysis():
+    """Test that potential paralysis less than or equal to new exposed (due to IPV & delays in paralysis)."""
+
+    regions = ["ZAMFARA"]
+    start_year = 2018
+    n_days = 365
+    pop_scale = 1 / 1
+    init_region = "ANKA"
+    init_prev = 200
+    r0 = 14
+    migration_method = "radiation"
+    radiation_k = 0.5
+    max_migr_frac = 1.0
+    verbose = 0
+    vx_prob_ri = 0.0  # Sets OPV RI to 0, but allows IPV RI to be applied
+    missed_frac = 0.1
+    seed_schedule = [
+        {"date": "2018-01-02", "dot_name": "AFRO:NIGERIA:ZAMFARA:BAKURA", "prevalence": 200},  # day 1
+        {"date": "2018-11-07", "dot_name": "AFRO:NIGERIA:ZAMFARA:GUMMI", "prevalence": 200},  # day 2
+    ]
+    save_plots = False
+    save_data = False
+    plot_pars = False
+    seed = 1
+    # Diffs from demo_zamfara_load_init_pop.py
+    results_path = "results/demo_zamfara"
+    save_pop = False
+    init_pop_file = None
+    use_pim_scalars = True
+
+    sim = lp.run_sim(
+        regions=regions,
+        start_year=start_year,
+        n_days=n_days,
+        pop_scale=pop_scale,
+        init_region=init_region,
+        init_prev=init_prev,
+        results_path=results_path,
+        save_plots=save_plots,
+        save_data=save_data,
+        plot_pars=plot_pars,
+        verbose=verbose,
+        seed=seed,
+        r0=r0,
+        migration_method=migration_method,
+        radiation_k=radiation_k,
+        max_migr_frac=max_migr_frac,
+        save_pop=save_pop,
+        vx_prob_ri=vx_prob_ri,
+        init_pop_file=init_pop_file,
+        seed_schedule=seed_schedule,
+        missed_frac=missed_frac,
+        use_pim_scalars=use_pim_scalars,
+    )
+
+    assert np.sum(sim.results.new_potentially_paralyzed) <= np.sum(sim.results.new_exposed), (
+        "Potential paralysis should be less than or equal to new exposed"
+    )
+    assert np.isclose(np.sum(sim.results.new_potentially_paralyzed) / 2000, np.sum(sim.results.new_paralyzed), atol=10), (
+        "Potential paralysis should be 1/2000 of new exposed"
+    )
+
+
 if __name__ == "__main__":
     test_disease_state_initialization()
     test_initial_population_counts()
@@ -509,4 +573,5 @@ if __name__ == "__main__":
     test_paralysis_progression_manual()
     test_paralysis_fraction_sans_ipv()
     test_paralysis_fraction_with_manual_ipv()
+    test_potential_paralysis()
     print("All disease state tests passed!")

@@ -192,7 +192,7 @@ class SEIR_ABM:
                 now = datetime.now()  # noqa: DTZ005
                 pars.seed = now.microsecond ^ int(now.timestamp())
                 if self.verbose >= 1:
-                    sc.printred(f"No seed provided. Using random seed of {pars.seed}.")
+                    sc.printgreen(f"No seed provided. Using random seed of {pars.seed}.")
             set_seed(pars.seed)
 
             # Setup time
@@ -492,7 +492,11 @@ def disease_state_step_nb(
         # ---- Paralysis ----
         # Can happen during infection (2) or after recovery (3) due to delays in symptom onset and surveillance
         if disease_state[i] in (2, 3) and potentially_paralyzed[i] == -1:  # Infected or recovered but not yet potentially paralyzed
+            # NOTE: Currently we don't have strain tracking, so I had to set potentially_paralyzed to 0 in SIA_ABM & RI_ABM, otherwise those interventions would cause potential paralysis cases.
+            # TODO: revise when we have strain stracking
+            # TODO: remove the potential_paralysis attributes from RI & SIAs after we have strain tracking
             if paralysis_timer[i] == 0:
+                paralysis_timer[i] -= 1  # Decrement to -1 so they don't enter this loop again
                 if ipv_protected[i] < 1:
                     potentially_paralyzed[i] = 1
                     was_potentially_paralyzed = True
@@ -840,7 +844,6 @@ class DiseaseState_ABM:
                                 vx_prob_ipv = np.asarray(self.pars.vx_prob_ipv)
                                 ipv_gap = vx_prob_ipv - immune_fractions  # immune_fractions are from init_immun
                                 ipv_gap = np.clip(ipv_gap, 0, 1)  # In case immune_fraction > vx_prob
-                                print(f"ipv_gap: {ipv_gap}")
                                 if ipv_gap.max() <= 0:
                                     continue
                                 for i in nb.prange(self.people.count):
@@ -983,6 +986,7 @@ class DiseaseState_ABM:
         self.plot_total_seir_counts(save=save, results_path=results_path)
         self.plot_infected_by_node(save=save, results_path=results_path)
         self.plot_infected_dot_map(save=save, results_path=results_path)
+        self.plot_cum_new_exposed_paralyzed(save=save, results_path=results_path)
         if self.pars.shp is not None:
             self.plot_infected_choropleth(save=save, results_path=results_path)
 
@@ -1000,6 +1004,21 @@ class DiseaseState_ABM:
         plt.grid()
         if save:
             plt.savefig(results_path / "total_seir_counts.png")
+        if not save:
+            plt.show()
+
+    def plot_cum_new_exposed_paralyzed(self, save=False, results_path=None):
+        plt.figure(figsize=(10, 6))
+        plt.plot(np.cumsum(np.sum(self.results.new_exposed, axis=1)), label="Cumulative Exposed")
+        plt.plot(np.cumsum(np.sum(self.results.new_potentially_paralyzed, axis=1)), label="Cumulative Potentially Paralyzed")
+        plt.plot(np.cumsum(np.sum(self.results.new_paralyzed, axis=1)), label="Cumulative Paralyzed")
+        plt.title("Cumulative New Exposed, Potentially Paralyzed, and Paralyzed")
+        plt.xlabel("Time (Timesteps)")
+        plt.ylabel("Cumulative count")
+        plt.legend()
+        plt.grid()
+        if save:
+            plt.savefig(results_path / "cumulative_new_exposed_potentially_paralyzed.png")
         if not save:
             plt.show()
 
@@ -1870,6 +1889,7 @@ def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, 
         nb.int32[:, :],
         nb.int32[:, :],
         nb.uint8[:],
+        nb.int32[:],
     ),
     parallel=True,
     cache=True,
@@ -1887,6 +1907,7 @@ def fast_ri(
     local_ri_counts,
     local_ipv_counts,
     chronically_missed,
+    potentially_paralyzed,
 ):
     """
     Optimized vaccination step with thread-local storage and parallel execution.
@@ -1916,6 +1937,8 @@ def fast_ri(
                 if state == 0:
                     # We don't check for vx_eff here, since that is already accounted for in the prob_ri file
                     disease_state[i] = 3
+                    # TODO remove this when we have strain tracking
+                    potentially_paralyzed[i] = 0
             if np.random.rand() < prob_ipv:
                 local_ipv_counts[nb.get_thread_id(), node] += 1
                 ipv_protected[i] = 1
@@ -1998,18 +2021,19 @@ class RI_ABM:
             local_ri_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
             local_ipv_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
             fast_ri(
-                np.int32(self.step_size),
-                self.people.node_id,
-                self.people.disease_state,
-                self.people.ipv_protected,
-                self.people.ri_timer,
-                np.int32(self.sim.t),
-                vx_prob_ri,
-                vx_prob_ipv,
-                np.int32(self.people.count),
-                local_ri_counts,
-                local_ipv_counts,
-                self.people.chronically_missed,
+                step_size=np.int32(self.step_size),
+                node_id=self.people.node_id,
+                disease_state=self.people.disease_state,
+                ipv_protected=self.people.ipv_protected,
+                ri_timer=self.people.ri_timer,
+                sim_t=np.int32(self.sim.t),
+                vx_prob_ri=vx_prob_ri,
+                vx_prob_ipv=vx_prob_ipv,
+                num_people=np.int32(self.people.count),
+                local_ri_counts=local_ri_counts,
+                local_ipv_counts=local_ipv_counts,
+                chronically_missed=self.people.chronically_missed,
+                potentially_paralyzed=self.people.potentially_paralyzed,
             )
             # Sum up the counts from all threads
             self.results.ri_vaccinated[self.sim.t] = local_ri_counts.sum(axis=0)
@@ -2053,6 +2077,7 @@ def fast_sia(
     local_vaccinated,
     local_protected,
     chronically_missed,
+    potentially_paralyzed,
 ):
     """
     Numbified supplemental immunization activity (SIA) vaccination step.
@@ -2099,6 +2124,8 @@ def fast_sia(
                 if r < prob_vx * vx_eff:  # Check probability that vaccine takes/protects
                     disease_states[i] = 3  # Move to Recovered state
                     local_protected[thread_id, node] += 1  # Increment protected count
+                    # TODO remove this when we have strain tracking
+                    potentially_paralyzed[i] = 0
 
     return
 
@@ -2166,6 +2193,7 @@ class SIA_ABM:
                     local_vaccinated,
                     local_protected,
                     chronically_missed=self.people.chronically_missed,
+                    potentially_paralyzed=self.people.potentially_paralyzed,
                 )
                 self.results.sia_vaccinated[t] = local_vaccinated.sum(axis=0)
                 self.results.sia_protected[t] = local_protected.sum(axis=0)
