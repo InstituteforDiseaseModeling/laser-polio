@@ -1,18 +1,20 @@
-import subprocess
-import time
-import os
-import sys
-import uuid
 import argparse
-from kubernetes import client, config
+import os
+import subprocess
+import sys
+import time
+import uuid
+from pathlib import Path
+
+from kubernetes import client
+from kubernetes import config
 from kubernetes.client.rest import ApiException
 
 
 def run_command(command):
     """Run a shell command and return the output."""
     try:
-        result = subprocess.run(command, shell=True, check=True, text=True, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
+        result = subprocess.run(command, shell=True, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # noqa: UP022 S602
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         print(f"Error running command: {e.stderr.strip()}")
@@ -63,22 +65,17 @@ def create_pod(pod_name, namespace, data_dir):
                     name="aks2local-container",
                     image="registry4idm.azurecr.io/nfstest:1.1",
                     command=["sleep", "infinity"],
-                    volume_mounts=[
-                        client.V1VolumeMount(
-                            name="shared-data",
-                            mount_path=data_dir
-                        )])
+                    volume_mounts=[client.V1VolumeMount(name="shared-data", mount_path=data_dir)],
+                )
             ],
             restart_policy="Never",
             image_pull_secrets=[client.V1LocalObjectReference(name="registry4idm")],
             volumes=[
                 client.V1Volume(
-                    name="shared-data",
-                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
-                        claim_name="laser-stg-pvc"
-                    ))
-            ]
-        )
+                    name="shared-data", persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name="laser-stg-pvc")
+                )
+            ],
+        ),
     )
 
     # Create the pod
@@ -124,8 +121,8 @@ def validate_paths(action, local_dir, remote_dir, shared_data_dir):
             print(f"Both --local-dir and --remote-dir arguments are required for {action}.")
             sys.exit(1)
 
-        if not os.path.isabs(local_dir):
-            local_dir = os.path.abspath(local_dir)
+        if not Path(local_dir).is_absolute():
+            local_dir = str(Path(local_dir).resolve())
 
         if action == "download":
             if not os.path.exists(local_dir):
@@ -135,7 +132,7 @@ def validate_paths(action, local_dir, remote_dir, shared_data_dir):
                 print(f"Local directory '{local_dir}' does not exist for upload.")
                 sys.exit(1)
 
-        if not os.path.isabs(remote_dir):
+        if not Path(remote_dir).is_absolute():
             print(f"Remote directory '{remote_dir}' must be an absolute path.")
             sys.exit(1)
 
@@ -148,8 +145,7 @@ def verify_kubectl(verbose=False):
     """Verify that kubectl is installed and functional."""
     print("Verifying kubectl installation...")
     try:
-        result = subprocess.run(["kubectl", "version", "--client"], check=True, text=True, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
+        result = subprocess.run(["kubectl", "version", "--client"], check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # noqa: UP022
         print("Kubectl is installed and functional.")
         if verbose:
             print(f"Kubectl version details:\n{result.stdout.strip()}")
@@ -157,16 +153,17 @@ def verify_kubectl(verbose=False):
         print(f"Error: Kubectl is not installed or not functional. Details: {e.stderr.strip()}")
         sys.exit(1)
 
+
 def main():
     parser = argparse.ArgumentParser(description="Utility for Kubernetes.")
-    parser.add_argument("--action", required=True, help="Action to perform: download, upload, or shell.",
-                        choices=["download", "upload", "shell"])
+    parser.add_argument(
+        "--action", required=True, help="Action to perform: download, upload, or shell.", choices=["download", "upload", "shell"]
+    )
     parser.add_argument("--local-dir", help="Path to the local directory for data transfer.")
     parser.add_argument("--remote-dir", help="Path to the remote directory in the pod.")
     parser.add_argument("--namespace", default="default", help="Kubernetes namespace (default: 'default').")
     parser.add_argument("--kube-config", help="Path to the kube config file (optional).")
-    parser.add_argument("--shared-data-dir", default="/shared",
-                        help="Path to the shared data directory in the pod (default: '/shared').")
+    parser.add_argument("--shared-data-dir", default="/shared", help="Path to the shared data directory in the pod (default: '/shared').")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output.")
     args = parser.parse_args()
 
