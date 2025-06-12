@@ -193,12 +193,9 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     # Dynamic values passed by user/CLI/Optuna
     pars = PropertySet({**base_pars, **configs})
-
     # Plot pars
     if plot_pars:
         lp.plot_pars(pars, shp, results_path)
-    if verbose >= 3:
-        sc.pp(pars.to_dict())
 
     def from_file(init_pop_file):
         # logger.info(f"Initializing SEIR_ABM from file: {init_pop_file}")
@@ -237,6 +234,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     # Safety checks
     if verbose >= 3:
+        sc.pp(pars.to_dict())  # Print pars
         print(f"sim.people.count: {sim.people.count}")
         print(f"disease state counts: {np.bincount(sim.people.disease_state[: sim.people.count])}")
         print(f"infected: {np.where(sim.people.disease_state[: sim.people.count] == 2)}")
