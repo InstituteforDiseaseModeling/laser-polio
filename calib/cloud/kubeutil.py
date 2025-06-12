@@ -121,7 +121,7 @@ def delete_pod(pod_name, namespace):
 def validate_paths(action, local_dir, remote_dir, shared_data_dir):
     if action in ["download", "upload"]:
         if not local_dir or not remote_dir:
-            print("Both --local-dir and --remote-dir arguments are required for {action}.")
+            print(f"Both --local-dir and --remote-dir arguments are required for {action}.")
             sys.exit(1)
 
         if not os.path.isabs(local_dir):
