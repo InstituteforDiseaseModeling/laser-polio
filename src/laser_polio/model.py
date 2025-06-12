@@ -822,6 +822,34 @@ class DiseaseState_ABM:
                             disease_state=self.people.disease_state,
                         )
 
+                        # ---- Backcalculate RI IPV Protection ----
+                        # IPV prevents paralysis but does not block transmission.
+                        # Since IPV and OPV immunity groups are assumed to overlap, and OPV-protected individuals
+                        # were already marked as Recovered (i.e., immune to both transmission and paralysis),
+                        # we only need to assign IPV protection to those who are not already immune.
+                        # Therefore, IPV protection is only applied when IPV coverage exceeds OPV-derived immunity.
+                        if self.pars.vx_prob_ipv is not None and self.pars.ipv_start_year is not None:
+                            # IPV eligibility threshold (must be born after ipv_start_year) + 98 days (roughly the timing of 2nd dose of RI IPV (+ 3rd dose of OPV))
+                            max_age_for_ipv = (self.pars.start_date.year - self.pars.ipv_start_year) * 365 + 98
+
+                            # Mask for people eligible for IPV by birth year AND age bin
+                            eligible_for_ipv = eligible_mask & (age <= max_age_for_ipv)
+
+                            if np.any(eligible_for_ipv):
+                                # Fraction of individuals that *should* be IPV-protected by node
+                                vx_prob_ipv = np.asarray(self.pars.vx_prob_ipv)
+                                ipv_gap = vx_prob_ipv - immune_fractions  # immune_fractions are from init_immun
+                                ipv_gap = np.clip(ipv_gap, 0, 1)  # In case immune_fraction > vx_prob
+                                print(f"ipv_gap: {ipv_gap}")
+                                if ipv_gap.max() <= 0:
+                                    continue
+                                for i in nb.prange(self.people.count):
+                                    if eligible_for_ipv[i]:
+                                        if np.random.rand() < ipv_gap[node_ids[i]]:
+                                            self.people.ipv_protected[i] = 1
+                                        else:
+                                            self.people.ipv_protected[i] = 0
+
                 # We're going to squash again to EULA-gize the initial R population in our under 15s
                 active_count = sim.people.count  # This gives the active population size
                 valid_agents = self.people.disease_state[:active_count] >= 0  # Apply only to active agents

@@ -1,23 +1,16 @@
 # --- PRIORITIES ---
-0) Add RI Start year
-Double check timing of E, I, & P states when normal transmission is occurring - I'm worried we're off by 1 after initialization
-Ensure RI has IPV for newborns
-Update initialization to account for RI protection to those already born
-Need to set RI vx probability to 0, but still allow for IPV
-0) Review KEPS paper
-2) Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
-3) Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
-4) Double check deaths. For some, I thought I saw on of my sims plot that no deaths were happening so we gotta check that.
-5) Account for IPV coverage in S Nigeria - thin out cases, perhaps in calibration, not in model
+1) Consider a 'potential_case' attribute that we can meddle with instead of 'recent_exposure' or whatever it is. That'd also give us a lever for delaying by the onset of paralysis.
+2) Check init_pop failing
+3) Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
+4) Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
+5) Double check deaths. For some, I thought I saw on of my sims plot that no deaths were happening so we gotta check that.
 6) Try playing with links between N & S Nigeria in network (maybe a scalar???)
-8) Consider a 'potential_case' attribute that we can meddle with instead of 'recent_exposure' or whatever it is. That'd also give us a lever for delaying by the onset of paralysis.
+7) Double check timing of E, I, & P states when normal transmission is occurring - I'm worried we're off by 1 after initialization
 
 CALIBRATION
 - Try calibrating with underwt
 - Try calibrating the r0_scalar parameters in run_sim (24 and 0.2)
 - Take notes in Obsidian
-- Does pod takedown time prevent new pods from spinning up? 
-
 - Run sim for top 1-10 calibrations
 - Plot monthly cases likelihood component against phase
 - Consider age distribution of cases as a calibration target, which would help parameterize R0

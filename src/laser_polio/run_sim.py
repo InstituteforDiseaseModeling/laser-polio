@@ -132,7 +132,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     pop = df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values * pop_scale
     cbr = df_comp.set_index("dot_name").loc[dot_names, "cbr"].values
     ri = df_comp.set_index("dot_name").loc[dot_names, "ri_eff"].values
-    ipv = df_comp.set_index("dot_name").loc[dot_names, "dpt3"].values
+    ri_ipv = df_comp.set_index("dot_name").loc[dot_names, "dpt3"].values
     # SIA probabilities
     sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values
     sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=0.5, scale=1.0)
@@ -157,7 +157,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         r0_scalars = r0_scalars_wt
 
     # Validate all arrays match
-    assert all(len(arr) == len(dot_names) for arr in [shp, init_immun, node_lookup, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
+    assert all(len(arr) == len(dot_names) for arr in [shp, init_immun, node_lookup, init_prevs, pop, cbr, ri, ri_ipv, sia_prob, r0_scalars])
 
     # Setup results path
     if results_path is None:
@@ -184,6 +184,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         "shp": shp,
         "node_lookup": node_lookup,
         "vx_prob_ri": ri,
+        "vx_prob_ipv": ri_ipv,
         "sia_schedule": sia_schedule,
         "vx_prob_sia": sia_prob,
         "verbose": verbose,
