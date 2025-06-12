@@ -520,7 +520,23 @@ def save_results_to_csv(sim, filename="simulation_results.csv"):
         writer = csv.writer(file)
 
         # Write header
-        writer.writerow(["timestep", "date", "node", "dot_name", "S", "E", "I", "R", "P", "new_exposed"])
+        writer.writerow(
+            [
+                "timestep",
+                "date",
+                "node",
+                "dot_name",
+                "S",
+                "E",
+                "I",
+                "R",
+                "P",
+                "new_exposed",
+                "potentially_paralyzed",
+                "new_potentially_paralyzed",
+                "new_paralyzed",
+            ]
+        )
 
         # Write data
         for t in range(timesteps):
@@ -538,6 +554,9 @@ def save_results_to_csv(sim, filename="simulation_results.csv"):
                         results.R[t, n],
                         results.paralyzed[t, n],
                         results.new_exposed[t, n],
+                        results.potentially_paralyzed[t, n],
+                        results.new_potentially_paralyzed[t, n],
+                        results.new_paralyzed[t, n],
                     ]
                 )
 
