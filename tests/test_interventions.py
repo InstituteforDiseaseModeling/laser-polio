@@ -70,7 +70,7 @@ def test_ri_zero():
     cbr = np.array([0, 0])
     vx_prob_ri = 1.0
     vx_prob_ipv = 1.0
-    sim_no_births = setup_sim(dur=dur, cbr=cbr, vx_prob_ri=vx_prob_ri)
+    sim_no_births = setup_sim(dur=dur, cbr=cbr, vx_prob_ri=vx_prob_ri, vx_prob_ipv=vx_prob_ipv)
     sim_no_births.run()
     assert np.sum(sim_no_births.results.ri_vaccinated[(98 + 14) :]) == 0, (
         "No RI vaccinations should've occurred after initial cohort aged out of RI (oldest 98 days + time_step)."
