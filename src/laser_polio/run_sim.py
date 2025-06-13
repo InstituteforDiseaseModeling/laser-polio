@@ -58,7 +58,6 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     init_region = configs.pop("init_region", "ANKA")
     init_prev = configs.pop("init_prev", 0.01)
     results_path = configs.pop("results_path", "results/demo")
-    actual_data = configs.pop("actual_data", lp.root / "data/epi_africa_20250421.h5")
     save_plots = configs.pop("save_plots", False)
     save_data = configs.pop("save_data", False)
     plot_pars = configs.pop("plot_pars", plot_pars)
