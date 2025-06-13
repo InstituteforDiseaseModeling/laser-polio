@@ -17,7 +17,7 @@ from matplotlib.colors import Normalize
 import laser_polio as lp
 
 
-def run_top_n_on_comps(study, n=10):
+def run_top_n_on_comps(study, n=10, output_dir: Path = "results"):
     import cloud_calib_config as cfg
     from idmtools.assets import Asset
     from idmtools.assets import AssetCollection
@@ -48,7 +48,7 @@ def run_top_n_on_comps(study, n=10):
         )
 
         task = CommandTask(command=command)
-        task.common_assets.add_assets(AssetCollection.from_id_file("comps/laser.id"))
+        task.common_assets.add_assets(AssetCollection.from_id_file("calib/comps/laser.id"))
         task.transient_assets.add_asset(Asset(filename="overrides.json", content=json.dumps(overrides)))
 
         # Wrap task in Simulation and add to experiment
@@ -60,9 +60,11 @@ def run_top_n_on_comps(study, n=10):
             simulation, command=command, NumNodes=1, NumCores=12, NodeGroupName="idm_abcd", Environment={"NUMBA_NUM_THREADS": str(12)}
         )
     experiment.run(wait_until_done=True)
+    exp_id_filepath = output_dir / "comps_exp.id"
+    experiment.to_id_file(exp_id_filepath)
 
 
-def run_best_on_comps(study):
+def run_best_on_comps(study, output_dir: Path = "results"):
     import cloud_calib_config as cfg
     from idmtools.assets import AssetCollection
     from idmtools.core.platform_factory import Platform
@@ -93,8 +95,8 @@ def run_best_on_comps(study):
 
     experiment = Experiment.from_task(task, name="laser-polio best from calib", tags={"type": "singularity", "description": "laser"})
     experiment.run(wait_until_done=True)
-    # if experiment.succeeded:
-    # experiment.to_id_file("experiment.id")
+    exp_id_filepath = output_dir / "comps_exp.id"
+    experiment.to_id_file(exp_id_filepath)
 
 
 def save_study_results(study, output_dir: Path, csv_name: str = "trials.csv"):
