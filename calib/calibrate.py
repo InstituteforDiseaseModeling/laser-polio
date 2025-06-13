@@ -66,6 +66,7 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
 
     print(f"🔍 Running calibration for study '{study_name}'...")
 
+    Path(results_path).mkdir(parents=True, exist_ok=True)
     # Run calibration and postprocess
     run_worker_main(
         study_name=study_name,
@@ -81,7 +82,6 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
     if dry_run:
         return
 
-    Path(results_path).mkdir(parents=True, exist_ok=True)
     shutil.copy(model_config, results_path / "model_config.yaml")
 
     print("💾 Saving study results...")

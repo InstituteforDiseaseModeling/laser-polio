@@ -80,6 +80,17 @@ def run_worker_main(
         function_name=metadata.get("target_fn", "calc_calib_targets"),
     )
 
+    # Load the actual case data (moved from run_sim into calib code)
+    regions = model_config_dict.pop("regions", ["ZAMFARA"])
+    dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
+    node_lookup = lp.get_node_lookup(lp.root / "data/node_lookup.json", dot_names)
+    actual_data = model_config_dict.pop("actual_data", lp.root / "data/epi_africa_20250421.h5")
+    start_year = model_config_dict["start_year"]
+    n_days = model_config_dict["n_days"]
+    epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
+    epi.rename(columns={"cases": "P"}, inplace=True)
+    epi.to_csv(results_path / "actual_data.csv", index=False)
+
     # Run the study
     wrapped_objective = partial(
         objective,

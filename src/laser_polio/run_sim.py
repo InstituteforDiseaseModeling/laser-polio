@@ -166,11 +166,6 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     Path(results_path).mkdir(parents=True, exist_ok=True)
     results_path = Path(results_path)
 
-    # Load the actual case data
-    epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
-    epi.rename(columns={"cases": "P"}, inplace=True)
-    epi.to_csv(results_path / "actual_data.csv", index=False)
-
     # Base parameters (can be overridden)
     base_pars = {
         "start_date": start_date,
