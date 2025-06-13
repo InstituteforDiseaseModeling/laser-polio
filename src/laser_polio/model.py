@@ -233,11 +233,11 @@ class SEIR_ABM:
             self.people = LaserFrame(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
 
             # Initialize disease_state, ipv_protected, paralyzed, and potentially_paralyzed here since they're required for most other components
-            self.people.add_scalar_property("disease_state", dtype=np.int32, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
+            self.people.add_scalar_property("disease_state", dtype=np.int8, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
             self.people.disease_state[: self.people.count] = 0  # Set initial population as susceptible
-            self.people.add_scalar_property("potentially_paralyzed", dtype=np.int32, default=-1)
-            self.people.add_scalar_property("paralyzed", dtype=np.int32, default=-1)
-            self.people.add_scalar_property("ipv_protected", dtype=np.int32, default=-1)
+            self.people.add_scalar_property("potentially_paralyzed", dtype=np.int8, default=-1)
+            self.people.add_scalar_property("paralyzed", dtype=np.int8, default=-1)
+            self.people.add_scalar_property("ipv_protected", dtype=np.int8, default=-1)
             self.results = LaserFrame(capacity=1)
 
             # Setup spatial component with node IDs
@@ -532,7 +532,7 @@ def set_recovered_by_dob(num_people, dob, disease_state, threshold_dob):
     return
 
 
-@nb.njit([(nb.int32, nb.int32[:], nb.boolean[:]), (nb.int64, nb.int32[:], nb.boolean[:])], parallel=True, cache=False)
+@nb.njit([(nb.int32, nb.int8[:], nb.boolean[:]), (nb.int64, nb.int32[:], nb.boolean[:])], parallel=True, cache=False)
 def set_filter_mask(num_people, disease_state, filter_mask):
     for i in nb.prange(num_people):
         select = (disease_state[i] >= 0) and (disease_state[i] < 3)
@@ -1128,7 +1128,7 @@ class DiseaseState_ABM:
             plt.show()
 
 
-@nb.njit((nb.int32[:], nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32), nogil=True)
+@nb.njit((nb.int32[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32), nogil=True)
 def count_SEIRP(node_id, disease_state, potentially_paralyzed, paralyzed, n_nodes, n_people):
     """
     Go through each person exactly once and increment counters for their node.
@@ -1859,7 +1859,7 @@ class VitalDynamics_ABM:
 
 
 @nb.njit(
-    (nb.int32, nb.int32, nb.int32[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32[:, :], nb.int32[:]),
+    (nb.int32, nb.int32, nb.int8[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32[:, :], nb.int32[:]),
     parallel=True,
     cache=False,
 )
@@ -1879,8 +1879,8 @@ def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, 
     (
         nb.int64,
         nb.int32[:],
-        nb.int32[:],
-        nb.int32[:],
+        nb.int8[:],
+        nb.int8[:],
         nb.int32[:],
         nb.int64,
         nb.float64[:],
@@ -1889,7 +1889,7 @@ def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, 
         nb.int32[:, :],
         nb.int32[:, :],
         nb.uint8[:],
-        nb.int32[:],
+        nb.int8[:],
     ),
     parallel=True,
     cache=False,
