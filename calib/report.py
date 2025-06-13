@@ -19,7 +19,8 @@ import laser_polio as lp
 
 def run_top_n_on_comps(study, n=10, output_dir: Path = "results"):
     import cloud_calib_config as cfg
-    from idmtools.assets import AssetCollection, Asset
+    from idmtools.assets import Asset
+    from idmtools.assets import AssetCollection
     from idmtools.core.platform_factory import Platform
     from idmtools.entities import CommandLine
     from idmtools.entities.command_task import CommandTask
