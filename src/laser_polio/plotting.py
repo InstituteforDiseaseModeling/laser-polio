@@ -29,10 +29,14 @@ def plot_pars(pars, shp, results_path):
     Path(plot_path).mkdir(parents=True, exist_ok=True)
 
     # Maps: n_ppl, cbr, init_prev, r0_scalars
-    pars_to_map = ["n_ppl", "cbr", "init_prev", "r0_scalars", "vx_prob_sia"]
+    pars_to_map = ["n_ppl", "cbr", "init_prev", "r0_scalars", "vx_prob_sia", "vx_prob_ri", "vx_prob_ipv"]
     for par in pars_to_map:
-        values = pars[par]
-        plot_choropleth_and_hist(shp, par, values, plot_path)
+        if par is not None:
+            try:
+                values = pars[par]
+                plot_choropleth_and_hist(shp, par, values, plot_path)
+            except Exception:
+                print(f"\n❌ Could not plot par: {par}")
 
     # Custom maps: init_immun, sia_schedule, seed_schedule
     if "init_immun" in pars:

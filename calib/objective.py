@@ -43,7 +43,7 @@ def objective(
     for rep in range(n_replicates):
         try:
             # Run sim
-            sim = lp.run_sim(config, verbose=0)
+            sim = lp.run_sim(config, verbose=2)
 
             # Record seed (first rep only)
             if rep == 0:

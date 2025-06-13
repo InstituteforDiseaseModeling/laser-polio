@@ -26,6 +26,7 @@ uv.lock
 *simulation_results.csv
 results/
 *local_storage.yaml
+*laser_polio_deps.txt
 
 # Large files
 *shape0.gpkg

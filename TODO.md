@@ -1,16 +1,13 @@
 # --- PRIORITIES ---
-0) Get calibration running on aks
-1) Running the top 1-10 calibration sims on aks and downloading the results.
-2) Enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
-3) Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
-4) Double check deaths. For some, I thought I saw on of my sims plot that no deaths were happening so we gotta check that.
+2) Check init_pop failing
+3) Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
+4) Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
+5) Double check deaths. For some, I thought I saw on of my sims plot that no deaths were happening so we gotta check that.
+6) Try playing with links between N & S Nigeria in network (maybe a scalar???)
+7) Double check timing of E, I, & P states when normal transmission is occurring - I'm worried we're off by 1 after initialization
 
 CALIBRATION
-- Try calibrating with underwt
-- Try calibrating the r0_scalar parameters in run_sim (24 and 0.2)
 - Take notes in Obsidian
-- Does pod takedown time prevent new pods from spinning up? 
-
 - Run sim for top 1-10 calibrations
 - Plot monthly cases likelihood component against phase
 - Consider age distribution of cases as a calibration target, which would help parameterize R0
@@ -32,7 +29,6 @@ NEW FEATURES
 - Add CBR by country-year
 - Curate the surveillance delays
 - Add surveillance delays to reactive SIAs
-- Add delays to paralysis (and new_exposed) detection times
 - Enabling RI with specific vaccines & dates
 - Fix death rates
 
@@ -40,6 +36,7 @@ NEW FEATURES
 # --- REFINEMENT/STRETCH ---
 
  NEW FEATURES
+- Revisit how we initialize the population. Should we just initialize a laserframe for under 15 year olds? 
 - Add rule for blackouts (e.g., limiting number of campaigns / year) of maybe 1-2 years
 - Count number of Sabin2 or nOPV2 transmissions
 - Count number of exportations for calibration

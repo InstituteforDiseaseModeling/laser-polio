@@ -5,7 +5,7 @@ import laser_polio as lp
 
 
 # Fixture to set up the simulation environment
-def setup_sim(dur=30, n_ppl=None, vx_prob_ri=0.5, cbr=None, r0=14, new_pars=None, seed=123):
+def setup_sim(dur=30, n_ppl=None, vx_prob_ri=0.5, vx_prob_ipv=0.75, cbr=None, r0=14, new_pars=None, seed=123):
     if n_ppl is None:
         n_ppl = np.array([50000, 50000])
     if cbr is None:
@@ -21,6 +21,7 @@ def setup_sim(dur=30, n_ppl=None, vx_prob_ri=0.5, cbr=None, r0=14, new_pars=None
             "dur_exp": lp.constant(value=2),  # Duration of the exposed state
             "dur_inf": lp.constant(value=1),  # Duration of the infectious state
             "vx_prob_ri": vx_prob_ri,  # Routine immunization probability
+            "vx_prob_ipv": vx_prob_ipv,  # IPV probability
             "stop_if_no_cases": False,  # Stop simulation if no cases are present,
             "seed": seed,
         }
@@ -46,10 +47,11 @@ def test_ri_manually_seeded():
     """Ensure that routine immunization occurs when manually seeded."""
     n_vx = 1000
     dur = 28
-    sim = setup_sim(dur=dur, vx_prob_ri=1.0)
+    sim = setup_sim(dur=dur, vx_prob_ri=1.0, vx_prob_ipv=1.0)
     sim.people.ri_timer[:n_vx] = np.random.randint(0, dur, n_vx)  # Set timers to trigger vaccination
     sim.run()
-    assert sim.results.ri_vaccinated.sum() >= n_vx, "The number of vaccinations was lower than the number manually seeded."
+    assert sim.results.ri_vaccinated.sum() >= n_vx, "The number of RI OPV vaccinations was lower than the number manually seeded."
+    assert sim.results.ipv_vaccinated.sum() >= n_vx, "The number of RI IPV vaccinations was lower than the number manually seeded."
 
 
 def test_ri_on_births():
@@ -57,7 +59,8 @@ def test_ri_on_births():
     cbr = np.array([300, 250])
     sim = setup_sim(dur=dur, cbr=cbr, vx_prob_ri=1.0)
     sim.run()
-    assert np.sum(sim.results.ri_vaccinated) > 0, "No routine immunizations occurred on births."
+    assert np.sum(sim.results.ri_vaccinated) > 0, "No routine OPV immunizations occurred on births."
+    assert np.sum(sim.results.ipv_vaccinated) > 0, "No routine OPV immunizations occurred on births."
 
 
 def test_ri_zero():
@@ -66,18 +69,22 @@ def test_ri_zero():
     # Test RI when there are no births (there can still be some RI in existing population)
     cbr = np.array([0, 0])
     vx_prob_ri = 1.0
-    sim_no_births = setup_sim(dur=dur, cbr=cbr, vx_prob_ri=vx_prob_ri)
+    vx_prob_ipv = 1.0
+    sim_no_births = setup_sim(dur=dur, cbr=cbr, vx_prob_ri=vx_prob_ri, vx_prob_ipv=vx_prob_ipv)
     sim_no_births.run()
     assert np.sum(sim_no_births.results.ri_vaccinated[(98 + 14) :]) == 0, (
         "No RI vaccinations should've occurred after initial cohort aged out of RI (oldest 98 days + time_step)."
     )
+    assert np.sum(sim_no_births.results.ipv_vaccinated[(98 + 14) :]) == 0, (
+        "No RI IPV vaccinations should've occurred after initial cohort aged out of RI (oldest 98 days + time_step)."
+    )
 
     # Zero routine immunization probability
     cbr = np.array([300, 250])
-    vx_prob_ri = 0.0
-    sim_zero_ri_prob = setup_sim(dur=dur, cbr=cbr, vx_prob_ri=vx_prob_ri)
+    sim_zero_ri_prob = setup_sim(dur=dur, cbr=cbr, vx_prob_ri=0.0, vx_prob_ipv=0.0)
     sim_zero_ri_prob.run()
-    assert np.sum(sim_zero_ri_prob.results.ri_vaccinated) == 0, "RI vaccinations occurred, but there should've been zero."
+    assert np.sum(sim_zero_ri_prob.results.ri_vaccinated) == 0, "RI OPV vaccinations occurred, but there should've been zero."
+    assert np.sum(sim_zero_ri_prob.results.ipv_vaccinated) == 0, "RI IPV vaccinations occurred, but there should've been zero."
 
 
 def test_ri_vx_prob(n_reps=10):
@@ -86,32 +93,43 @@ def test_ri_vx_prob(n_reps=10):
     total_agents = np.sum(n_ppl)
     dur = 28
     vx_prob_ri = 0.65
+    vx_prob_ipv = 0.85
     vx_counts = []
+    vx_ipv_counts = []
     r_counts = []
-
     for _ in range(n_reps):
-        sim = setup_sim(n_ppl=n_ppl, dur=dur, vx_prob_ri=vx_prob_ri, cbr=np.array([0, 0]))
+        sim = setup_sim(n_ppl=n_ppl, dur=dur, vx_prob_ri=vx_prob_ri, vx_prob_ipv=vx_prob_ipv, cbr=np.array([0, 0]), seed=_)
         sim.people.ri_timer[:total_agents] = np.random.randint(0, dur, total_agents)
         sim.run()
         vx_counts.append(np.sum(sim.results.ri_vaccinated))
+        vx_ipv_counts.append(np.sum(sim.results.ipv_vaccinated))
         r_counts.append(np.sum(sim.results.R[-1]))
 
     vx_counts = np.array(vx_counts)
+    vx_ipv_counts = np.array(vx_ipv_counts)
     r_counts = np.array(r_counts)
 
     # Binomial confidence interval around expected value
     expected_mean = total_agents * vx_prob_ri
     expected_std = np.sqrt(total_agents * vx_prob_ri * (1 - vx_prob_ri))
     mean_vx = vx_counts.mean()
+    mean_vx_ipv = vx_ipv_counts.mean()
+    expected_mean_ipv = total_agents * vx_prob_ipv
+    expected_std_ipv = np.sqrt(total_agents * vx_prob_ipv * (1 - vx_prob_ipv))
 
     # Allow for 2 standard deviations (approx 95% CI)
     margin = 2 * expected_std
     assert abs(mean_vx - expected_mean) < margin, (
         f"Mean vaccinated ({mean_vx:.1f}) outside expected CI around {expected_mean:.1f} ± {margin:.1f}"
     )
+    margin_ipv = 2 * expected_std_ipv
+    assert abs(mean_vx_ipv - expected_mean_ipv) < margin_ipv, (
+        f"Mean vaccinated ({mean_vx_ipv:.1f}) outside expected CI around {expected_mean_ipv:.1f} ± {margin_ipv:.1f}"
+    )
 
     # Recovered should exactly match vaccinated in each replicate (vx efficacy = 100%)
     assert np.all(np.abs(vx_counts - r_counts) <= 1), "Each vaccinated individual should be recovered (within ±1) if efficacy is 100%."
+    # IPV does not affect recovery
 
 
 def test_ri_no_effect_on_non_susceptibles():
@@ -202,13 +220,13 @@ def test_chronically_missed():
 
 
 if __name__ == "__main__":
-    # test_ri_initialization()
-    # test_ri_manually_seeded()
-    # test_ri_on_births()
-    # test_ri_zero()
+    test_ri_initialization()
+    test_ri_manually_seeded()
+    test_ri_on_births()
+    test_ri_zero()
     test_ri_vx_prob()
-    # test_ri_no_effect_on_non_susceptibles()
-    # test_sia_schedule()
+    test_ri_no_effect_on_non_susceptibles()
+    test_sia_schedule()
     test_chronically_missed()
 
     print("All initialization tests passed.")

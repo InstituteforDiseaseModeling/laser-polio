@@ -1,5 +1,6 @@
 import os
 import shutil
+import traceback
 from pathlib import Path
 
 import calib_db
@@ -16,13 +17,9 @@ import laser_polio as lp
 
 # ------------------- USER CONFIGS -------------------
 
-study_name = "calib_nigeria_3y_2018_pim_gravitykabc_zinb_birth_fix_hetero_20250601"
-model_config = "config_nigeria_3y_2018_pim_gravity_zinb.yaml"
-calib_config = "r0_k_ssn_gravitykabc_zinb_hetero.yaml"
-
-# study_name = "calib_kano_jigawa_test_20250530"
-# model_config = "config_kano_jigawa.yaml"
-# calib_config = "r0_k_ssn_gravity_zinb.yaml"
+study_name = "calib_config_kano_jigawa_ipv_20250612"
+model_config = "config_kano_jigawa_ipv.yaml"
+calib_config = "r0_k_ssn.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 2
@@ -67,6 +64,8 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
         study_name, model_config, calib_config, results_path, actual_data_file
     )
 
+    print(f"🔍 Running calibration for study '{study_name}'...")
+
     # Run calibration and postprocess
     run_worker_main(
         study_name=study_name,
@@ -85,13 +84,14 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
     Path(results_path).mkdir(parents=True, exist_ok=True)
     shutil.copy(model_config, results_path / "model_config.yaml")
 
+    print("💾 Saving study results...")
     storage_url = calib_db.get_storage()
     study = optuna.load_study(study_name=study_name, storage=storage_url)
     study.results_path = results_path
     study.storage_url = storage_url
-
     save_study_results(study, results_path)
 
+    print("📊 Plotting study results...")
     if not os.getenv("HEADLESS"):
         plot_optuna(study_name, storage_url, output_dir=results_path)
         plot_targets(study, output_dir=results_path)
@@ -115,4 +115,9 @@ def cli(**kwargs):
 
 
 if __name__ == "__main__":
-    cli()
+    try:
+        cli()
+    except Exception as e:
+        traceback.print_exc()
+        print(f"\n❌ Calibration failed with error: {e}")
+        exit(1)

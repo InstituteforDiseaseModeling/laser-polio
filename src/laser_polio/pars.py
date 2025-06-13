@@ -32,6 +32,7 @@ default_pars = PropertySet(
         "infection_method": "fast",  # Options: "classic" or "fast"
         "dur_exp": lp.normal(mean=3, std=1),  # Duration of the exposed state
         "dur_inf": lp.gamma(shape=4.51, scale=5.32),  # Duration of the infectious state
+        "t_to_paralysis": lp.lognormal(mean=9, sigma=4),  # Time to paralysis
         "p_paralysis": 1 / 2000,  # Probability of paralysis
         # Geography
         "shp": None,  # Shapefile of the region
@@ -49,7 +50,9 @@ default_pars = PropertySet(
         "gravity_c": 2.0,  # Distance exponent
         "max_migr_frac": 1.0,  # Max fraction of population that migrates
         # Interventions
-        "vx_prob_ri": None,  # Should include coverage and efficacy from expected number of RI doses
+        "vx_prob_ri": None,  # Probability of being protected/recovered from RI. Should include coverage and efficacy from expected number of RI doses
+        "vx_prob_ipv": None,  # Probability of receiving an IPV dose
+        "ipv_start_year": 2015,  # Year to start IPV vaccination
         "sia_schedule": None,
         "vx_prob_sia": None,
         "missed_frac": 0.0,  # Fraction of population that's inaccessible to vaccination

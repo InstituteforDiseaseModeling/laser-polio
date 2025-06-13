@@ -45,11 +45,12 @@ class Distribution:
         :param size: Number of samples to generate.
         :return: A NumPy array of sampled values.
         """
-        if self.dist_type == "constant":
+        dist = self.dist_type
+        if dist == "constant":
             return np.full(size, self.pars.get("value", 1))
-        elif self.dist_type == "exponential":
+        elif dist == "exponential":
             return np.random.exponential(self.pars.get("scale", 1.0), size)
-        elif self.dist_type == "gamma":
+        elif dist == "gamma":
             # return np.random.gamma(self.pars.get("shape", 2.0), self.pars.get("scale", 1.0), size)
             out = np.empty(size, np.float64)
             nb_gamma(
@@ -59,9 +60,19 @@ class Distribution:
                 out,
             )
             return out
-        elif self.dist_type == "lognormal":
-            return np.random.lognormal(self.pars.get("mean", 1.0), self.pars.get("sigma", 0.5), size)
-        elif self.dist_type == "normal":
+        elif dist in ["lognormal", "lognormal_int"]:
+            par1 = self.pars.get("mean", 1.0)
+            par2 = self.pars.get("sigma", 0.5)
+            if par1 > 0:
+                mean = np.log(par1**2 / np.sqrt(par2**2 + par1**2))  # Computes the mean of the underlying normal distribution
+                sigma = np.sqrt(np.log(par2**2 / par1**2 + 1))  # Computes sigma for the underlying normal distribution
+                samples = np.random.lognormal(mean=mean, sigma=sigma, size=size)
+            else:
+                samples = np.zeros(size)
+            if self.dist_type == "lognormal_int":
+                samples = np.round(samples)
+            return samples
+        elif dist == "normal":
             # return np.random.normal(self.pars.get("mean", 0.0), self.pars.get("std", 1.0), size)
             out = np.empty(size, np.float64)
             nb_normal(
@@ -71,12 +82,12 @@ class Distribution:
                 out,
             )
             return out
-        elif self.dist_type == "poisson":
+        elif dist == "poisson":
             return np.random.poisson(self.pars.get("lam", 5), size)
-        elif self.dist_type == "uniform":
+        elif dist == "uniform":
             return np.random.randint(self.pars.get("min", 2), self.pars.get("max", 10), size)
         else:
-            raise ValueError(f"Unsupported distribution type: {self.dist_type}")
+            raise ValueError(f"Unsupported distribution type: {dist}")
 
     def __call__(self, size=1):
         """
@@ -106,6 +117,10 @@ def gamma(shape, scale):
 
 def lognormal(mean, sigma):
     return Distribution("lognormal", mean=mean, sigma=sigma)
+
+
+def lognormal_int(mean, sigma):
+    return Distribution("lognormal_int", mean=mean, sigma=sigma)
 
 
 def normal(mean, std):
