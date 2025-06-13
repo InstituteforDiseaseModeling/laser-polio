@@ -79,9 +79,6 @@ def run_best_on_comps(study, output_dir: Path = "results"):
     overrides["save_plots"] = True
     # You can override other control params, e.g., overrides["dur"] = 1460
 
-    with open("comps/overrides/overrides.json", "w") as fp:
-        json.dump(overrides, fp, indent=4)
-
     Platform("Idm", endpoint="https://comps.idmod.org", environment="CALCULON", type="COMPS", num_cores=4)
     command = CommandLine(
         f"singularity exec --no-mount /app Assets/laser-polio_latest.sif python3 -m laser_polio.run_sim --model-config /app/calib/model_configs/{cfg.model_config} --params-file Assets/overrides.json"
@@ -92,6 +89,7 @@ def run_best_on_comps(study, output_dir: Path = "results"):
     task.common_assets.add_assets(AssetCollection.from_id_file("comps/laser.id"))
     # Add overrides/overrides.json from best params
     task.common_assets.add_directory("comps/overrides")
+    task.transient_assets.add_asset(Asset(filename="overrides.json", content=json.dumps(overrides)))
 
     experiment = Experiment.from_task(task, name="laser-polio best from calib", tags={"type": "singularity", "description": "laser"})
     experiment.run(wait_until_done=True)
