@@ -33,8 +33,7 @@ def main():
 
         results_path = Path("results") / cfg.study_name
         results_path.mkdir(parents=True, exist_ok=True)
-        run_best_on_comps(study,results_path)
-        run_top_n_on_comps(study, output_dir=results_path)
+        run_top_n_on_comps(study, n=1, output_dir=results_path)
 
         print("💾 Saving results...")
         save_study_results(study, output_dir=results_path)

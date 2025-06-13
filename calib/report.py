@@ -19,8 +19,7 @@ import laser_polio as lp
 
 def run_top_n_on_comps(study, n=10, output_dir: Path = "results"):
     import cloud_calib_config as cfg
-    from idmtools.assets import Asset
-    from idmtools.assets import AssetCollection
+    from idmtools.assets import AssetCollection, Asset
     from idmtools.core.platform_factory import Platform
     from idmtools.entities import CommandLine
     from idmtools.entities.command_task import CommandTask
@@ -59,39 +58,6 @@ def run_top_n_on_comps(study, n=10, output_dir: Path = "results"):
         add_schedule_config(
             simulation, command=command, NumNodes=1, NumCores=12, NodeGroupName="idm_abcd", Environment={"NUMBA_NUM_THREADS": str(12)}
         )
-    experiment.run(wait_until_done=True)
-    exp_id_filepath = output_dir / "comps_exp.id"
-    experiment.to_id_file(exp_id_filepath)
-
-
-def run_best_on_comps(study, output_dir: Path = "results"):
-    import cloud_calib_config as cfg
-    from idmtools.assets import AssetCollection
-    from idmtools.core.platform_factory import Platform
-    from idmtools.entities import CommandLine
-    from idmtools.entities.command_task import CommandTask
-    from idmtools.entities.experiment import Experiment
-
-    best = study.best_trial
-
-    # Create overrides/overrides.json from best params
-    overrides = best.params
-    overrides["save_plots"] = True
-    # You can override other control params, e.g., overrides["dur"] = 1460
-
-    Platform("Idm", endpoint="https://comps.idmod.org", environment="CALCULON", type="COMPS", num_cores=4)
-    command = CommandLine(
-        f"singularity exec --no-mount /app Assets/laser-polio_latest.sif python3 -m laser_polio.run_sim --model-config /app/calib/model_configs/{cfg.model_config} --params-file Assets/overrides.json"
-    )
-
-    task = CommandTask(command=command)
-    # Add our SIF
-    task.common_assets.add_assets(AssetCollection.from_id_file("comps/laser.id"))
-    # Add overrides/overrides.json from best params
-    task.common_assets.add_directory("comps/overrides")
-    task.transient_assets.add_asset(Asset(filename="overrides.json", content=json.dumps(overrides)))
-
-    experiment = Experiment.from_task(task, name="laser-polio best from calib", tags={"type": "singularity", "description": "laser"})
     experiment.run(wait_until_done=True)
     exp_id_filepath = output_dir / "comps_exp.id"
     experiment.to_id_file(exp_id_filepath)
