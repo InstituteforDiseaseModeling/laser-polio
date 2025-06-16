@@ -27,7 +27,10 @@ DEFAULT_NAMESPACE = "default"
 
 
 def run_kubectl(verbose: bool, kubectl_path: str, *args):
-    """Run a shell command and return the output."""
+    """Run the kubectl command and return the output."""
+    if kubectl_path is None:
+        print("Error: Kubectl path is not set. Please ensure kubectl is installed and available in the PATH.")
+        sys.exit(1)
     try:
         command = [kubectl_path, *args]
         print(f"Running command: {' '.join(command)}")
@@ -175,13 +178,17 @@ def find_and_verify_cmd(verbose: bool, cmd: str):
             print(f"{cmd} is located at: {full_path_to_bin}")
         return full_path_to_bin
     else:
-        print(f"Error: {cmd} was not found in the system PATH.")
+        print(f"Error: {cmd} was not found in PATH.")
         return None
 
 
 def find_and_verify_kubectl(verbose: bool):
+    """Find and verify the kubectl command."""
     kubectl_path = find_and_verify_cmd(verbose, "kubectl")
-    print("Verifying we can run kubectl...")
+    if not kubectl_path:
+        return None
+
+    print("Verifying kubectl can be run...")
     try:
         output = run_kubectl(verbose, kubectl_path, "version", "--client")
         print("Kubectl is installed and functional.")
@@ -213,7 +220,6 @@ def main():
 
     kubectl_path = find_and_verify_kubectl(args.verbose)
     if not kubectl_path:
-        print("Kubectl is not installed or not functional. Exiting.")
         sys.exit(1)
 
     # Load Kubernetes configuration
@@ -232,13 +238,13 @@ def main():
         wait_for_pod_running(args.verbose, pod_name, args.namespace)
         if args.action == UPLOAD_ACTION:
             upload_dir(args.verbose, kubectl_path, args.config, pod_name, args.namespace, args.local_dir, args.remote_dir)
-            print("Data upload complete and pod deleted.")
+            print("Data upload complete. Deleting pod...")
         elif args.action == DOWNLOAD_ACTION:
             download_dir(args.verbose, kubectl_path, args.config, pod_name, args.namespace, args.remote_dir, args.local_dir)
-            print("Data download complete and pod deleted.")
+            print("Data download complete. Deleting pod...")
         elif args.action == SHELL_ACTION:
             open_shell(args.verbose, kubectl_path, args.config, pod_name, args.namespace)
-            print("Shell session complete and pod deleted.")
+            print("Shell session complete. Deleting pod...")
     except Exception as e:
         print(f"An error occurred: {e}")
     finally:
