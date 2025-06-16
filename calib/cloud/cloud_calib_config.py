@@ -30,10 +30,20 @@ import yaml
 # model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv.yaml"
 # calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars.yaml"
 
-job_name = "laser-polio-worker-sk6"
-study_name = "calib_nigeria_7y_2017_underwt_gravity_zinb_ipv_20250613"
-model_config = "config_nigeria_7y_2017_underwt_gravity_zinb_ipv.yaml"
-calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars.yaml"
+# job_name = "laser-polio-worker-sk6"
+# study_name = "calib_nigeria_7y_2017_underwt_gravity_zinb_ipv_20250613"
+# model_config = "config_nigeria_7y_2017_underwt_gravity_zinb_ipv.yaml"
+# calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars.yaml"
+
+job_name = "laser-polio-worker-sk7"
+study_name = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_immunscalars_20250616"
+model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv.yaml"
+calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
+
+# job_name = "laser-polio-worker-sk8"
+# study_name = "calib_nigeria_7y_2017_underwt_gravity_zinb_ipv_immunscalars_20250616"
+# model_config = "config_nigeria_7y_2017_underwt_gravity_zinb_ipv.yaml"
+# calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 1  # Number of trials to run per pod

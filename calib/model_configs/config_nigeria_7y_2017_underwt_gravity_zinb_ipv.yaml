@@ -1,12 +1,12 @@
 regions: ["NIGERIA"]
 start_year: 2017
-n_days: 2190
+n_days: 2555
 pop_scale: 1
 vx_prob_ri: 0.0
 init_region: "BIRINIWA"
 init_prev: 0
 seed_schedule:
-  - date: "2017-11-06"
+  - date: "2018-02-06"
     dot_name: "AFRO:NIGERIA:JIGAWA:BIRINIWA"
     prevalence: 200
   - date: "2020-11-24"

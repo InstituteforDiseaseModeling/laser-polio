@@ -88,6 +88,15 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     # Apply scalar multiplier to immunity values, clipping to [0.0, 1.0]
     immunity_cols = [col for col in init_immun.columns if col.startswith("immunity_")]
     init_immun[immunity_cols] = init_immun[immunity_cols].clip(lower=0.0, upper=1.0) * init_immun_scalar
+    # Apply geographic scalars if specified in configs
+    if "immun_scalar_kano" in configs:
+        kano_scalar = configs.pop("immun_scalar_kano")
+        kano_mask = init_immun.index.str.contains("NIGERIA:KANO")
+        init_immun.loc[kano_mask, immunity_cols] *= kano_scalar
+    if "immun_scalar_kebbi" in configs:
+        kebbi_scalar = configs.pop("immun_scalar_kebbi")
+        kebbi_mask = init_immun.index.str.contains("NIGERIA:KEBBI")
+        init_immun.loc[kebbi_mask, immunity_cols] *= kebbi_scalar
     init_immun[immunity_cols] = init_immun[immunity_cols].clip(upper=1.0, lower=0.0)
 
     # Initial infection seeding
