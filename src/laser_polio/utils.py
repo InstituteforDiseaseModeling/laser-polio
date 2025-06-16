@@ -520,7 +520,23 @@ def save_results_to_csv(sim, filename="simulation_results.csv"):
         writer = csv.writer(file)
 
         # Write header
-        writer.writerow(["timestep", "date", "node", "dot_name", "S", "E", "I", "R", "P", "new_exposed"])
+        writer.writerow(
+            [
+                "timestep",
+                "date",
+                "node",
+                "dot_name",
+                "S",
+                "E",
+                "I",
+                "R",
+                "P",
+                "new_exposed",
+                "potentially_paralyzed",
+                "new_potentially_paralyzed",
+                "new_paralyzed",
+            ]
+        )
 
         # Write data
         for t in range(timesteps):
@@ -538,6 +554,9 @@ def save_results_to_csv(sim, filename="simulation_results.csv"):
                         results.R[t, n],
                         results.paralyzed[t, n],
                         results.new_exposed[t, n],
+                        results.potentially_paralyzed[t, n],
+                        results.new_potentially_paralyzed[t, n],
+                        results.new_paralyzed[t, n],
                     ]
                 )
 
@@ -773,7 +792,7 @@ def pbincount(bins, num_bins, weights=None, dtype=None):
 #     tls (np.ndarray): Thread-local storage array for counting.
 # Returns:
 #     None: The results are stored in the tls array.
-@nb.njit(parallel=True, cache=True)
+@nb.njit(parallel=True, cache=False)
 def nb_bincount(bins, num_indices, tls):
     for i in nb.prange(num_indices):
         tls[nb.get_thread_id(), bins[i]] += 1
@@ -788,7 +807,7 @@ def nb_bincount(bins, num_indices, tls):
 #     tls (np.ndarray): Thread-local storage array for counting.
 # Returns:
 #     None: The results are stored in the tls array.
-@nb.njit(parallel=True, cache=True)
+@nb.njit(parallel=True, cache=False)
 def nb_bincount_weighted(bins, num_indices, weights, tls):
     for i in nb.prange(num_indices):
         tls[nb.get_thread_id(), bins[i]] += weights[i]

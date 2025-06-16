@@ -1,4 +1,5 @@
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 
 from laser_polio.utils import clean_strings
@@ -11,7 +12,7 @@ nOPV2 trials in Gambia & Bangladesh. See the nOPV2_does_efficacy_notes_20250107.
 """
 
 # Load the data
-ri = pd.read_csv("data/curation_scripts/ri/scenario_ri_2025-04-07.csv")
+ri = pd.read_csv("data_curation_scripts/ri/scenario_ri_2025-04-07.csv")
 
 
 # Clean the specified columns
@@ -110,9 +111,26 @@ assert ri["immunity_ri_nOPV2"].isna().sum() == 0, (
 )
 
 # Select the relevant columns
-ri = ri[["adm0_name", "adm1_name", "adm2_name", "dot_name", "year", "immunity_ri_nOPV2"]]
+ri = ri[["adm0_name", "adm1_name", "adm2_name", "dot_name", "year", "immunity_ri_nOPV2", "dpt3"]]
 print(ri.head())
-ri.to_csv("data/curation_scripts/ri/ri_curated.csv", index=False)
+ri.to_csv("data_curation_scripts/ri/ri_curated.csv", index=False)
+
+# Check for missing values in any columns
+n_na = ri.isna().sum()
+print(n_na)
+# Print a warning if there are any missing values
+if np.any(n_na > 0):
+    print("There are missing values in the ri DataFrame. Please check the data.")
+
+# # Filter to the rows that have a dpt value < immunity_ri_nOPV2
+# dpt3_low = ri[ri["dpt3"] < ri["immunity_ri_nOPV2"]]
+# dpt2_low = ri[ri["dpt2"] < ri["immunity_ri_nOPV2"]]
+# dpt1_low = ri[ri["dpt1"] < ri["immunity_ri_nOPV2"]]
+
+# print(dpt3_low.head())
+# print(dpt2_low.head())
+# print(dpt1_low.head())
+
 
 # # Convert the DataFrame to a dictionary
 # ri_dict = ri.set_index('dot_name')['immunity_ri_nOPV2'].to_dict()

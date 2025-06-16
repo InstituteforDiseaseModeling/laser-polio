@@ -12,6 +12,7 @@ from report import plot_optuna
 from report import plot_runtimes
 from report import plot_targets
 from report import plot_top_trials
+from report import run_top_n_on_comps
 from report import save_study_results
 
 
@@ -32,6 +33,7 @@ def main():
 
         results_path = Path("results") / cfg.study_name
         results_path.mkdir(parents=True, exist_ok=True)
+        run_top_n_on_comps(study, n=1, output_dir=results_path)
 
         print("💾 Saving results...")
         save_study_results(study, output_dir=results_path)

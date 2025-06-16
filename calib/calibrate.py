@@ -17,9 +17,14 @@ import laser_polio as lp
 
 # ------------------- USER CONFIGS -------------------
 
-study_name = "calib_nigeria_3y_2018_pim_gravitykabc_zinb_birth_fix_hetero_20250601"
-model_config = "config_nigeria_3y_2018_pim_gravity_zinb.yaml"
-calib_config = "r0_k_ssn_gravitykabc_zinb_hetero.yaml"
+# study_name = "calib_config_kano_jigawa_ipv_20250612"
+# model_config = "config_kano_jigawa_ipv.yaml"
+# calib_config = "r0_k_ssn.yaml"
+# job_name = "laser-polio-worker-sk"
+
+study_name = "calib_nigeria_3y_2018_pim_gravity_zinb_ipv_20250613"
+model_config = "config_nigeria_3y_2018_pim_gravity_zinb_ipv.yaml"
+calib_config = "r0_k_ssn_gravitykabc_zinb.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 2
@@ -66,6 +71,7 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
 
     print(f"🔍 Running calibration for study '{study_name}'...")
 
+    Path(results_path).mkdir(parents=True, exist_ok=True)
     # Run calibration and postprocess
     run_worker_main(
         study_name=study_name,
@@ -81,7 +87,6 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
     if dry_run:
         return
 
-    Path(results_path).mkdir(parents=True, exist_ok=True)
     shutil.copy(model_config, results_path / "model_config.yaml")
 
     print("💾 Saving study results...")

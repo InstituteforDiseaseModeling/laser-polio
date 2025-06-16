@@ -58,7 +58,6 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     init_region = configs.pop("init_region", "ANKA")
     init_prev = configs.pop("init_prev", 0.01)
     results_path = configs.pop("results_path", "results/demo")
-    actual_data = configs.pop("actual_data", "data/epi_africa_20250421.h5")
     save_plots = configs.pop("save_plots", False)
     save_data = configs.pop("save_data", False)
     plot_pars = configs.pop("plot_pars", plot_pars)
@@ -74,9 +73,9 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     # Geography
     dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", verbose=verbose)
-    node_lookup = lp.get_node_lookup("data/node_lookup.json", dot_names)
+    node_lookup = lp.get_node_lookup(lp.root / "data/node_lookup.json", dot_names)
     # dist_matrix = lp.get_distance_matrix(lp.root / "data/distance_matrix_africa_adm2.h5", dot_names)
-    shp = gpd.read_file(filename="data/shp_africa_low_res.gpkg", layer="adm2")
+    shp = gpd.read_file(filename=lp.root / "data/shp_africa_low_res.gpkg", layer="adm2")
     shp = shp[shp["dot_name"].isin(dot_names)]
     # Sort the GeoDataFrame by the order of dot_names
     shp.set_index("dot_name", inplace=True)
@@ -132,6 +131,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     pop = df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values * pop_scale
     cbr = df_comp.set_index("dot_name").loc[dot_names, "cbr"].values
     ri = df_comp.set_index("dot_name").loc[dot_names, "ri_eff"].values
+    ri_ipv = df_comp.set_index("dot_name").loc[dot_names, "dpt3"].values
     # SIA probabilities
     sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values
     sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=0.5, scale=1.0)
@@ -156,18 +156,14 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         r0_scalars = r0_scalars_wt
 
     # Validate all arrays match
-    assert all(len(arr) == len(dot_names) for arr in [shp, init_immun, node_lookup, init_prevs, pop, cbr, ri, sia_prob, r0_scalars])
+    assert all(len(arr) == len(dot_names) for arr in [shp, init_immun, node_lookup, init_prevs, pop, cbr, ri, ri_ipv, sia_prob, r0_scalars])
 
     # Setup results path
     if results_path is None:
         results_path = Path("results/default")  # Provide a default path
 
-    # Load the actual case data
-    epi = lp.get_epi_data(actual_data, dot_names, node_lookup, start_year, n_days)
-    epi.rename(columns={"cases": "P"}, inplace=True)
     Path(results_path).mkdir(parents=True, exist_ok=True)
     results_path = Path(results_path)
-    epi.to_csv(results_path / "actual_data.csv", index=False)
 
     # Base parameters (can be overridden)
     base_pars = {
@@ -183,6 +179,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         "shp": shp,
         "node_lookup": node_lookup,
         "vx_prob_ri": ri,
+        "vx_prob_ipv": ri_ipv,
         "sia_schedule": sia_schedule,
         "vx_prob_sia": sia_prob,
         "verbose": verbose,
@@ -191,16 +188,13 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     # Dynamic values passed by user/CLI/Optuna
     pars = PropertySet({**base_pars, **configs})
-
     # Plot pars
     if plot_pars:
         lp.plot_pars(pars, shp, results_path)
-    if verbose >= 3:
-        sc.pp(pars.to_dict())
 
     def from_file(init_pop_file):
         # logger.info(f"Initializing SEIR_ABM from file: {init_pop_file}")
-        people, results_R, pars_loaded = LaserFrame.load_snapshot(init_pop_file, capacity_frac=2.0)
+        people, results_R, pars_loaded = LaserFrame.load_snapshot(init_pop_file)
 
         sim = lp.SEIR_ABM.init_from_file(people, pars)
         if pars_loaded and "r0" in pars_loaded:
@@ -235,6 +229,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 
     # Safety checks
     if verbose >= 3:
+        sc.pp(pars.to_dict())  # Print pars
         print(f"sim.people.count: {sim.people.count}")
         print(f"disease state counts: {np.bincount(sim.people.disease_state[: sim.people.count])}")
         print(f"infected: {np.where(sim.people.disease_state[: sim.people.count] == 2)}")
@@ -247,7 +242,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
             sim.plot(save=True, results_path=results_path)
         if save_data:
             Path(results_path).mkdir(parents=True, exist_ok=True)
-            lp.save_results_to_csv(sim, filename=results_path / "simulation_results.csv")
+            lp.save_results_to_csv(sim, filename=Path(results_path) / "simulation_results.csv")
 
     return sim
 
@@ -269,7 +264,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
 @click.option(
     "--results-path",
     type=str,
-    default="simulation_results.csv",
+    default="output",
     show_default=True,
     help="Path to write simulation results (CSV format)",
 )

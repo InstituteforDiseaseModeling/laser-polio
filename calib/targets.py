@@ -24,7 +24,7 @@ def calc_calib_targets_paralysis(filename, model_config_path=None, is_actual_dat
         case_col = "P"
         scale_factor = 1.0
     else:
-        case_col = "new_exposed"
+        case_col = "new_potentially_paralyzed"
         scale_factor = 1 / 2000.0
         # The actual data is in months & the sim has a tendency to rap into the next year (e.g., 2020-01-01) so we need to exclude and dates beyond the last month of the actual data
         max_date = lp.find_latest_end_of_month(df["date"])
@@ -59,7 +59,7 @@ def calc_calib_targets_paralysis(filename, model_config_path=None, is_actual_dat
     return targets
 
 
-def get_smoothed_node_case_presence(sim_df, case_column="new_exposed", cir=1 / 2000, n_draws=100, seed=42):
+def get_smoothed_node_case_presence(sim_df, case_column="new_potentially_paralyzed", cir=1 / 2000, n_draws=100, seed=42):
     np.random.seed(seed)
     sim_df = sim_df.copy()
     sim_df["date"] = pd.to_datetime(sim_df["date"])
@@ -106,7 +106,7 @@ def calc_targets_temporal_regional_nodes(filename, model_config_path=None, is_ac
         case_col = "P"
         scale_factor = 1.0
     else:
-        case_col = "new_exposed"
+        case_col = "new_potentially_paralyzed"
         scale_factor = 1 / 2000.0
         # The actual data is in months & the sim has a tendency to rap into the next year (e.g., 2020-01-01) so we need to exclude and dates beyond the last month of the actual data
         max_date = lp.find_latest_end_of_month(df["date"])

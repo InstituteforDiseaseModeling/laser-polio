@@ -156,6 +156,7 @@ df = df[
         "cbr",
         "pop_total",
         "immunity_ri_nOPV2",
+        "dpt3",
         "reff_random_effect",
         "sia_random_effect",
         "prop_underwt",
@@ -186,6 +187,7 @@ print(f"Length of df: {len(df)}")
 df.loc[:, "immunity_ri_nOPV2"] = df.groupby(["adm0_name", "adm1_name", "adm2_name"])["immunity_ri_nOPV2"].transform(
     lambda x: x.fillna(x.mean())
 )
+df.loc[:, "dpt3"] = df.groupby(["adm0_name", "adm1_name", "adm2_name"])["dpt3"].transform(lambda x: x.fillna(x.mean()))
 df.loc[:, "prop_underwt"] = df.groupby(["adm0_name", "adm1_name"])["prop_underwt"].transform(
     lambda x: x.fillna(x.mean())
 )  # Fill in with province means
