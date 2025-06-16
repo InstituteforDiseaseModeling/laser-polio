@@ -139,7 +139,7 @@ def delete_pod(verbose: bool, pod_name: str, namespace: str):
         sys.exit(1)
 
 
-def validate_paths(action: str, local: str, remote: str, shared: str):
+def validate_paths(action: str, local: str, remote: str, shared: str) -> str:
     if action in [DOWNLOAD_ACTION, UPLOAD_ACTION]:
         if not local or not remote:
             print(f"Both --local-dir and --remote-dir arguments are required for {action}.")
@@ -164,6 +164,8 @@ def validate_paths(action: str, local: str, remote: str, shared: str):
             print(f"Remote directory '{remote}' must start with '{shared}'.")
             sys.exit(1)
 
+    return local
+
 
 def find_and_verify_cmd(verbose: bool, cmd: str):
     """Verify that kubectl is installed and functional."""
@@ -173,7 +175,7 @@ def find_and_verify_cmd(verbose: bool, cmd: str):
             print(f"{cmd} is located at: {full_path_to_bin}")
         return full_path_to_bin
     else:
-        print("Error: {cmd} was not found in the system PATH.")
+        print(f"Error: {cmd} was not found in the system PATH.")
         return None
 
 
@@ -223,7 +225,7 @@ def main():
     print()
     unique_id = str(uuid.uuid4())[:8]  # Generate a short unique identifier
     pod_name = f"kubeutil-pod-{unique_id}"
-    validate_paths(args.action, args.local_dir, args.remote_dir, args.shared)
+    args.local_dir = validate_paths(args.action, args.local_dir, args.remote_dir, args.shared)
     create_pod(args.verbose, pod_name, args.namespace, args.shared)
 
     try:
