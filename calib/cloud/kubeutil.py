@@ -1,5 +1,6 @@
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -10,69 +11,91 @@ from kubernetes import client
 from kubernetes import config
 from kubernetes.client.rest import ApiException
 
+# Constants for actions
+DOWNLOAD_ACTION = "download"
+UPLOAD_ACTION = "upload"
+SHELL_ACTION = "shell"
 
-def run_command(command):
+# Constants for Kubernetes configuration
+IMAGE_WITH_TAR_INSTALLED = "registry4idm.azurecr.io/nfstest:1.1"
+REGISTRY_AUTH_NAME = "registry4idm"
+PERSISTENT_VOLUME_CLAIM_NAME = "laser-stg-pvc"
+
+# Command line defaults
+DEFAULT_SHARED_DIR = "/shared"
+DEFAULT_NAMESPACE = "default"
+
+
+def run_kubectl(verbose: bool, kubectl_path: str, *args):
     """Run a shell command and return the output."""
     try:
-        result = subprocess.run(command, shell=True, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # noqa: UP022 S602
+        command = [kubectl_path, *args]
+        print(f"Running command: {' '.join(command)}")
+        result = subprocess.run(command, check=True, text=True, capture_output=True)
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         print(f"Error running command: {e.stderr.strip()}")
         sys.exit(1)
 
 
-def download_data(config_file, pod_name, namespace, remote_path, local_path):
+def download_dir(
+    verbose: bool,
+    kubectl_path: str,
+    config_file: str,
+    pod_name: str,
+    namespace: str,
+    remote_path: str,
+    local_path: str,
+):
     """Download data from the pod to the local directory."""
     print(f"Downloading data from pod '{pod_name}:{remote_path}' to local directory '{local_path}'...")
     if config_file:
-        command = f"kubectl --kubeconfig='{config_file}' cp {namespace}/{pod_name}:{remote_path} {local_path}"
+        run_kubectl(verbose, kubectl_path, f"--kubeconfig={config_file}", "cp", f"{namespace}/{pod_name}:{remote_path}", local_path)
     else:
-        command = f"kubectl cp {namespace}/{pod_name}:{remote_path} {local_path}"
-    print(f"Running command: {command}")
-    run_command(command)
+        run_kubectl(verbose, kubectl_path, "cp", f"{namespace}/{pod_name}:{remote_path}", local_path)
 
 
-def upload_data(config_file, pod_name, namespace, local_path, remote_path):
+def upload_dir(verbose: bool, kubectl_path: str, config_file: str, pod_name: str, namespace: str, local_path: str, remote_path: str):
     """Upload data from the local directory to the pod."""
     print(f"Uploading data from local directory '{local_path}' to pod '{pod_name}:{remote_path}'...")
     if config_file:
-        command = f"kubectl --kubeconfig='{config_file}' cp {local_path} {namespace}/{pod_name}:{remote_path}"
+        run_kubectl(verbose, kubectl_path, f"--kubeconfig={config_file}", "cp", local_path, f"{namespace}/{pod_name}:{remote_path}")
     else:
-        command = f"kubectl cp {local_path} {namespace}/{pod_name}:{remote_path}"
-    print(f"Running command: {command}")
-    run_command(command)
+        run_kubectl(verbose, kubectl_path, "cp", local_path, f"{namespace}/{pod_name}:{remote_path}")
 
 
-def open_shell(config_file, pod_name, namespace):
+def open_shell(verbose: bool, kubectl_path: str, config_file: str, pod_name: str, namespace: str):
     """Open a shell session in the pod."""
     print(f"Opening shell session in pod '{pod_name}'...")
     if config_file:
-        command = f"kubectl --kubeconfig='{config_file}' exec -it {pod_name} -n {namespace} -- /bin/bash"
+        command = [kubectl_path, f"--kubeconfig={config_file}", "exec", "-it", pod_name, "-n", namespace, "--", "/bin/bash"]
     else:
-        command = f"kubectl exec -it {pod_name} -n {namespace} -- /bin/bash"
-    os.system(command)  # Use os.system to allow interactive shell
+        command = [kubectl_path, "exec", "-it", pod_name, "-n", namespace, "--", "/bin/bash"]
+    subprocess.run(command)  # Use allow interactive shell
 
 
-def create_pod(pod_name, namespace, data_dir):
+def create_pod(verbose: bool, pod_name: str, namespace: str, data_dir: str):
     """Create a pod that sleeps forever using the Kubernetes Python client."""
-    print(f"Creating pod '{pod_name}'...")
+    if verbose:
+        print(f"Creating pod '{pod_name}'...")
 
     pod = client.V1Pod(
         metadata=client.V1ObjectMeta(name=pod_name, namespace=namespace),
         spec=client.V1PodSpec(
             containers=[
                 client.V1Container(
-                    name="aks2local-container",
-                    image="registry4idm.azurecr.io/nfstest:1.1",
+                    name="kubeutil-container",
+                    image=IMAGE_WITH_TAR_INSTALLED,
                     command=["sleep", "infinity"],
                     volume_mounts=[client.V1VolumeMount(name="shared-data", mount_path=data_dir)],
                 )
             ],
             restart_policy="Never",
-            image_pull_secrets=[client.V1LocalObjectReference(name="registry4idm")],
+            image_pull_secrets=[client.V1LocalObjectReference(name=REGISTRY_AUTH_NAME)],
             volumes=[
                 client.V1Volume(
-                    name="shared-data", persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name="laser-stg-pvc")
+                    name="shared-data",
+                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name=PERSISTENT_VOLUME_CLAIM_NAME),
                 )
             ],
         ),
@@ -84,7 +107,7 @@ def create_pod(pod_name, namespace, data_dir):
     print(f"Pod '{pod_name}' created successfully.")
 
 
-def wait_for_pod_running(pod_name, namespace):
+def wait_for_pod_running(verbose: bool, pod_name: str, namespace: str):
     """Wait until the pod is in the Running state using the Kubernetes Python client."""
     print(f"Waiting for pod '{pod_name}' to be in Running state...")
     api_instance = client.CoreV1Api()
@@ -102,9 +125,10 @@ def wait_for_pod_running(pod_name, namespace):
         time.sleep(2)
 
 
-def delete_pod(pod_name, namespace):
+def delete_pod(verbose: bool, pod_name: str, namespace: str):
     """Delete the pod using the Kubernetes Python client."""
-    print(f"Deleting pod '{pod_name}'...")
+    if verbose:
+        print(f"Deleting pod '{pod_name}'...")
     api_instance = client.CoreV1Api()
 
     try:
@@ -115,93 +139,108 @@ def delete_pod(pod_name, namespace):
         sys.exit(1)
 
 
-def validate_paths(action, local_dir, remote_dir, shared_data_dir):
-    if action in ["download", "upload"]:
-        if not local_dir or not remote_dir:
+def validate_paths(action: str, local: str, remote: str, shared: str):
+    if action in [DOWNLOAD_ACTION, UPLOAD_ACTION]:
+        if not local or not remote:
             print(f"Both --local-dir and --remote-dir arguments are required for {action}.")
             sys.exit(1)
 
-        if not Path(local_dir).is_absolute():
-            local_dir = str(Path(local_dir).resolve())
+        if not Path(local).is_absolute():
+            local = str(Path(local).resolve())
 
-        if action == "download":
-            if not os.path.exists(local_dir):
-                os.makedirs(local_dir)
-        elif action == "upload":
-            if not os.path.exists(local_dir):
-                print(f"Local directory '{local_dir}' does not exist for upload.")
+        if action == DOWNLOAD_ACTION:
+            if not os.path.exists(local):
+                os.makedirs(local)
+        elif action == UPLOAD_ACTION:
+            if not os.path.exists(local):
+                print(f"Local directory '{local}' does not exist for {UPLOAD_ACTION}.")
                 sys.exit(1)
 
-        if not Path(remote_dir).is_absolute():
-            print(f"Remote directory '{remote_dir}' must be an absolute path.")
+        if not Path(remote).is_absolute():
+            print(f"Remote directory '{remote}' must be an absolute path.")
             sys.exit(1)
 
-        if not remote_dir.startswith(shared_data_dir):
-            print(f"Remote directory '{remote_dir}' must start with '{shared_data_dir}'.")
+        if not remote.startswith(shared):
+            print(f"Remote directory '{remote}' must start with '{shared}'.")
             sys.exit(1)
 
 
-def verify_kubectl(verbose=False):
+def find_and_verify_cmd(verbose: bool, cmd: str):
     """Verify that kubectl is installed and functional."""
-    print("Verifying kubectl installation...")
+    full_path_to_bin = shutil.which(cmd)
+    if full_path_to_bin:
+        if verbose:
+            print(f"{cmd} is located at: {full_path_to_bin}")
+        return full_path_to_bin
+    else:
+        print("Error: {cmd} was not found in the system PATH.")
+        return None
+
+
+def find_and_verify_kubectl(verbose: bool):
+    kubectl_path = find_and_verify_cmd(verbose, "kubectl")
+    print("Verifying we can run kubectl...")
     try:
-        result = subprocess.run(["kubectl", "version", "--client"], check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # noqa: UP022
+        output = run_kubectl(verbose, kubectl_path, "version", "--client")
         print("Kubectl is installed and functional.")
         if verbose:
-            print(f"Kubectl version details:\n{result.stdout.strip()}")
+            print(f"Kubectl version details:\n{output}")
+        return kubectl_path
     except subprocess.CalledProcessError as e:
-        print(f"Error: Kubectl is not installed or not functional. Details: {e.stderr.strip()}")
-        sys.exit(1)
+        print(f"Error: Executing Kubectl. Details: {e.stderr.strip()}")
+        return None
 
 
 def main():
     parser = argparse.ArgumentParser(description="Utility for Kubernetes.")
     parser.add_argument(
-        "--action", required=True, help="Action to perform: download, upload, or shell.", choices=["download", "upload", "shell"]
+        "--action",
+        required=True,
+        help=f"Action to perform: {DOWNLOAD_ACTION}, {UPLOAD_ACTION}, or {SHELL_ACTION}.",
+        choices=[DOWNLOAD_ACTION, UPLOAD_ACTION, SHELL_ACTION],
     )
     parser.add_argument("--local-dir", help="Path to the local directory for data transfer.")
     parser.add_argument("--remote-dir", help="Path to the remote directory in the pod.")
-    parser.add_argument("--namespace", default="default", help="Kubernetes namespace (default: 'default').")
-    parser.add_argument("--kube-config", help="Path to the kube config file (optional).")
-    parser.add_argument("--shared-data-dir", default="/shared", help="Path to the shared data directory in the pod (default: '/shared').")
+    parser.add_argument("--namespace", default=DEFAULT_NAMESPACE, help=f"Kubernetes namespace (default: '{DEFAULT_NAMESPACE}').")
+    parser.add_argument("--config", help="Path to the kube config file (optional).")
+    parser.add_argument(
+        "--shared", default=DEFAULT_SHARED_DIR, help=f"Path to the shared data directory in the pod (default: '{DEFAULT_SHARED_DIR}')."
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output.")
     args = parser.parse_args()
 
-    verify_kubectl(verbose=args.verbose)
+    kubectl_path = find_and_verify_kubectl(args.verbose)
+    if not kubectl_path:
+        print("Kubectl is not installed or not functional. Exiting.")
+        sys.exit(1)
 
     # Load Kubernetes configuration
-    if args.kube_config:
-        config.load_kube_config(config_file=args.kube_config)
+    if args.config:
+        config.load_kube_config(config_file=args.config)
     else:
         config.load_kube_config()
 
     print()
     unique_id = str(uuid.uuid4())[:8]  # Generate a short unique identifier
     pod_name = f"kubeutil-pod-{unique_id}"
-    namespace = args.namespace
-    shared_data_dir = args.shared_data_dir
-    validate_paths(args.action, args.local_dir, args.remote_dir, shared_data_dir)
+    validate_paths(args.action, args.local_dir, args.remote_dir, args.shared)
+    create_pod(args.verbose, pod_name, args.namespace, args.shared)
 
-    if args.action == "upload":
-        create_pod(pod_name, namespace, shared_data_dir)
-        wait_for_pod_running(pod_name, namespace)
-        upload_data(args.kube_config, pod_name, namespace, args.local_dir, args.remote_dir)
-        delete_pod(pod_name, namespace)
-        print("Data upload complete and pod deleted.")
-
-    elif args.action == "download":
-        create_pod(pod_name, namespace, shared_data_dir)
-        wait_for_pod_running(pod_name, namespace)
-        download_data(args.kube_config, pod_name, namespace, args.remote_dir, args.local_dir)
-        delete_pod(pod_name, namespace)
-        print("Data download complete and pod deleted.")
-
-    elif args.action == "shell":
-        create_pod(pod_name, namespace, shared_data_dir)
-        wait_for_pod_running(pod_name, namespace)
-        open_shell(args.kube_config, pod_name, namespace)
-        delete_pod(pod_name, namespace)
-        print("Shell session complete and pod deleted.")
+    try:
+        wait_for_pod_running(args.verbose, pod_name, args.namespace)
+        if args.action == UPLOAD_ACTION:
+            upload_dir(args.verbose, kubectl_path, args.config, pod_name, args.namespace, args.local_dir, args.remote_dir)
+            print("Data upload complete and pod deleted.")
+        elif args.action == DOWNLOAD_ACTION:
+            download_dir(args.verbose, kubectl_path, args.config, pod_name, args.namespace, args.remote_dir, args.local_dir)
+            print("Data download complete and pod deleted.")
+        elif args.action == SHELL_ACTION:
+            open_shell(args.verbose, kubectl_path, args.config, pod_name, args.namespace)
+            print("Shell session complete and pod deleted.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        delete_pod(args.verbose, pod_name, args.namespace)
 
 
 if __name__ == "__main__":
