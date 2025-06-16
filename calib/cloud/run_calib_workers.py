@@ -5,11 +5,6 @@ import cloud_calib_config as cfg
 from kubernetes import client
 from kubernetes import config
 
-
-# Constants for Kubernetes configuration
-PERSISTENT_VOLUME_CLAIM_NAME = "laser-stg-pvc"
-SHARED_DIR = "/shared"
-
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from get_lp_module_versions import check_version_match
 
@@ -19,6 +14,10 @@ check_version_match(
     image_name="idm-docker-staging.packages.idmod.org/laser/laser-polio:latest",
     container_path="/app/laser_polio_deps.txt",
 )
+
+# Constants for Kubernetes configuration
+PERSISTENT_VOLUME_CLAIM_NAME = "laser-stg-pvc"
+SHARED_DIR = "/shared"
 
 # Load kubeconfig
 config.load_kube_config(config_file="~/.kube/config")  # default = "~/.kube/config"
