@@ -35,20 +35,25 @@ import yaml
 # model_config = "config_nigeria_7y_2017_underwt_gravity_zinb_ipv.yaml"
 # calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars.yaml"
 
-job_name = "laser-polio-worker-sk7"
-study_name = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_immunscalars_20250616"
-model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv.yaml"
-calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
+# job_name = "laser-polio-worker-sk7"
+# study_name = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_immunscalars_20250616"
+# model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv.yaml"
+# calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
 
 # job_name = "laser-polio-worker-sk8"
 # study_name = "calib_nigeria_7y_2017_underwt_gravity_zinb_ipv_immunscalars_20250616"
 # model_config = "config_nigeria_7y_2017_underwt_gravity_zinb_ipv.yaml"
 # calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
 
+job_name = "laser-polio-worker-sk9"
+study_name = "calib_nigeria_7y_2017_underwt_gravity_zinb_ipv_immunscalars_kanobounds_20250617"
+model_config = "config_nigeria_7y_2017_underwt_gravity_zinb_ipv.yaml"
+calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
+
 fit_function = "log_likelihood"
 n_trials = 1  # Number of trials to run per pod
 n_replicates = 1  # Number of replicates to run for each trial
-parallelism = 50  # The number of pods (i.e., jobs) to run in parallel
+parallelism = 100  # The number of pods (i.e., jobs) to run in parallel
 completions = 20000  # The total number of pods (i.e., jobs) that need to successfully complete before the job is considered "done"
 
 # ---------------------------------------------------

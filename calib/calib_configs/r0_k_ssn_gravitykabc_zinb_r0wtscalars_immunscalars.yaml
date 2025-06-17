@@ -30,7 +30,7 @@ parameters:
     low: 0.0
     high: 0.5
   immun_scalar_kano:
-    low: 0.5
+    low: 1.0
     high: 2.0
   immun_scalar_kebbi:
     low: 0.5

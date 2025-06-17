@@ -16,6 +16,10 @@ check_version_match(
     container_path="/app/laser_polio_deps.txt",
 )
 
+# Constants for Kubernetes configuration
+PERSISTENT_VOLUME_CLAIM_NAME = "laser-stg-pvc"
+SHARED_DIR = "/shared"
+
 # Load kubeconfig
 config.load_kube_config(config_file="~/.kube/config")  # default = "~/.kube/config"
 batch_v1 = client.BatchV1Api()
@@ -43,6 +47,7 @@ container = client.V1Container(
     env_from=[client.V1EnvFromSource(secret_ref=client.V1SecretEnvSource(name="mysql-secrets"))],
     # resources=client.V1ResourceRequirements(requests={"cpu": "6"}, limits={"cpu": "7"}),
     resources=client.V1ResourceRequirements(requests={"memory": "25Gi"}),
+    volume_mounts=[client.V1VolumeMount(name="shared-data", mount_path=SHARED_DIR)],
 )
 
 # Pod spec
@@ -53,6 +58,12 @@ template = client.V1PodTemplateSpec(
         image_pull_secrets=[client.V1LocalObjectReference(name="idmodregcred3")],
         node_selector={"nodepool": "highcpu"},
         tolerations=[client.V1Toleration(key="nodepool", operator="Equal", value="highcpu", effect="NoSchedule")],
+        volumes=[
+            client.V1Volume(
+                name="shared-data",
+                persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name=PERSISTENT_VOLUME_CLAIM_NAME),
+            )
+        ],
     )
 )
 
