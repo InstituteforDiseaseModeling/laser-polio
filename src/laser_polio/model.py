@@ -608,6 +608,9 @@ class DiseaseState_ABM:
         sim.people.exposure_timer[count:cap] = self.pars.dur_exp(cap - count) - 1
         sim.people.infection_timer[count:cap] = self.pars.dur_inf(cap - count)
         sim.people.paralysis_timer[count:cap] = self.pars.t_to_paralysis(cap - count)
+        sim.people.potentially_paralyzed[count:cap] = -1
+        sim.people.paralyzed[count:cap] = -1
+        sim.people.ipv_protected[count:cap] = -1
         return self
 
     def _common_init(self, sim):
