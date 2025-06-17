@@ -12,7 +12,6 @@ from report import plot_optuna
 from report import plot_runtimes
 from report import plot_targets
 from report import plot_top_trials
-from report import run_top_n_on_comps
 from report import save_study_results
 from report import sweep_seed_best_comps
 
@@ -31,7 +30,6 @@ def main():
         study = optuna.load_study(study_name=cfg.study_name, storage=cfg.storage_url)
         study.storage_url = cfg.storage_url
         study.study_name = cfg.study_name
-
         results_path = Path("results") / cfg.study_name
         results_path.mkdir(parents=True, exist_ok=True)
 
@@ -56,6 +54,10 @@ def main():
 
         print("📊 Plotting likelihoods...")
         plot_likelihoods(study, output_dir=Path(results_path), use_log=True)
+
+        # print("📊 Running top trials on COMPS...")
+        # from report import run_top_n_on_comps
+        # run_top_n_on_comps(study, n=1, output_dir=results_path)
 
     finally:
         print("🧹 Cleaning up port forwarding...")

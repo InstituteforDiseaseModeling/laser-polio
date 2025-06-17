@@ -72,3 +72,5 @@ docs/_build
 
 # Logs
 *simulation_log*.txt
+*COMPS_log.log
+*idmtools.log

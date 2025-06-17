@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 
 import cloud_calib_config as cfg
+import sciris as sc
 from kubernetes import client
 from kubernetes import config
 
@@ -70,6 +71,6 @@ job = client.V1Job(api_version="batch/v1", kind="Job", metadata=client.V1ObjectM
 # Apply the job
 try:
     response = batch_v1.create_namespaced_job(namespace=cfg.namespace, body=job)
-    print(f"✅ Job {response.metadata.name} created successfully.")
+    sc.printgreen(f"✅ Job {response.metadata.name} created successfully.")
 except client.exceptions.ApiException as e:
-    print(f"❌ Error applying the job: {e}")
+    sc.printred(f"❌ Error applying the job: {e}")
