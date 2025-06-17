@@ -1128,7 +1128,7 @@ class DiseaseState_ABM:
             plt.show()
 
 
-@nb.njit((nb.int32[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32), nogil=True)
+@nb.njit((nb.int32[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32), parallel=True, nogil=True)
 def count_SEIRP(node_id, disease_state, potentially_paralyzed, paralyzed, n_nodes, n_people):
     """
     Go through each person exactly once and increment counters for their node.
