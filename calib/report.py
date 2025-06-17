@@ -14,10 +14,7 @@ import yaml
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 
-import laser_polio as lp
-
-
-def sweep_seed_best_comps(study, output_dir: Path = "results"):
+try:
     import cloud_calib_config as cfg
     from idmtools.assets import Asset
     from idmtools.assets import AssetCollection
@@ -27,6 +24,17 @@ def sweep_seed_best_comps(study, output_dir: Path = "results"):
     from idmtools.entities.experiment import Experiment
     from idmtools.entities.simulation import Simulation
     from idmtools_platform_comps.utils.scheduling import add_schedule_config
+
+    HAS_IDMTOOLS = True
+except Exception:
+    HAS_IDMTOOLS = False
+
+import laser_polio as lp
+
+
+def sweep_seed_best_comps(study, output_dir: Path = "results"):
+    if not HAS_IDMTOOLS:
+        raise ImportError("idmtools is not installed.")
 
     # Sort trials by best objective value (lower is better)
     top_trial = study.best_trial
@@ -68,15 +76,8 @@ def sweep_seed_best_comps(study, output_dir: Path = "results"):
 
 
 def run_top_n_on_comps(study, n=10, output_dir: Path = "results"):
-    import cloud_calib_config as cfg
-    from idmtools.assets import Asset
-    from idmtools.assets import AssetCollection
-    from idmtools.core.platform_factory import Platform
-    from idmtools.entities import CommandLine
-    from idmtools.entities.command_task import CommandTask
-    from idmtools.entities.experiment import Experiment
-    from idmtools.entities.simulation import Simulation
-    from idmtools_platform_comps.utils.scheduling import add_schedule_config
+    if not HAS_IDMTOOLS:
+        raise ImportError("idmtools is not installed.")
 
     # Sort trials by best objective value (lower is better)
     top_trials = sorted([t for t in study.trials if t.state.name == "COMPLETE"], key=lambda t: t.value)[:n]
