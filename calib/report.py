@@ -32,7 +32,7 @@ def sweep_seed_best_comps(study, output_dir: Path = "results"):
     top_trial = study.best_trial
 
     Platform("Idm", endpoint="https://comps.idmod.org", environment="CALCULON", type="COMPS")
-    experiment = Experiment(name="laser-polio Best Trial from Optuna seed sweep", tags={"source": "optuna", "mode": "top-n"})
+    experiment = Experiment(name=f"laser-polio Best Trial from {study.study_name}", tags={"source": "optuna", "mode": "top-n"})
 
     for seed in range(10):
         overrides = top_trial.params.copy()
@@ -82,7 +82,7 @@ def run_top_n_on_comps(study, n=10, output_dir: Path = "results"):
     top_trials = sorted([t for t in study.trials if t.state.name == "COMPLETE"], key=lambda t: t.value)[:n]
 
     Platform("Idm", endpoint="https://comps.idmod.org", environment="CALCULON", type="COMPS")
-    experiment = Experiment(name="laser-polio top N from Optuna", tags={"source": "optuna", "mode": "top-n"})
+    experiment = Experiment(name=f"laser-polio top {n} from {study.study_name}", tags={"source": "optuna", "mode": "top-n"})
 
     for rank, trial in enumerate(top_trials, start=1):
         overrides = trial.params.copy()
@@ -95,7 +95,7 @@ def run_top_n_on_comps(study, n=10, output_dir: Path = "results"):
             f"python3 -m laser_polio.run_sim "
             f"--model-config /app/calib/model_configs/{cfg.model_config} "
             f"--params-file overrides.json "
-            # f"--init-pop-file=Assets/init_pop_nigeria_4y_2020_underwt_gravity_zinb_ipv.h5"
+            # f"--init-pop-file=Assets/init_pop_nigeria_6y_2018_underwt_gravity_zinb_ipv.h5"
         )
 
         task = CommandTask(command=command)
