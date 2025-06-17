@@ -118,6 +118,7 @@ ignore = [
     "PTH122", # I have neither desire nor need to think about paths as objects
     "PTH123", # I have neither desire nor need to think about paths as objects
     "PTH208",
+    "PT028", # default arguments in test functions
     "DTZ001", # Ignore datetime timezone issues 
     "DTZ002", # I want to be able to just call a today() function.
     "UP038", # due to be deprecated

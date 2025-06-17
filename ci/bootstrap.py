@@ -4,6 +4,8 @@ import pathlib
 import subprocess
 import sys
 
+import jinja2
+
 base_path: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent
 templates_path = base_path / "ci" / "templates"
 
@@ -20,8 +22,6 @@ def exec_in_env():
     else:
         bin_path = env_path / "bin"
     if not env_path.exists():
-        import subprocess
-
         print(f"Making bootstrap env in: {env_path} ...")
         try:
             check_call([sys.executable, "-m", "venv", env_path])
@@ -42,8 +42,6 @@ def exec_in_env():
 
 
 def main():
-    import jinja2
-
     print(f"Project path: {base_path}")
 
     jinja = jinja2.Environment(
