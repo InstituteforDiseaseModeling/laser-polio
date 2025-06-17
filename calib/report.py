@@ -95,12 +95,12 @@ def run_top_n_on_comps(study, n=10, output_dir: Path = "results"):
             f"python3 -m laser_polio.run_sim "
             f"--model-config /app/calib/model_configs/{cfg.model_config} "
             f"--params-file overrides.json "
-            f"--init-pop-file=Assets/init_pop_nigeria_4y_2020_underwt_gravity_zinb_ipv.h5"
+            # f"--init-pop-file=Assets/init_pop_nigeria_4y_2020_underwt_gravity_zinb_ipv.h5"
         )
 
         task = CommandTask(command=command)
         task.common_assets.add_assets(AssetCollection.from_id_file("calib/comps/laser.id"))
-        task.common_assets.add_directory("inputs")
+        # task.common_assets.add_directory("inputs")
         task.transient_assets.add_asset(Asset(filename="overrides.json", content=json.dumps(overrides)))
 
         # Wrap task in Simulation and add to experiment
