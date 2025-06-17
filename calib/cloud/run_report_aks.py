@@ -14,6 +14,7 @@ from report import plot_targets
 from report import plot_top_trials
 from report import run_top_n_on_comps
 from report import save_study_results
+from report import sweep_seed_best_comps
 
 
 def port_forward():
@@ -33,7 +34,10 @@ def main():
 
         results_path = Path("results") / cfg.study_name
         results_path.mkdir(parents=True, exist_ok=True)
+
+        # Comment these out if you don't need them. I'd comment them out and let you "comment them back in", but ruff gets mad
         run_top_n_on_comps(study, n=1, output_dir=results_path)
+        sweep_seed_best_comps(study, output_dir=results_path)
 
         print("💾 Saving results...")
         save_study_results(study, output_dir=results_path)

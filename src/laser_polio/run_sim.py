@@ -20,7 +20,17 @@ if os.getenv("POLIO_ROOT"):
     lp.root = Path(os.getenv("POLIO_ROOT"))
 
 
-def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False, plot_pars=False, use_pim_scalars=False, **kwargs):
+def run_sim(
+    config=None,
+    init_pop_file=None,
+    verbose=1,
+    run=True,
+    save_init_pop=False,
+    save_final_pop=False,
+    plot_pars=False,
+    use_pim_scalars=False,
+    **kwargs,
+):
     """
     Set up simulation from config file (YAML + overrides) or kwargs.
 
@@ -29,7 +39,8 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         init_pop_file (str): Path to initial population file.
         verbose (int): Verbosity level for logging.
         run (bool): Whether to run the simulation.
-        save_pop (bool): Whether to save the initial population file.
+        save_init_pop (bool): Whether to save the initial population file.
+        save_final_pop (bool): Whether to save the final population file.
         plot_pars (bool): Whether to plot the parameters.
         use_pim_scalars (bool): Whether to use R0 scalars based on polio immunity mapper (PIM) random effects or under weight fraction.
         kwargs (dict): Additional parameters to override in the config.
@@ -224,7 +235,7 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         sim = from_file(init_pop_file)
     else:
         sim = regular()
-        if save_pop:
+        if save_init_pop:
             sim.people.save_snapshot(results_path / "init_pop.h5", sim.results.R[:], sim.pars)
 
     # Safety checks
@@ -243,6 +254,8 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
         if save_data:
             Path(results_path).mkdir(parents=True, exist_ok=True)
             lp.save_results_to_csv(sim, filename=Path(results_path) / "simulation_results.csv")
+        if save_final_pop:
+            sim.people.save_snapshot(results_path / "final_pop.h5", sim.results.R[:], sim.pars)
 
     return sim
 
@@ -277,13 +290,17 @@ def run_sim(config=None, init_pop_file=None, verbose=1, run=True, save_pop=False
     default=None,
     help="Optional initial population file",
 )
-# Let's make sure we can save-pop from cli
 @click.option(
-    "--save-pop",
+    "--save-init-pop",
     is_flag=True,
     help="Save initial population file",
 )
-def main(model_config, params_file, results_path, extra_pars, init_pop_file, save_pop):
+@click.option(
+    "--save-final-pop",
+    is_flag=True,
+    help="Save final population file",
+)
+def main(model_config, params_file, results_path, extra_pars, init_pop_file, save_init_pop, save_final_pop):
     """Run polio LASER simulation with optional config and parameter overrides."""
 
     config = {}
@@ -311,7 +328,7 @@ def main(model_config, params_file, results_path, extra_pars, init_pop_file, sav
         config.update(json.loads(extra_pars))
 
     # Run the sim: save_pop and init_pop_file are mutually exclusive, not yet enforced
-    run_sim(config=config, init_pop_file=init_pop_file, save_pop=save_pop)
+    run_sim(config=config, init_pop_file=init_pop_file, save_init_pop=save_init_pop, save_final_pop=save_final_pop)
 
 
 # ---------------------------- CLI ENTRY ----------------------------

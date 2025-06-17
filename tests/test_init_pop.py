@@ -52,7 +52,7 @@ def test_init_pop_loading(tmp_path):
         "vx_prob_sia": None,
         "save_plots": False,
         "save_data": False,
-        "save_pop": True,
+        "save_init_pop": True,
         "seed": 123,
     }
 
