@@ -12,6 +12,7 @@ from report import plot_optuna
 from report import plot_runtimes
 from report import plot_targets
 from report import plot_top_trials
+from report import run_top_n_on_comps
 from report import save_study_results
 from report import sweep_seed_best_comps
 
