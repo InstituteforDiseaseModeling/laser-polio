@@ -523,7 +523,6 @@ def test_potential_paralysis():
     seed = 1
     # Diffs from demo_zamfara_load_init_pop.py
     results_path = "results/demo_zamfara"
-    save_pop = False
     init_pop_file = None
     use_pim_scalars = True
 
@@ -544,7 +543,6 @@ def test_potential_paralysis():
         migration_method=migration_method,
         radiation_k=radiation_k,
         max_migr_frac=max_migr_frac,
-        save_pop=save_pop,
         vx_prob_ri=vx_prob_ri,
         init_pop_file=init_pop_file,
         seed_schedule=seed_schedule,
