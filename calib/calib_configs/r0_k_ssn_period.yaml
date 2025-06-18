@@ -13,6 +13,5 @@ parameters:
     high: 364
 
 metadata:
-  scoring_fn: compute_log_likelihood_fit
+  scoring_fn: compute_nll_dirichlet
   target_fn: calc_targets_simplified_temporal
-

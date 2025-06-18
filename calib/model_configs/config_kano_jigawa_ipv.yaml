@@ -1,6 +1,6 @@
 regions: ["KANO", "JIGAWA"]
 start_year: 2018
-n_days: 365
+n_days: 2190
 pop_scale: 1
 vx_prob_ri: 0.0
 init_region: "BIRINIWA"

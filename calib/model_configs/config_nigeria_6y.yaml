@@ -2,9 +2,16 @@ regions: ["NIGERIA"]
 start_year: 2018
 n_days: 2190
 pop_scale: 1
-vx_prob_ri: null
+vx_prob_ri: 0.0
 init_region: "BIRINIWA"
-init_prev: 500
+init_prev: 0
+seed_schedule:
+  - date: "2018-02-06"
+    dot_name: "AFRO:NIGERIA:JIGAWA:BIRINIWA"
+    prevalence: 200
+  - date: "2020-11-24"
+    dot_name: "AFRO:NIGERIA:ZAMFARA:SHINKAFI"
+    prevalence: 200
 migration_method: "radiation"
 max_migr_frac: 1.0
 results_path: "results/demo_nigeria"
