@@ -1,9 +1,14 @@
 # --- PRIORITIES ---
-1) Double check timing of E, I, & P states when normal transmission is occurring - I'm worried we're off by 1 after initialization
-3) Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
-4) Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
-5) Double check deaths. For some, I thought I saw on of my sims plot that no deaths were happening so we gotta check that.
-6) Try playing with links between N & S Nigeria in network (maybe a scalar???)
+- Calibrate SIA efficacy center & scale pars
+- Calibrate the r0_scalar center par
+- Try full timeseries with PIM scalars
+- Try Dan's approach of using likelihoods for total, monthly_timeseries and adm01_cases - broken up by first 3 yrs and last 4 - & using wts (higher on total)
+- Try Dirichlet multinomial again
+- Double check timing of E, I, & P states when normal transmission is occurring - I'm worried we're off by 1 after initialization
+- Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
+- Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
+- Double check deaths. For some, I thought I saw on of my sims plot that no deaths were happening so we gotta check that.
+- Try playing with links between N & S Nigeria in network (maybe a scalar???)
 
 CALIBRATION
 - Take notes in Obsidian
@@ -43,7 +48,6 @@ NEW FEATURES
 - Add EMOD style seasonality
 - Look into age-specific death rates
 - Save results & specify frequency
-- Add IPV to RI
 - Try adding pop density as another r0_scalar
 - Adjust vx coverage for non-missed agents by prob/(1-missed_frac)
 - Add correlation in vx coverage so it's not random???

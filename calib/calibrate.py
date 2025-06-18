@@ -22,10 +22,6 @@ model_config = "config_nigeria_6y.yaml"
 calib_config = "r0_k_ssn_period.yaml"
 job_name = "laser-polio-worker-sk"
 
-# study_name = "calib_nigeria_6y_2018_underwt_gravity_zinb_ipv_immunscalars_20250616"
-# model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv.yaml"
-# calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
-
 fit_function = "log_likelihood"
 n_trials = 2
 n_replicates = 1  # Number of replicates to run for each trial
