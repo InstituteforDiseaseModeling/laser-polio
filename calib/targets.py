@@ -212,7 +212,7 @@ def process_data(filename):
     }
 
 
-def calc_targets_simplified_temporal(filename, is_actual_data=True):
+def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual_data=True):
     """Load simulation results and extract simplified features for comparison.
 
     Only uses total_infected, monthly_timeseries, and adm01_cases.
@@ -244,7 +244,7 @@ def calc_targets_simplified_temporal(filename, is_actual_data=True):
 
     # 1. Total infected (split by time period)
     total_by_period = df.groupby("time_period")[case_col].sum() * scale_factor
-    targets["total_by_period"] = total_by_period
+    targets["total_by_period"] = total_by_period.to_dict()
 
     # 2. Monthly timeseries (full time series)
     monthly_df = df.groupby([df["date"].dt.to_period("M")])[case_col].sum().sort_index().astype(float) * scale_factor

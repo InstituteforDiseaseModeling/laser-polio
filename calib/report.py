@@ -367,122 +367,125 @@ def plot_targets(study, output_dir=None, shp=None):
     color_map = {label: cmap(i) for i, label in enumerate(labels)}
 
     # Total Infected
-    plt.figure()
-    plt.title("Total Infected")
-    width = 0.2
-    x = np.arange(len(labels))
-    values = [actual["total_infected"][0]] + [rep["total_infected"][0] for rep in preds]
-    plt.bar(x, values, width=width, color=[color_map[label] for label in labels])
-    plt.xticks(x, labels, rotation=45)
-    plt.ylabel("Cases")
-    plt.tight_layout()
-    plt.savefig(best_dir / "plot_best_total_infected_comparison.png")
+    if "total_infected" in actual:
+        plt.figure()
+        plt.title("Total Infected")
+        width = 0.2
+        x = np.arange(len(labels))
+        values = [actual["total_infected"][0]] + [rep["total_infected"][0] for rep in preds]
+        plt.bar(x, values, width=width, color=[color_map[label] for label in labels])
+        plt.xticks(x, labels, rotation=45)
+        plt.ylabel("Cases")
+        plt.tight_layout()
+        plt.savefig(best_dir / "plot_best_total_infected_comparison.png")
 
     # Yearly Cases
-    years = list(range(2018, 2018 + len(actual["yearly_cases"])))
-    plt.figure()
-    plt.title("Yearly Cases")
-    plt.plot(years, actual["yearly_cases"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
-    for i, rep in enumerate(preds):
-        label = f"Rep {i + 1}"
-        plt.plot(years, rep["yearly_cases"], "o-", label=label, color=color_map[label])
-    plt.xlabel("Year")
-    plt.ylabel("Cases")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(best_dir / "plot_best_yearly_cases_comparison.png")
-    # plt.show()
+    if "yearly_cases" in actual:
+        years = list(range(2018, 2018 + len(actual["yearly_cases"])))
+        plt.figure()
+        plt.title("Yearly Cases")
+        plt.plot(years, actual["yearly_cases"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            plt.plot(years, rep["yearly_cases"], "o-", label=label, color=color_map[label])
+        plt.xlabel("Year")
+        plt.ylabel("Cases")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(best_dir / "plot_best_yearly_cases_comparison.png")
 
     # Monthly Cases
-    months = list(range(1, 1 + len(actual["monthly_cases"])))
-    plt.figure()
-    plt.title("Monthly Cases")
-    plt.plot(months, actual["monthly_cases"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
-    for i, rep in enumerate(preds):
-        label = f"Rep {i + 1}"
-        plt.plot(months, rep["monthly_cases"], "o-", label=label, color=color_map[label])
-    plt.xlabel("Month")
-    plt.ylabel("Cases")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(best_dir / "plot_best_monthly_cases_comparison.png")
-    # plt.show()
+    if "monthly_cases" in actual:
+        months = list(range(1, 1 + len(actual["monthly_cases"])))
+        plt.figure()
+        plt.title("Monthly Cases")
+        plt.plot(months, actual["monthly_cases"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            plt.plot(months, rep["monthly_cases"], "o-", label=label, color=color_map[label])
+        plt.xlabel("Month")
+        plt.ylabel("Cases")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(best_dir / "plot_best_monthly_cases_comparison.png")
 
     # Monthly Timeseries Cases
-    n_months = len(actual["monthly_timeseries"])
-    months_series = pd.date_range(start="2018-01-01", periods=n_months, freq="MS")
-    plt.figure()
-    plt.title("Monthly Timeseries")
-    plt.plot(months_series, actual["monthly_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
-    for i, rep in enumerate(preds):
-        label = f"Rep {i + 1}"
-        plt.plot(months_series, rep["monthly_timeseries"], "o-", label=label, color=color_map[label])
-    plt.xlabel("Month")
-    plt.ylabel("Cases")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(best_dir / "plot_best_monthly_timeseries_comparison.png")
-    # plt.show()
+    if "monthly_timeseries" in actual:
+        n_months = len(actual["monthly_timeseries"])
+        months_series = pd.date_range(start="2018-01-01", periods=n_months, freq="MS")
+        plt.figure()
+        plt.title("Monthly Timeseries")
+        plt.plot(months_series, actual["monthly_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            plt.plot(months_series, rep["monthly_timeseries"], "o-", label=label, color=color_map[label])
+        plt.xlabel("Month")
+        plt.ylabel("Cases")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(best_dir / "plot_best_monthly_timeseries_comparison.png")
 
     # adm0_cases (bar plot)
-    adm0_actual = actual.get("adm0_cases")
-    if adm0_actual:
-        adm_labels = sorted(actual["adm0_cases"].keys())
-        x = np.arange(len(adm_labels))
-        # Get actual values
-        actual_vals = [actual["adm0_cases"].get(adm, 0) for adm in adm_labels]
-        plt.figure(figsize=(10, 6))
-        plt.title("ADM0 Cases")
-        # Plot actual as outlined bar
-        plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
-        # Plot predicted reps as colored dots
-        for i, rep in enumerate(preds):
-            label = f"Rep {i + 1}"
-            rep_vals = [rep["adm0_cases"].get(adm, 0) for adm in adm_labels]
-            plt.scatter(
-                x,
-                rep_vals,
-                label=label,
-                color=color_map[label],  # your original style
-                marker="o",
-                s=50,
-            )
-        # Axis formatting
-        plt.xticks(x, adm_labels, rotation=45, ha="right")
-        plt.ylabel("Cases")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(best_dir / "plot_adm0_cases.png")
+    if "adm0_cases" in actual:
+        adm0_actual = actual.get("adm0_cases")
+        if adm0_actual:
+            adm_labels = sorted(actual["adm0_cases"].keys())
+            x = np.arange(len(adm_labels))
+            # Get actual values
+            actual_vals = [actual["adm0_cases"].get(adm, 0) for adm in adm_labels]
+            plt.figure(figsize=(10, 6))
+            plt.title("ADM0 Cases")
+            # Plot actual as outlined bar
+            plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
+            # Plot predicted reps as colored dots
+            for i, rep in enumerate(preds):
+                label = f"Rep {i + 1}"
+                rep_vals = [rep["adm0_cases"].get(adm, 0) for adm in adm_labels]
+                plt.scatter(
+                    x,
+                    rep_vals,
+                    label=label,
+                    color=color_map[label],  # your original style
+                    marker="o",
+                    s=50,
+                )
+            # Axis formatting
+            plt.xticks(x, adm_labels, rotation=45, ha="right")
+            plt.ylabel("Cases")
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(best_dir / "plot_adm0_cases.png")
 
     # adm01_cases (bar plot)
-    adm01_actual = actual.get("adm01_cases")
-    if adm01_actual:
-        adm_labels = sorted(actual["adm01_cases"].keys())
-        x = np.arange(len(adm_labels))
-        # Get actual values
-        actual_vals = [actual["adm01_cases"].get(adm, 0) for adm in adm_labels]
-        plt.figure(figsize=(10, 6))
-        plt.title("ADM01 Regional Cases")
-        # Plot actual as outlined bar
-        plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
-        # Plot predicted reps as colored dots
-        for i, rep in enumerate(preds):
-            label = f"Rep {i + 1}"
-            rep_vals = [rep["adm01_cases"].get(adm, 0) for adm in adm_labels]
-            plt.scatter(
-                x,
-                rep_vals,
-                label=label,
-                color=color_map[label],  # your original style
-                marker="o",
-                s=50,
-            )
-        # Axis formatting
-        plt.xticks(x, adm_labels, rotation=45, ha="right")
-        plt.ylabel("Cases")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_adm01_cases.png")
+    if "adm01_cases" in actual:
+        adm01_actual = actual.get("adm01_cases")
+        if adm01_actual:
+            adm_labels = sorted(actual["adm01_cases"].keys())
+            x = np.arange(len(adm_labels))
+            # Get actual values
+            actual_vals = [actual["adm01_cases"].get(adm, 0) for adm in adm_labels]
+            plt.figure(figsize=(10, 6))
+            plt.title("ADM01 Regional Cases")
+            # Plot actual as outlined bar
+            plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
+            # Plot predicted reps as colored dots
+            for i, rep in enumerate(preds):
+                label = f"Rep {i + 1}"
+                rep_vals = [rep["adm01_cases"].get(adm, 0) for adm in adm_labels]
+                plt.scatter(
+                    x,
+                    rep_vals,
+                    label=label,
+                    color=color_map[label],  # your original style
+                    marker="o",
+                    s=50,
+                )
+            # Axis formatting
+            plt.xticks(x, adm_labels, rotation=45, ha="right")
+            plt.ylabel("Cases")
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(best_dir / "plot_best_adm01_cases.png")
 
     # Plot choropleth of case count differences for each replicate
     if shp is not None and "adm01_cases" in actual:
@@ -498,122 +501,158 @@ def plot_targets(study, output_dir=None, shp=None):
                 )
 
     # Regional Cases (bar plot)
-    x = np.arange(len(region_labels))
-    width = 0.1
-    plt.figure()
-    plt.title("Regional Cases")
-    plt.bar(x, actual["regional_cases"], width, label="Actual", color=color_map["Actual"])
-    for i, rep in enumerate(preds):
-        label = f"Rep {i + 1}"
-        plt.bar(x + (i + 1) * width, rep["regional_cases"], width, label=f"Rep {i + 1}", color=color_map[label])
-    plt.xticks(x + width * (len(preds) // 2), region_labels)
-    plt.ylabel("Cases")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(best_dir / "plot_best_regional_cases_comparison.png")
-    # plt.show()
+    if "regional_cases" in actual:
+        x = np.arange(len(region_labels))
+        width = 0.1
+        plt.figure()
+        plt.title("Regional Cases")
+        plt.bar(x, actual["regional_cases"], width, label="Actual", color=color_map["Actual"])
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            plt.bar(x + (i + 1) * width, rep["regional_cases"], width, label=f"Rep {i + 1}", color=color_map[label])
+        plt.xticks(x + width * (len(preds) // 2), region_labels)
+        plt.ylabel("Cases")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(best_dir / "plot_best_regional_cases_comparison.png")
+        # plt.show()
 
     # Total Nodes with Cases
-    plt.figure()
-    plt.title("Total Nodes with Cases")
-    width = 0.2
-    x = np.arange(1 + len(preds))
-    values = [actual["nodes_with_cases_total"][0]] + [rep["nodes_with_cases_total"][0] for rep in preds]
-    labels = ["Actual"] + [f"Rep {i + 1}" for i in range(len(preds))]
-    plt.bar(x, values, width=width, color=[color_map[lbl] for lbl in labels])
-    plt.xticks(x, labels, rotation=45)
-    plt.ylabel("Nodes")
-    plt.tight_layout()
-    plt.savefig(best_dir / "plot_best_nodes_with_cases_total.png")
+    if "nodes_with_cases_total" in actual:
+        plt.figure()
+        plt.title("Total Nodes with Cases")
+        width = 0.2
+        x = np.arange(1 + len(preds))
+        values = [actual["nodes_with_cases_total"][0]] + [rep["nodes_with_cases_total"][0] for rep in preds]
+        labels = ["Actual"] + [f"Rep {i + 1}" for i in range(len(preds))]
+        plt.bar(x, values, width=width, color=[color_map[lbl] for lbl in labels])
+        plt.xticks(x, labels, rotation=45)
+        plt.ylabel("Nodes")
+        plt.tight_layout()
+        plt.savefig(best_dir / "plot_best_nodes_with_cases_total.png")
 
     # Monthly Nodes with Cases
-    n_months = len(actual["nodes_with_cases_timeseries"])
-    months = list(range(1, n_months + 1))
-    plt.figure()
-    plt.title("Monthly Nodes with Cases")
-    plt.plot(months, actual["nodes_with_cases_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
-    for i, rep in enumerate(preds):
-        label = f"Rep {i + 1}"
-        plt.plot(months, rep["nodes_with_cases_timeseries"], "o-", label=f"Rep {i + 1}", color=color_map[label])
-    plt.xlabel("Month")
-    plt.ylabel("Number of Nodes with ≥1 Case")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(best_dir / "plot_best_nodes_with_cases_timeseries.png")
+    if "nodes_with_cases_timeseries" in actual:
+        n_months = len(actual["nodes_with_cases_timeseries"])
+        months = list(range(1, n_months + 1))
+        plt.figure()
+        plt.title("Monthly Nodes with Cases")
+        plt.plot(months, actual["nodes_with_cases_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            plt.plot(months, rep["nodes_with_cases_timeseries"], "o-", label=f"Rep {i + 1}", color=color_map[label])
+        plt.xlabel("Month")
+        plt.ylabel("Number of Nodes with ≥1 Case")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(best_dir / "plot_best_nodes_with_cases_timeseries.png")
 
-    # Plot likelihoods
+    if "total_by_period" in actual:
+        # Custom ordering to put 'before_2020' first
+        period_labels = (
+            ["before_2020", "after_2020"] if "before_2020" in actual["total_by_period"] else sorted(actual["total_by_period"].keys())
+        )
+        x = np.arange(len(period_labels))
+        actual_vals = [actual["total_by_period"].get(period, 0) for period in period_labels]
+        plt.figure(figsize=(10, 6))
+        plt.title("Total Cases by Period")
+        # Plot actual as outlined bar
+        plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
+        # Plot predicted reps as colored dots
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            rep_vals = [rep["total_by_period"].get(period, 0) for period in period_labels]
+            plt.scatter(
+                x,
+                rep_vals,
+                label=label,
+                color=color_map[label],
+                marker="o",
+                s=50,
+            )
+        # Axis formatting
+        plt.xticks(x, period_labels, rotation=45, ha="right")
+        plt.ylabel("Cases")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(best_dir / "plot_best_total_by_period.png")
 
-    # import numpy as np
-    # import pandas as pd
-    # import matplotlib.pyplot as plt
-    # from matplotlib.colors import Normalize
-    # from matplotlib.cm import ScalarMappable
-    # from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    if "adm01_by_period" in actual:
+        adm01_by_period_actual = actual.get("adm01_by_period")
+        # Create figure with two subplots stacked vertically
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
 
-    # # Plot monthly timeseries with annual maps
-    # if shp is not None:
-    #     months_series
-    #     years = sorted(set(months_series.year))
+        # Extract data for each period
+        before_2020_data = {}
+        after_2020_data = {}
 
-    #     # Compute yearly sum per node
-    #     months_df = pd.DataFrame(monthly_cases_per_node, index=months_series)
-    #     annual_cases_by_node = {year: months_df.loc[str(year)].sum(axis=0).values for year in years}
+        for key, value in adm01_by_period_actual.items():
+            # Parse the tuple key format: "('NIGERIA:JIGAWA', 'before_2020')"
+            if "'before_2020'" in key:
+                # Extract the adm01 name from the tuple string
+                adm01_name = key.split("', '")[0].split("('")[1]
+                before_2020_data[adm01_name] = value
+            elif "'after_2020'" in key:
+                adm01_name = key.split("', '")[0].split("('")[1]
+                after_2020_data[adm01_name] = value
 
-    #     # Normalize color scale across years
-    #     global_min = min(np.min(v) for v in annual_cases_by_node.values())
-    #     global_max = max(np.max(v) for v in annual_cases_by_node.values())
-    #     norm = Normalize(vmin=global_min, vmax=global_max)
-    #     cmap = truncate_colormap(cmap_name, minval=0.1, maxval=0.9)
+        # Plot before_2020 (top subplot)
+        if before_2020_data:
+            adm_labels_before = sorted(before_2020_data.keys())
+            x_before = np.arange(len(adm_labels_before))
+            actual_vals_before = [before_2020_data.get(adm, 0) for adm in adm_labels_before]
 
-    #     # Create figure
-    #     fig, ax = plt.subplots(figsize=(16, 6))
-    #     ax.plot(months_series, actual_timeseries, "o-", label="Actual", linewidth=2)
-    #     ax.set_title("Monthly Timeseries with Annual Maps")
-    #     ax.set_xlabel("Month")
-    #     ax.set_ylabel("Cases")
-    #     ax.legend()
+            # Plot actual as outlined bar
+            ax1.bar(x_before, actual_vals_before, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
 
-    #     # Plot inset maps aligned under each year
-    #     for i, year in enumerate(years):
-    #         center_date = pd.Timestamp(f"{year}-07-01")  # middle of the year
-    #         x_pos = center_date
+            # Plot predicted reps as colored dots
+            for i, rep in enumerate(preds):
+                label = f"Rep {i + 1}"
+                rep_before_data = {}
+                for key, value in rep.get("adm01_by_period", {}).items():
+                    if "'before_2020'" in key:
+                        adm01_name = key.split("', '")[0].split("('")[1]
+                        rep_before_data[adm01_name] = value
 
-    #         # Convert data coords to figure fraction
-    #         trans = ax.transData.transform((x_pos.toordinal(), ax.get_ylim()[0]))
-    #         inv = fig.transFigure.inverted().transform(trans)
-    #         x_fig, y_fig = inv
+                rep_vals_before = [rep_before_data.get(adm, 0) for adm in adm_labels_before]
+                ax1.scatter(x_before, rep_vals_before, label=label, color=color_map[label], marker="o", s=50)
 
-    #         # Add inset axes
-    #         axins = inset_axes(
-    #             ax,
-    #             width="5%", height="20%",  # relative to figure
-    #             bbox_to_anchor=(x_fig - 0.025, 0.02, 0.05, 0.15),
-    #             bbox_transform=fig.transFigure,
-    #             loc="lower left",
-    #             borderpad=0,
-    #         )
+            ax1.set_title("ADM01 Regional Cases - Before 2020")
+            ax1.set_xticks(x_before)
+            ax1.set_xticklabels(adm_labels_before, rotation=45, ha="right")
+            ax1.set_ylabel("Cases")
+            ax1.legend()
 
-    #         shp["cases"] = annual_cases_by_node[year]
-    #         shp.plot(
-    #             column="cases",
-    #             ax=axins,
-    #             cmap=cmap,
-    #             norm=norm,
-    #             edgecolor="white",
-    #             linewidth=0.1,
-    #             legend=False
-    #         )
-    #         axins.set_title(f"{year}", fontsize=8)
-    #         axins.set_axis_off()
+        # Plot after_2020 (bottom subplot)
+        if after_2020_data:
+            adm_labels_after = sorted(after_2020_data.keys())
+            x_after = np.arange(len(adm_labels_after))
+            actual_vals_after = [after_2020_data.get(adm, 0) for adm in adm_labels_after]
 
-    #     # Shared colorbar
-    #     sm = ScalarMappable(cmap=cmap, norm=norm)
-    #     sm._A = []
-    #     cbar = fig.colorbar(sm, ax=ax, orientation="vertical", fraction=0.03, pad=0.01)
-    #     cbar.set_label("Annual Node-Level Cases")
+            # Plot actual as outlined bar
+            ax2.bar(x_after, actual_vals_after, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
 
-    #     plt.tight_layout()
-    #     plt.show()
+            # Plot predicted reps as colored dots
+            for i, rep in enumerate(preds):
+                label = f"Rep {i + 1}"
+                rep_after_data = {}
+                for key, value in rep.get("adm01_by_period", {}).items():
+                    if "'after_2020'" in key:
+                        adm01_name = key.split("', '")[0].split("('")[1]
+                        rep_after_data[adm01_name] = value
+
+                rep_vals_after = [rep_after_data.get(adm, 0) for adm in adm_labels_after]
+                ax2.scatter(x_after, rep_vals_after, label=label, color=color_map[label], marker="o", s=50)
+
+            ax2.set_title("ADM01 Regional Cases - After 2020")
+            ax2.set_xticks(x_after)
+            ax2.set_xticklabels(adm_labels_after, rotation=45, ha="right")
+            ax2.set_ylabel("Cases")
+            ax2.legend()
+
+        plt.tight_layout()
+        plt.savefig(best_dir / "plot_best_adm01_by_period.png")
+        plt.close()
 
 
 def plot_likelihoods(study, output_dir=None, use_log=True):
@@ -872,6 +911,33 @@ def plot_top_trials(study, output_dir, n_best=10, title="Top Calibration Results
     plt.tight_layout()
     plt.savefig(top_trials_dir / "monthly_timeseries_comparison.png", bbox_inches="tight")
     plt.close()
+
+    # Total by Period if available
+    total_by_period_actual = actual.get("total_by_period")
+    if total_by_period_actual:
+        # Custom ordering to put 'before_2020' first
+        period_labels = (
+            ["before_2020", "after_2020"] if "before_2020" in actual["total_by_period"] else sorted(actual["total_by_period"].keys())
+        )
+        x = np.arange(len(period_labels))
+        actual_vals = [actual["total_by_period"].get(period, 0) for period in period_labels]
+
+        plt.figure(figsize=(10, 6))
+        plt.title(f"Total Cases by Period - Top {n_best} Trials")
+        plt.bar(x, actual_vals, width=0.6, edgecolor="black", facecolor="none", linewidth=1.5, label="Actual")
+
+        for trial in top_trials:
+            pred = trial.user_attrs["predicted"][0]
+            label = f"Trial {trial.number} (value={trial.value:.2f})"
+            pred_vals = [pred["total_by_period"].get(period, 0) for period in period_labels]
+            plt.scatter(x, pred_vals, label=label, color=color_map[f"Trial {trial.number}"], marker="o", s=50)
+
+        plt.xticks(x, period_labels, rotation=45, ha="right")
+        plt.ylabel("Cases")
+        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+        plt.tight_layout()
+        plt.savefig(top_trials_dir / "total_by_period_comparison.png", bbox_inches="tight")
+        plt.close()
 
     # ADM0 Cases if available
     adm0_actual = actual.get("adm0_cases")
