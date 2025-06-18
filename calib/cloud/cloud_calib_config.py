@@ -45,10 +45,15 @@ import yaml
 # model_config = "config_nigeria_7y_2017_underwt_gravity_zinb_ipv.yaml"
 # calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
 
-job_name = "laser-polio-worker-sk9"
-study_name = "calib_nigeria_7y_2017_underwt_gravity_zinb_ipv_immunscalars_kanobounds_20250617"
-model_config = "config_nigeria_7y_2017_underwt_gravity_zinb_ipv.yaml"
-calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
+# job_name = "laser-polio-worker-sk9"
+# study_name = "calib_nigeria_7y_2017_underwt_gravity_zinb_ipv_immunscalars_kanobounds_20250617"
+# model_config = "config_nigeria_7y_2017_underwt_gravity_zinb_ipv.yaml"
+# calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
+
+job_name = "laser-polio-sk10"
+study_name = "calib_nigeria_6y_2018_underwt_grav_ipv_20250617"
+model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv.yaml"
+calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 1  # Number of trials to run per pod
