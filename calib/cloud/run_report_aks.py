@@ -7,14 +7,13 @@ import cloud_calib_config as cfg
 import optuna
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
+import yaml
 from report import plot_likelihoods
 from report import plot_optuna
 from report import plot_runtimes
 from report import plot_targets
 from report import plot_top_trials
-from report import run_top_n_on_comps
 from report import save_study_results
-from report import sweep_seed_best_comps
 
 
 def port_forward():
@@ -33,10 +32,9 @@ def main():
         study.study_name = cfg.study_name
         results_path = Path("results") / cfg.study_name
         results_path.mkdir(parents=True, exist_ok=True)
-
-        # Comment these out if you don't need them. I'd comment them out and let you "comment them back in", but ruff gets mad
-        run_top_n_on_comps(study, n=1, output_dir=results_path)
-        sweep_seed_best_comps(study, output_dir=results_path)
+        with open(Path("calib/model_configs/") / cfg.model_config) as f:
+            model_config = yaml.safe_load(f)
+            start_year = model_config["start_year"]
 
         print("💾 Saving results...")
         save_study_results(study, output_dir=results_path)
@@ -45,10 +43,10 @@ def main():
         plot_optuna(cfg.study_name, study.storage_url, output_dir=results_path)
 
         print("📊 Plotting target comparisons...")
-        plot_targets(study, output_dir=results_path)
+        plot_targets(study, output_dir=results_path, start_year=start_year)
 
         print("📊 Plotting top trials...")
-        plot_top_trials(study, output_dir=results_path, n_best=10)
+        plot_top_trials(study, output_dir=results_path, n_best=10, start_year=start_year)
 
         print("📊 Plotting runtimes...")
         plot_runtimes(study, output_dir=results_path)
@@ -58,7 +56,9 @@ def main():
 
         # print("📊 Running top trials on COMPS...")
         # from report import run_top_n_on_comps
+        # from report import sweep_seed_best_comps
         # run_top_n_on_comps(study, n=1, output_dir=results_path)
+        # sweep_seed_best_comps(study, output_dir=results_path)
 
     finally:
         print("🧹 Cleaning up port forwarding...")

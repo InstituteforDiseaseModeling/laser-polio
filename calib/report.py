@@ -330,7 +330,7 @@ def get_shapefile_from_config(model_config):
     return shp, node_lookup
 
 
-def plot_targets(study, output_dir=None, shp=None):
+def plot_targets(study, output_dir=None, shp=None, start_year=2018):
     best = study.best_trial
     actual = best.user_attrs["actual"]
     preds = best.user_attrs["predicted"]
@@ -379,7 +379,7 @@ def plot_targets(study, output_dir=None, shp=None):
     plt.savefig(best_dir / "plot_best_total_infected_comparison.png")
 
     # Yearly Cases
-    years = list(range(2018, 2018 + len(actual["yearly_cases"])))
+    years = list(range(start_year, start_year + len(actual["yearly_cases"])))
     plt.figure()
     plt.title("Yearly Cases")
     plt.plot(years, actual["yearly_cases"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
@@ -410,7 +410,7 @@ def plot_targets(study, output_dir=None, shp=None):
 
     # Monthly Timeseries Cases
     n_months = len(actual["monthly_timeseries"])
-    months_series = pd.date_range(start="2018-01-01", periods=n_months, freq="MS")
+    months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
     plt.figure()
     plt.title("Monthly Timeseries")
     plt.plot(months_series, actual["monthly_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
@@ -763,7 +763,7 @@ def plot_multiple_choropleths(shp, node_lookup, actual_cases, trial_predictions,
     plt.close()
 
 
-def plot_top_trials(study, output_dir, n_best=10, title="Top Calibration Results", shp=None, node_lookup=None):
+def plot_top_trials(study, output_dir, n_best=10, title="Top Calibration Results", shp=None, node_lookup=None, start_year=2018):
     """
     Plot the top n best calibration trials using the same visualizations as plot_targets.
 
@@ -825,7 +825,7 @@ def plot_top_trials(study, output_dir, n_best=10, title="Top Calibration Results
     plt.close()
 
     # Yearly Cases
-    years = list(range(2018, 2018 + len(actual["yearly_cases"])))
+    years = list(range(start_year, start_year + len(actual["yearly_cases"])))
     plt.figure(figsize=(10, 6))
     plt.title(f"Yearly Cases - Top {n_best} Trials")
     plt.plot(years, actual["yearly_cases"], "o-", label="Actual", color="black", linewidth=2)
@@ -858,7 +858,7 @@ def plot_top_trials(study, output_dir, n_best=10, title="Top Calibration Results
 
     # Monthly Timeseries
     n_months = len(actual["monthly_timeseries"])
-    months_series = pd.date_range(start="2018-01-01", periods=n_months, freq="MS")
+    months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
     plt.figure(figsize=(10, 6))
     plt.title(f"Monthly Timeseries - Top {n_best} Trials")
     plt.plot(months_series, actual["monthly_timeseries"], "o-", label="Actual", color="black", linewidth=2)
