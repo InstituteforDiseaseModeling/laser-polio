@@ -41,27 +41,27 @@ def objective(
     seeds = []
     predictions = []
     for rep in range(n_replicates):
-        try:
-            # Run sim
-            sim = lp.run_sim(config, verbose=2)
+        # try:
+        # Run sim
+        sim = lp.run_sim(config, verbose=2)
 
-            # Record seed (first rep only)
-            if rep == 0:
-                trial.set_user_attr("rand_seed", sim.pars.seed)
+        # Record seed (first rep only)
+        if rep == 0:
+            trial.set_user_attr("rand_seed", sim.pars.seed)
 
-            # Evaluate fit
-            actual = target_fn(actual_data_file, model_config_path, is_actual_data=True)
-            predicted = target_fn(results_file, model_config_path, is_actual_data=False)
-            weights = calib_config.get("metadata", {}).get("weights", {})
-            scores = scoring_fn(actual, predicted, method="poisson", weights=weights)
-            score = scores["total_log_likelihood"]
-            fit_scores.append(score)
-            seeds.append(sim.pars.seed)
-            predictions.append(predicted)
+        # Evaluate fit
+        actual = target_fn(actual_data_file, model_config_path, is_actual_data=True)
+        predicted = target_fn(results_file, model_config_path, is_actual_data=False)
+        weights = calib_config.get("metadata", {}).get("weights", {})
+        scores = scoring_fn(actual, predicted, method="poisson", weights=weights)
+        score = scores["total_log_likelihood"]
+        fit_scores.append(score)
+        seeds.append(sim.pars.seed)
+        predictions.append(predicted)
 
-        except Exception as e:
-            print(f"[ERROR] Simulation failed in replicate {rep}: {e}")
-            fit_scores.append(float("inf"))
+        # except Exception as e:
+        #     print(f"[ERROR] Simulation failed in replicate {rep}: {e}")
+        #     fit_scores.append(float("inf"))
 
     # Save per-replicate scores & seeds to Optuna
     trial.set_user_attr("actual", json_friendly(actual))
