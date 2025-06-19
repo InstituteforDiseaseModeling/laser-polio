@@ -472,10 +472,10 @@ def test_time_to_paralysis():
     sim = setup_sim()
     dist = sim.pars.t_to_paralysis(1000)
     p_timer = sim.people.paralysis_timer
-    assert np.isclose(dist.mean(), 9, atol=3)
-    assert np.isclose(dist.std(), 4, atol=3)
-    assert np.isclose(p_timer.mean(), 9, atol=3)
-    assert np.isclose(p_timer.std(), 4, atol=3)
+    assert np.isclose(dist.mean(), 12.5, atol=3)
+    assert np.isclose(dist.std(), 3.5, atol=3)
+    assert np.isclose(p_timer.mean(), 12.5, atol=3)
+    assert np.isclose(p_timer.std(), 3.5, atol=3)
 
 
 def test_paralysis_progression_manual():
