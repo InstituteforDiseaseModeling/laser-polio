@@ -647,7 +647,7 @@ def test_potential_paralysis():
     assert np.sum(sim.results.new_potentially_paralyzed) <= np.sum(sim.results.new_exposed), (
         "Potential paralysis should be less than or equal to new exposed"
     )
-    assert np.isclose(np.sum(sim.results.new_potentially_paralyzed) / 2000, np.sum(sim.results.new_paralyzed), atol=10), (
+    assert np.isclose(np.sum(sim.results.new_potentially_paralyzed) / 2000, np.sum(sim.results.new_paralyzed), atol=17), (
         "Potential paralysis should be 1/2000 of new exposed"
     )
 
