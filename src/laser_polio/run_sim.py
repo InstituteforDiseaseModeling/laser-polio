@@ -57,7 +57,7 @@ def run_sim(
         python -m laser_polio.run_sim --extra-pars='{"gravity_k": 2.2, "r0": 14}'
 
     """
-
+    print("run_sim started")
     config = config or {}
     configs = sc.mergedicts(config, kwargs)
 
@@ -261,11 +261,14 @@ def run_sim(
 
     # Either initialize the sim from file or create a sim from scratch
     if init_pop_file:
+        print("Loading initial pop.")
         sim = from_file(init_pop_file)
     else:
+        print("Initializing initial pop.")
         sim = regular()
         if save_init_pop:
             sim.people.save_snapshot(results_path / "init_pop.h5", sim.results.R[:], sim.pars)
+    print("Initialized")
 
     # Safety checks
     if verbose >= 3:

@@ -156,6 +156,7 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
     cov_matrix = np.array([[1, rho], [rho, 1]])
     L = np.linalg.cholesky(cov_matrix)
 
+    logger.info("FIXME: This chunk of code to initialize acq_risk_out and infectivity_out is know to be slow right now.")
     z = np.random.normal(size=(n, 2))
     z_corr = z @ L.T
 
@@ -166,6 +167,7 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
         sc.printyellow("Warning: manually resetting acq_risk_multiplier and daily_infectivity to 1.0 for testing")
         acq_risk_out[start:end] = 1.0
         infectivity_out[start:end] = mean_gamma
+    logger.info("END of known slowness.")
 
 
 # SEIR Model
@@ -762,6 +764,24 @@ class DiseaseState_ABM:
                     # Generate mortality-adjusted population over time
                     time_range = np.arange(T)[:, None]  # Create time indices
                     self.results.R[:, :] += (node_counts * np.exp(-mortality_rates * time_range)).astype(np.int32)
+
+                    # Record actual deaths in self.results.deaths
+                    # Compute projected deaths from the decay of the initially immune population
+
+                    # Step 1: Calculate total survivors at each timestep
+                    survivors = node_counts * np.exp(-mortality_rates * time_range)
+
+                    # Step 2: Compute deaths as difference between timesteps
+                    # Note: deaths[t] = survivors[t-1] - survivors[t]
+                    deaths = np.empty_like(survivors)
+                    deaths[0, :] = node_counts - survivors[0, :]  # initial drop
+                    deaths[1:, :] = survivors[:-1, :] - survivors[1:, :]
+
+                    # Step 3: Record into self.results.deaths (if initialized)
+                    if hasattr(self.results, "deaths"):
+                        self.results.deaths += deaths.astype(np.int32)
+                    else:
+                        print("⚠️ Warning: self.results.deaths is not initialized; death tracking skipped.")
 
                 # Get our EULA populations
                 node_counts = get_node_counts_pre_squash_nb(len(self.nodes), self.people.count, filter_mask, self.people.node_id)
@@ -1374,6 +1394,7 @@ class Transmission_ABM:
         self.network = self.sim.results.network
         init_pops = self.sim.pars.n_ppl
         # Get the distance matrix
+        logger.info("This network calc is a little slow too...")
         if self.sim.pars.distances is not None:
             dist_matrix = self.sim.pars.distances
         else:
@@ -1389,6 +1410,7 @@ class Transmission_ABM:
                 for j in range(n_nodes):
                     dist_matrix[i, j] = distance(lats[i], lons[i], lats[j], lons[j])
         # Setup the network
+        logger.info("END of slow network calc.")
         if self.pars.migration_method.lower() == "gravity":
             k, a, b, c = (
                 self.pars.gravity_k * 10 ** (self.pars.gravity_k_exponent),
@@ -1811,7 +1833,7 @@ class VitalDynamics_ABM:
         exp_ages["Proportion"] = exp_ages["Total"] / exp_ages["Total"].sum()
 
         # Observed age distribution
-        obs_ages = ((self.people.date_of_birth * -1) + self.sim.t) / 365
+        obs_ages = ((self.people.date_of_birth[: self.people.count] * -1) + self.sim.t) / 365  # THIS IS WRONG
         pyramid = load_pyramid_csv(pars.age_pyramid_path)
         bins = pyramid[:, 0]
         # Add 105+ bin
@@ -1825,8 +1847,8 @@ class VitalDynamics_ABM:
         fig, ax = plt.subplots(figsize=(10, 6))
         x_labels = exp_ages["Age"]
         x = np.arange(len(x_labels))
-        ax.plot(x, exp_ages["Proportion"], label="Expected", color="green")
-        ax.plot(x, obs_age_distribution, label="Observed at end of sim", color="blue")
+        ax.plot(x, exp_ages["Proportion"], label="Expected", color="green", linestyle="-", marker="x")
+        ax.plot(x, obs_age_distribution, label="Observed at end of sim", color="blue", linestyle="--", marker="o")
         ax.set_xlabel("Age Group")
         ax.set_ylabel("Proportion of Population")
         ax.set_xticks(x)
@@ -1840,13 +1862,23 @@ class VitalDynamics_ABM:
             plt.show()
 
     def plot_vital_dynamics(self, save=False, results_path=None):
+        """
+        This function originally plot births and deaths for each node, but we've switched it to be aggregated.
+        This was because we weren't noticing errors with the node-wise plots and we don't have spatially
+        varying inputs for fertility and mortality rates at this time.
+        """
         # Calculate cumulative sums
-        cum_births = np.cumsum(self.results.births, axis=0)
-        cum_deaths = np.cumsum(self.results.deaths, axis=0)
+        births_total = np.sum(self.results.births, axis=1)
+        deaths_total = np.sum(self.results.deaths, axis=1)
+
+        # Compute cumulative sums over time
+        cum_births = np.cumsum(births_total)
+        cum_deaths = np.cumsum(deaths_total)
+
         plt.figure(figsize=(10, 6))
         plt.plot(cum_births, label="Births", color="blue")
         plt.plot(cum_deaths, label="Deaths", color="red")
-        plt.title("Cumulative births and deaths")
+        plt.title("Cumulative births and deaths (All Nodes)")
         plt.xlabel("Time")
         plt.ylabel("Count")
         plt.legend()
