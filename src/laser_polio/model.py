@@ -156,7 +156,7 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
     cov_matrix = np.array([[1, rho], [rho, 1]])
     L = np.linalg.cholesky(cov_matrix)
 
-    logger.info( "FIXME: This chunk of code to initialize acq_risk_out and infectivity_out is know to be slow right now." )
+    logger.info("FIXME: This chunk of code to initialize acq_risk_out and infectivity_out is know to be slow right now.")
     z = np.random.normal(size=(n, 2))
     z_corr = z @ L.T
 
@@ -167,7 +167,7 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
         sc.printyellow("Warning: manually resetting acq_risk_multiplier and daily_infectivity to 1.0 for testing")
         acq_risk_out[start:end] = 1.0
         infectivity_out[start:end] = mean_gamma
-    logger.info( "END of known slowness." )
+    logger.info("END of known slowness.")
 
 
 # SEIR Model
@@ -773,7 +773,7 @@ class DiseaseState_ABM:
                     # Compute projected deaths from the decay of the initially immune population
 
                     # Step 1: Calculate total survivors at each timestep
-                    survivors = (node_counts * np.exp(-mortality_rates * time_range))
+                    survivors = node_counts * np.exp(-mortality_rates * time_range)
 
                     # Step 2: Compute deaths as difference between timesteps
                     # Note: deaths[t] = survivors[t-1] - survivors[t]
@@ -1398,7 +1398,7 @@ class Transmission_ABM:
         self.network = self.sim.results.network
         init_pops = self.sim.pars.n_ppl
         # Get the distance matrix
-        logger.info( "This network calc is a little slow too..." )
+        logger.info("This network calc is a little slow too...")
         if self.sim.pars.distances is not None:
             dist_matrix = self.sim.pars.distances
         else:
@@ -1414,7 +1414,7 @@ class Transmission_ABM:
                 for j in range(n_nodes):
                     dist_matrix[i, j] = distance(lats[i], lons[i], lats[j], lons[j])
         # Setup the network
-        logger.info( "END of slow network calc." )
+        logger.info("END of slow network calc.")
         if self.pars.migration_method.lower() == "gravity":
             k, a, b, c = (
                 self.pars.gravity_k * 10 ** (self.pars.gravity_k_exponent),
@@ -1837,7 +1837,7 @@ class VitalDynamics_ABM:
         exp_ages["Proportion"] = exp_ages["Total"] / exp_ages["Total"].sum()
 
         # Observed age distribution
-        obs_ages = ((self.people.date_of_birth[:self.people.count] * -1) + self.sim.t) / 365 # THIS IS WRONG
+        obs_ages = ((self.people.date_of_birth[: self.people.count] * -1) + self.sim.t) / 365  # THIS IS WRONG
         pyramid = load_pyramid_csv(pars.age_pyramid_path)
         bins = pyramid[:, 0]
         # Add 105+ bin
