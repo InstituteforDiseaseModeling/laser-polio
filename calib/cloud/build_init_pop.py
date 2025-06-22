@@ -27,7 +27,7 @@ config["results_path"] = str(output_dir)
 
 # Run sim and save init_pop
 print("🔄 Building new init_pop file...")
-sim = lp.run_sim(config=config, save_pop=True, run=False, verbose=1)
+sim = lp.run_sim(config=config, save_init_pop=True, run=False, verbose=1)
 
 # Rename file to standard name, safely
 default_path = output_dir / "init_pop.h5"

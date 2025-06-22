@@ -28,7 +28,7 @@ plot_pars = True
 seed = 1
 # Diffs from demo_zamfara_load_init_pop.py
 results_path = "results/demo_zamfara"
-save_pop = False
+save_init_pop = False
 init_pop_file = None
 
 
@@ -53,7 +53,7 @@ sim = lp.run_sim(
     migration_method=migration_method,
     radiation_k=radiation_k,
     max_migr_frac=max_migr_frac,
-    save_pop=save_pop,
+    save_init_pop=save_init_pop,
     vx_prob_ri=vx_prob_ri,
     init_pop_file=init_pop_file,
     seed_schedule=seed_schedule,

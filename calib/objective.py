@@ -53,7 +53,7 @@ def objective(
             actual = target_fn(actual_data_file, model_config_path, is_actual_data=True)
             predicted = target_fn(results_file, model_config_path, is_actual_data=False)
             weights = calib_config.get("metadata", {}).get("weights", {})
-            scores = scoring_fn(actual, predicted, method="poisson", weights=weights)
+            scores = scoring_fn(actual, predicted, weights=weights)
             score = scores["total_log_likelihood"]
             fit_scores.append(score)
             seeds.append(sim.pars.seed)
@@ -76,5 +76,30 @@ def objective(
 
 
 def json_friendly(d):
-    """Convert a dict of arrays to plain Python types."""
-    return {k: v.tolist() if isinstance(v, np.ndarray) else v for k, v in d.items()}
+    """Convert a dict of arrays to plain Python types that are JSON serializable."""
+    if isinstance(d, dict):
+        result = {}
+        for k, v in d.items():
+            # Convert tuple keys to strings
+            if isinstance(k, tuple):
+                key_str = str(k)
+            else:
+                key_str = k
+
+            # Handle nested dictionaries
+            if isinstance(v, dict):
+                result[key_str] = json_friendly(v)
+            # Handle numpy arrays
+            elif isinstance(v, np.ndarray):
+                result[key_str] = v.tolist()
+            # Handle lists (recursively process them)
+            elif isinstance(v, list):
+                result[key_str] = [json_friendly(item) if isinstance(item, (dict, np.ndarray)) else item for item in v]
+            # Handle other types
+            else:
+                result[key_str] = v
+        return result
+    elif isinstance(d, np.ndarray):
+        return d.tolist()
+    else:
+        return d

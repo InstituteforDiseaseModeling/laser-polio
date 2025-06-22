@@ -1,15 +1,12 @@
 # --- PRIORITIES ---
-1) Double check timing of E, I, & P states when normal transmission is occurring - I'm worried we're off by 1 after initialization
-3) Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
-4) Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
-5) Double check deaths. For some, I thought I saw on of my sims plot that no deaths were happening so we gotta check that.
-6) Try playing with links between N & S Nigeria in network (maybe a scalar???)
+- Add third period
+- Check the likelihoods from the Dirichlet. Consider adding weights
+- Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
+- Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
+- Try playing with links between N & S Nigeria in network (maybe a scalar???)
 
 CALIBRATION
-- Take notes in Obsidian
 - Run sim for top 1-10 calibrations
-- Plot monthly cases likelihood component against phase
-- Consider age distribution of cases as a calibration target, which would help parameterize R0
 - Try a missed pop frac scalar based on X (immunity, underwt, sia_coverage)
 - Calibrate with missed pop
 - Shift timing of seeding
@@ -43,11 +40,11 @@ NEW FEATURES
 - Add EMOD style seasonality
 - Look into age-specific death rates
 - Save results & specify frequency
-- Add IPV to RI
 - Try adding pop density as another r0_scalar
 - Adjust vx coverage for non-missed agents by prob/(1-missed_frac)
 - Add correlation in vx coverage so it's not random???
 - Age-specific R0???
+- Consider age distribution of cases as a calibration target, which would help parameterize R0
 
 CALIBRATION
 - Dirchlet multi for likelihood on counts: https://github.com/starsimhub/starsim/blob/a253336142f499d0afc93693614830bce9c30a6d/starsim/calib_components.py#L431

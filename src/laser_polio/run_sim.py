@@ -81,6 +81,9 @@ def run_sim(
     init_immun_scalar = configs.pop("init_immun_scalar", 1.0)
     r0_scalar_wt_slope = configs.pop("r0_scalar_wt_slope", 24)
     r0_scalar_wt_intercept = configs.pop("r0_scalar_wt_intercept", 0.2)
+    r0_scalar_wt_center = configs.pop("r0_scalar_wt_center", 0.22)
+    sia_re_center = configs.pop("sia_re_center", 0.5)
+    sia_re_scale = configs.pop("sia_re_scale", 1.0)
 
     # Geography
     dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", verbose=verbose)
@@ -100,14 +103,31 @@ def run_sim(
     immunity_cols = [col for col in init_immun.columns if col.startswith("immunity_")]
     init_immun[immunity_cols] = init_immun[immunity_cols].clip(lower=0.0, upper=1.0) * init_immun_scalar
     # Apply geographic scalars if specified in configs
+    if "immun_scalar_borno" in configs:
+        borno_scalar = configs.pop("immun_scalar_borno")
+        borno_mask = init_immun.index.str.contains("NIGERIA:BORNO")
+        init_immun.loc[borno_mask, immunity_cols] *= borno_scalar
+    if "immun_scalar_jigawa" in configs:
+        jigawa_scalar = configs.pop("immun_scalar_jigawa")
+        jigawa_mask = init_immun.index.str.contains("NIGERIA:JIGAWA")
+        init_immun.loc[jigawa_mask, immunity_cols] *= jigawa_scalar
     if "immun_scalar_kano" in configs:
         kano_scalar = configs.pop("immun_scalar_kano")
         kano_mask = init_immun.index.str.contains("NIGERIA:KANO")
         init_immun.loc[kano_mask, immunity_cols] *= kano_scalar
+    if "immun_scalar_katsina" in configs:
+        katsina_scalar = configs.pop("immun_scalar_katsina")
+        katsina_mask = init_immun.index.str.contains("NIGERIA:KATSINA")
+        init_immun.loc[katsina_mask, immunity_cols] *= katsina_scalar
     if "immun_scalar_kebbi" in configs:
         kebbi_scalar = configs.pop("immun_scalar_kebbi")
         kebbi_mask = init_immun.index.str.contains("NIGERIA:KEBBI")
         init_immun.loc[kebbi_mask, immunity_cols] *= kebbi_scalar
+    if "immun_scalar_kwara" in configs:
+        kwasu_scalar = configs.pop("immun_scalar_kwara")
+        kwasu_mask = init_immun.index.str.contains("NIGERIA:KWARA")
+        init_immun.loc[kwasu_mask, immunity_cols] *= kwasu_scalar
+
     init_immun[immunity_cols] = init_immun[immunity_cols].clip(upper=1.0, lower=0.0)
 
     # Initial infection seeding
@@ -154,11 +174,11 @@ def run_sim(
     ri_ipv = df_comp.set_index("dot_name").loc[dot_names, "dpt3"].values
     # SIA probabilities
     sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values
-    sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=0.5, scale=1.0)
+    sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=sia_re_center, scale=sia_re_scale)
     # R0 scalars
     underwt = df_comp.set_index("dot_name").loc[dot_names, "prop_underwt"].values
     r0_scalars_wt = (
-        1 / (1 + np.exp(r0_scalar_wt_slope * (0.22 - underwt)))
+        1 / (1 + np.exp(r0_scalar_wt_slope * (r0_scalar_wt_center - underwt)))
     ) + r0_scalar_wt_intercept  # The 0.22 is the mean of Nigeria underwt
     # Scale PIM estimates using Nigeria mins and maxes to keep this consistent with the underweight scaling when geography is not Nigeria
     # TODO: revisit this section if using geography outside Nigeria
@@ -339,7 +359,7 @@ def main(model_config, params_file, results_path, extra_pars, init_pop_file, sav
     if extra_pars:
         config.update(json.loads(extra_pars))
 
-    # Run the sim: save_pop and init_pop_file are mutually exclusive, not yet enforced
+    # Run the sim: save_init_pop and init_pop_file are mutually exclusive, not yet enforced
     run_sim(config=config, init_pop_file=init_pop_file, save_init_pop=save_init_pop, save_final_pop=save_final_pop)
 
 

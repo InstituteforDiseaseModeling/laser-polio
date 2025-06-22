@@ -5,55 +5,35 @@ import yaml
 
 # ------------------- USER CONFIGS -------------------
 
-# job_name = "laser-polio-worker-sk"
-# study_name = "calib_nigeria_3y_2018_pim_gravity_zinb_ipv_20250612"
-# model_config = "config_nigeria_3y_2018_pim_gravity_zinb_ipv.yaml"
-# calib_config = "r0_k_ssn_gravitykabc_zinb.yaml"
-
-# job_name = "laser-polio-worker-sk2"
-# study_name = "calib_nigeria_4y_2020_pim_gravity_zinb_ipv_20250612"
-# model_config = "config_nigeria_4y_2020_pim_gravity_zinb_ipv.yaml"
-# calib_config = "r0_k_ssn_gravitykabc_zinb.yaml"
-
-# job_name = "laser-polio-worker-sk3"
-# study_name = "calib_nigeria_3y_2018_underwt_gravity_zinb_ipv_20250612"
-# model_config = "config_nigeria_3y_2018_underwt_gravity_zinb_ipv.yaml"
-# calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars.yaml"
-
-# job_name = "laser-polio-worker-sk4"
-# study_name = "calib_nigeria_4y_2020_underwt_gravity_zinb_ipv_20250612"
-# model_config = "config_nigeria_4y_2020_underwt_gravity_zinb_ipv.yaml"
-# calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars.yaml"
-
-# job_name = "laser-polio-worker-sk5"
-# study_name = "calib_nigeria_6y_2018_underwt_gravity_zinb_ipv_20250613"
+# job_name = "laser-polio-sk1"
+# study_name = "calib_nigeria_6y_2018_underwt_grav_ipv_dirichlet_20250618"
 # model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv.yaml"
-# calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars.yaml"
+# calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet.yaml"
 
-# job_name = "laser-polio-worker-sk6"
-# study_name = "calib_nigeria_7y_2017_underwt_gravity_zinb_ipv_20250613"
-# model_config = "config_nigeria_7y_2017_underwt_gravity_zinb_ipv.yaml"
-# calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars.yaml"
+# job_name = "laser-polio-sk2"
+# study_name = "calib_nigeria_6y_2018_underwt_grav_ipv_kanoboost_dirichlet_20250618"
+# model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_kanoboost.yaml"
+# calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet.yaml"
 
-# job_name = "laser-polio-worker-sk7"
-# study_name = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_immunscalars_20250616"
-# model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv.yaml"
-# calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
+# job_name = "laser-polio-sk3"
+# study_name = "calib_nigeria_6y_2018_pim_grav_ipv_dirichlet_20250618"
+# model_config = "config_nigeria_6y_2018_pim_gravity_zinb_ipv.yaml"
+# calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet.yaml"
 
-# job_name = "laser-polio-worker-sk8"
-# study_name = "calib_nigeria_7y_2017_underwt_gravity_zinb_ipv_immunscalars_20250616"
-# model_config = "config_nigeria_7y_2017_underwt_gravity_zinb_ipv.yaml"
-# calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
+job_name = "laser-polio-sk4"
+study_name = "calib_nigeria_6y_2018_pim_grav_ipv_dirichlet_3periods_earlierandmoreseeds_20250619"
+model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_moreseeds.yaml"
+calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet.yaml"
 
-job_name = "laser-polio-worker-sk9"
-study_name = "calib_nigeria_7y_2017_underwt_gravity_zinb_ipv_immunscalars_kanobounds_20250617"
-model_config = "config_nigeria_7y_2017_underwt_gravity_zinb_ipv.yaml"
-calib_config = "r0_k_ssn_gravitykabc_zinb_r0wtscalars_immunscalars.yaml"
+job_name = "laser-polio-sk5"
+study_name = "calib_nigeria_6y_2018_pim_grav_ipv_dirichlet_3periods_earlierandmoreseeds_immunadj_20250619"
+model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_moreseeds_immunadj.yaml"
+calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 1  # Number of trials to run per pod
 n_replicates = 1  # Number of replicates to run for each trial
-parallelism = 100  # The number of pods (i.e., jobs) to run in parallel
+parallelism = 50  # The number of pods (i.e., jobs) to run in parallel
 completions = 20000  # The total number of pods (i.e., jobs) that need to successfully complete before the job is considered "done"
 
 # ---------------------------------------------------

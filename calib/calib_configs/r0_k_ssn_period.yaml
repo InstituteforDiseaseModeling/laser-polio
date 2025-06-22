@@ -1,0 +1,17 @@
+parameters:
+  r0:
+    low: 5.0
+    high: 20.0
+  radiation_k:
+    low: 0.0
+    high: 0.5
+  seasonal_amplitude:
+    low: 0.0
+    high: 0.2
+  seasonal_peak_doy:
+    low: 0
+    high: 364
+
+metadata:
+  scoring_fn: compute_nll_dirichlet
+  target_fn: calc_targets_simplified_temporal

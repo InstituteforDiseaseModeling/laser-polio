@@ -21,7 +21,7 @@ max_migr_frac = 1.0
 results_path = "results/demo_nigeria"
 save_plots = True
 save_data = True
-save_pop = False
+save_init_pop = False
 run = False
 
 ######### END OF USER PARS ########
@@ -44,7 +44,7 @@ sim = lp.run_sim(
     save_data=save_data,
     verbose=1,
     seed=1,
-    save_pop=save_pop,
+    save_init_pop=save_init_pop,
     run=run,
 )
 

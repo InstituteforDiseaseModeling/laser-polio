@@ -1,0 +1,47 @@
+parameters:
+  r0:
+    low: 5.0
+    high: 20.0
+  seasonal_amplitude:
+    low: 0.0
+    high: 0.4
+  seasonal_peak_doy:
+    low: 0
+    high: 300
+  gravity_k_exponent:
+    low: -20.0
+    high: 0.0
+  gravity_a:
+    low: 0.01
+    high: 2.0
+  gravity_b:
+    low: 0.01
+    high: 2.0
+  gravity_c:
+    low: 0.01
+    high: 2.0
+  node_seeding_zero_inflation:
+    low: 0.5
+    high: 0.99
+  r0_scalar_wt_slope:
+    low: 0.0
+    high: 100.0
+  r0_scalar_wt_intercept:
+    low: 0.0
+    high: 0.5
+  r0_scalar_wt_center:
+    low: 0.0
+    high: 1.0
+  sia_re_center:
+    low: 0.0
+    high: 1.0
+  sia_re_scale:
+    low: 0.0
+    high: 1.0
+  init_immun_scalar:
+    low: 0.5
+    high: 2.0
+    
+metadata:
+  scoring_fn: compute_nll_dirichlet
+  target_fn: calc_targets_simplified_temporal

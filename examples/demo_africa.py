@@ -42,7 +42,7 @@ sim = lp.run_sim(
     save_data=True,
     verbose=1,
     seed=1,
-    save_pop=True,
+    save_init_pop=True,
     plot_pars=True,
     use_pim_scalars=True,
 )

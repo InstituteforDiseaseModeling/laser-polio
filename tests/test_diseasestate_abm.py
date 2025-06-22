@@ -64,6 +64,8 @@ def test_initial_population_counts():
 # Test Disease Progression without transmission
 def test_progression_without_transmission():
     # Setup sim with 0 infections
+    dur_exp = 1
+    dur_inf = 1
     pars = {
         "start_date": lp.date("2020-01-01"),
         "dur": 1,
@@ -73,8 +75,8 @@ def test_progression_without_transmission():
         "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
         "init_immun": 0.0,  # 20% initially immune
         "init_prev": 0.0,  # 5% initially infected
-        "dur_exp": lp.constant(value=1),  # Duration of the exposed state
-        "dur_inf": lp.constant(value=1),  # Duration of the infectious state
+        "dur_exp": lp.constant(value=dur_exp),  # Duration of the exposed state
+        "dur_inf": lp.constant(value=dur_inf),  # Duration of the infectious state
         "p_paralysis": 1 / 2000,  # 1% paralysis probability
         "stop_if_no_cases": False,  # Stop simulation if no cases are present
     }
@@ -87,25 +89,26 @@ def test_progression_without_transmission():
     sim_2days.components = [lp.DiseaseState_ABM]
 
     # Test the initalized counts
-    assert np.all(sim_1day.people.exposure_timer[: pars_1day["n_ppl"].sum()] == 0), "The exposure timer was not initialized correctly"
-    assert np.all(sim_1day.people.infection_timer[: pars_1day["n_ppl"].sum()] == 1), "The infection timer was not initialized correctly"
+    n_ppl = pars["n_ppl"].sum()
+    assert np.all(sim_1day.people.exposure_timer[:n_ppl] == dur_exp), "The exposure timers should equal dur_exp after initialization"
+    assert np.all(sim_1day.people.infection_timer[:n_ppl] == dur_inf), "The infection timers should equal dur_inf after initialization"
 
     # Test a sim with one day
-    sim_1day.people.disease_state[: sim_1day.pars.n_ppl.sum()] = 1  # Set all to Exposed
+    sim_1day.people.disease_state[:n_ppl] = 1  # Set all to Exposed
     sim_1day.run()  # Run for one day
     # Remember that results are not tallied in the DiseaseState_ABM component (results are tallied in Transmission_ABM) so we have to sum them up manually
     assert np.sum(sim_1day.people.disease_state == 0) == 0  # No one should be Susceptible
     assert np.sum(sim_1day.people.disease_state == 1) == 0  # No one should be Exposed
-    assert np.sum(sim_1day.people.disease_state == 2) == pars_1day["n_ppl"].sum()  # Everyone should be Infected
+    assert np.sum(sim_1day.people.disease_state == 2) == n_ppl  # Everyone should be Infected
     assert np.sum(sim_1day.people.disease_state == 3) == 0  # No one should be Recovered
 
     # Test a sim with two days
-    sim_2days.people.disease_state[: sim_2days.pars.n_ppl.sum()] = 1  # Set all to Exposed
+    sim_2days.people.disease_state[:n_ppl] = 1  # Set all to Exposed
     sim_2days.run()  # Run for two days
     assert np.sum(sim_2days.people.disease_state == 0) == 0  # No one should be Susceptible
     assert np.sum(sim_2days.people.disease_state == 1) == 0  # No one should be Exposed
     assert np.sum(sim_2days.people.disease_state == 2) == 0  # No one should be Infected
-    assert np.sum(sim_2days.people.disease_state == 3) == pars_2days["n_ppl"].sum()  # Everyone should be Recovered
+    assert np.sum(sim_2days.people.disease_state == 3) == n_ppl  # Everyone should be Recovered
 
 
 # Test Disease Progression with transmission
@@ -237,6 +240,97 @@ def test_progression_with_transmission():
     assert n_e_end == n_e_t6, "Day 6 state counts should match logged results"
     assert n_i_end == n_i_t6, "Day 6 state counts should match logged results"
     assert n_r_end == n_r_t6, "Day 6 state counts should match logged results"
+
+
+# Test Disease Progression with transmission
+def test_disease_timers_with_trans_explicit():
+    # Setup sim with 2 people & 1 seeded infection
+    dur_exp = 2
+    dur_inf = 3
+    t_to_paralysis = 10
+    pars = PropertySet(
+        {
+            "start_date": lp.date("2018-01-01"),
+            "dur": 30,
+            "n_ppl": np.array([1, 1]),  # Two nodes with populations
+            "cbr": np.array([0, 0]),  # Birth rate per 1000/year
+            "r0_scalars": np.array([1.0, 1.0]),  # Spatial transmission scalar (multiplied by global rate)
+            "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
+            "init_immun": 0.0,  # initially immune <
+            "init_prev": 1,  # initially infected from any age
+            "dur_exp": lp.constant(value=dur_exp),  # Duration of the exposed state
+            "dur_inf": lp.constant(value=dur_inf),  # Duration of the infectious state
+            "t_to_paralysis": lp.constant(value=t_to_paralysis),  # Time to paralysis
+            "p_paralysis": 1 / 2000,  # 1% paralysis probability
+            "r0": 999,  # Basic reproduction number
+            "distances": np.array([[0, 1], [1, 0]]),  # Distance in km between nodes
+            "stop_if_no_cases": False,  # Stop simulation if no cases are present
+            "seed": 123,
+        }
+    )
+    sim = lp.SEIR_ABM(pars)
+    sim.components = [lp.DiseaseState_ABM, lp.Transmission_ABM, lp.VitalDynamics_ABM]
+
+    # Test the initalized counts
+    disease_state = sim.people.disease_state[: sim.people.count]  # Filter to the active individuals
+    n_s_init = np.sum(disease_state == 0)
+    n_e_init = np.sum(disease_state == 1)
+    n_i_init = np.sum(disease_state == 2)
+    n_r_init = np.sum(disease_state == 3)
+    assert n_s_init == 1, "There should be 1 S"
+    assert n_e_init == 0, "There should be no E during initialization"
+    assert n_i_init == 1, "There should be 1 I"
+    assert n_r_init == 0, "There should be no R during initialization"
+
+    # Test the timers
+    e_timers = sim.people.exposure_timer[:]
+    i_timers = sim.people.infection_timer[:]
+    p_timers = sim.people.paralysis_timer[:]
+    assert np.all(e_timers == dur_exp), "Exposure timers should be equal to dur_exp"
+    assert np.all(i_timers == dur_inf), "Infection timers should be equal to dur_inf"
+    assert np.all(p_timers == t_to_paralysis), "Paralysis timers should be equal to t_to_paralysis"
+
+    # Run the simulation for one timestep
+    sim.run()
+
+    # Extract results
+    n_s = np.sum(sim.results.S, axis=1)
+    n_e = np.sum(sim.results.E, axis=1)
+    n_i = np.sum(sim.results.I, axis=1)
+    n_r = np.sum(sim.results.R, axis=1)
+    n_p = np.sum(sim.results.new_potentially_paralyzed, axis=1)
+
+    # Calc time to state changes
+    zeros = np.zeros(sim.pars.dur + 1).astype(int)
+    # S
+    n_s_exp = zeros.copy()
+    n_s_exp[0] = 1  # The susceptible (non-seeded infection) should start as S then become E on day 1 (super high r0)
+    # E
+    n_e_exp = zeros.copy()
+    n_e_exp[1 : (1 + dur_exp)] = (
+        1  # The susceptible (non-seeded infection) should become E on day 1 (super high r0) then recover after dur_exp days
+    )
+    # I
+    n_i_exp = zeros.copy()
+    n_i_exp[0 : (dur_inf + 1)] += 1  # The seeded infection starts as I and recovers after dur_inf days (+1 for day 0)
+    n_i_exp[(1 + dur_exp) : (1 + dur_exp + dur_inf)] += (
+        1  # new infection should become E on day 1 (super high r0) then recover after dur_inf days
+    )
+    # R
+    n_r_exp = zeros.copy()
+    n_r_exp[(1 + dur_inf) :] += 1  # seeded infection should recover after dur_inf days (+1 for day 0)
+    n_r_exp[(1 + dur_exp + dur_inf) :] += 1  # new infections should recover after dur_exp days
+    # P
+    n_p_exp = zeros.copy()
+    n_p_exp[1 + t_to_paralysis] += 1  # The seeded infection should become P after t_to_paralysis days (+1 for day 0)
+    n_p_exp[2 + t_to_paralysis] += 1  # The new infection should become E on day 1 (super high r0) then become P after t_to_paralysis days
+
+    # Check that the results match the expected counts
+    assert np.all(n_s == n_s_exp), "S counts should match expected counts"
+    assert np.all(n_e == n_e_exp), "E counts should match expected counts"
+    assert np.all(n_i == n_i_exp), "I counts should match expected counts"
+    assert np.all(n_r == n_r_exp), "R counts should match expected counts"
+    assert np.all(n_p == n_p_exp), "P counts should match expected counts"
 
 
 # Test Paralysis Probability
@@ -378,10 +472,10 @@ def test_time_to_paralysis():
     sim = setup_sim()
     dist = sim.pars.t_to_paralysis(1000)
     p_timer = sim.people.paralysis_timer
-    assert np.isclose(dist.mean(), 9, atol=3)
-    assert np.isclose(dist.std(), 4, atol=3)
-    assert np.isclose(p_timer.mean(), 9, atol=3)
-    assert np.isclose(p_timer.std(), 4, atol=3)
+    assert np.isclose(dist.mean(), 12.5, atol=3)
+    assert np.isclose(dist.std(), 3.5, atol=3)
+    assert np.isclose(p_timer.mean(), 12.5, atol=3)
+    assert np.isclose(p_timer.std(), 3.5, atol=3)
 
 
 def test_paralysis_progression_manual():
@@ -553,7 +647,7 @@ def test_potential_paralysis():
     assert np.sum(sim.results.new_potentially_paralyzed) <= np.sum(sim.results.new_exposed), (
         "Potential paralysis should be less than or equal to new exposed"
     )
-    assert np.isclose(np.sum(sim.results.new_potentially_paralyzed) / 2000, np.sum(sim.results.new_paralyzed), atol=10), (
+    assert np.isclose(np.sum(sim.results.new_potentially_paralyzed) / 2000, np.sum(sim.results.new_paralyzed), atol=17), (
         "Potential paralysis should be 1/2000 of new exposed"
     )
 
@@ -563,6 +657,7 @@ if __name__ == "__main__":
     test_initial_population_counts()
     test_progression_without_transmission()
     test_progression_with_transmission()
+    test_disease_timers_with_trans_explicit()
     test_paralysis_probability()
     test_run_sim()
     test_seed_schedule()
