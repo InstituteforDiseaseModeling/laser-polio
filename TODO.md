@@ -1,6 +1,6 @@
 # --- PRIORITIES ---
-- Add third period
-- Check the likelihoods from the Dirichlet. Consider adding weights
+- Add weights to the total_by_period
+- Change seeding to only be two spots in each outbreak
 - Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
 - Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
 - Try playing with links between N & S Nigeria in network (maybe a scalar???)
@@ -9,18 +9,16 @@ CALIBRATION
 - Run sim for top 1-10 calibrations
 - Try a missed pop frac scalar based on X (immunity, underwt, sia_coverage)
 - Calibrate with missed pop
-- Shift timing of seeding
-- Try calibrating the timing of seeds???
-- Try a universal scalar for init_immunity
 - Sweep over radiation k and make a scatterplot like I did for gravity
 - Sweep over hetero with best pars from calib
-- Try calibrating the sia rand effects center and scale values
 - Plot out 'bad' calib trials, get a smattering of options for each r0, both high and low likelihoods
 
 NEW FEATURES
 - Enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
 - Add age pyramid by country
-- Reactive SIAs (2 campaigns per OB)
+- Reactive SIAs
+- Perf improvements
+- Try alternate migration models like discrete radiation (JG recommends)
 - Add scalar for N Nigeria
 - Add CBR by country-year
 - Curate the surveillance delays
