@@ -3,6 +3,7 @@ from pathlib import Path
 
 import cloud_calib_config as cfg
 import sciris as sc
+from disk_check import run_disk_check
 from kubernetes import client
 from kubernetes import config
 
@@ -81,7 +82,8 @@ job = client.V1Job(api_version="batch/v1", kind="Job", metadata=client.V1ObjectM
 
 # Apply the job
 try:
-    response = batch_v1.create_namespaced_job(namespace=cfg.namespace, body=job)
-    sc.printgreen(f"✅ Job {response.metadata.name} created successfully.")
+    run_disk_check(namespace=cfg.namespace, pvc_name=PERSISTENT_VOLUME_CLAIM_NAME, mount_path=SHARED_DIR, timeout_seconds=30)
+    # response = batch_v1.create_namespaced_job(namespace=cfg.namespace, body=job)
+    # sc.printgreen(f"✅ Job {response.metadata.name} created successfully.")
 except client.exceptions.ApiException as e:
     sc.printred(f"❌ Error applying the job: {e}")
