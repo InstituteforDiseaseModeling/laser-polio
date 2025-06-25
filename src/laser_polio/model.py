@@ -639,6 +639,8 @@ class DiseaseState_ABM:
         self.results.add_array_property("E", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("I", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("R", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.add_array_property("E_by_strain", shape=(self.sim.nt, len(self.nodes), len(self.sim.pars.strain_ids)), dtype=np.int32)
+        self.results.add_array_property("I_by_strain", shape=(self.sim.nt, len(self.nodes), len(self.sim.pars.strain_ids)), dtype=np.int32)
         self.results.add_array_property("potentially_paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("new_potentially_paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
@@ -1148,22 +1150,29 @@ class DiseaseState_ABM:
             plt.show()
 
 
-@nb.njit((nb.int32[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32), parallel=True, nogil=True)
-def count_SEIRP(node_id, disease_state, potentially_paralyzed, paralyzed, n_nodes, n_people):
+@nb.njit((nb.int32[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32, nb.int32), parallel=True, nogil=True)
+def count_SEIRP(node_id, disease_state, strain, potentially_paralyzed, paralyzed, n_nodes, n_strains, n_people):
     """
-    Go through each person exactly once and increment counters for their node.
+    Go through each person exactly once and increment counters for their node and strain.
 
     node_id:        array of node IDs for each individual
     disease_state:  array storing each person's disease state (-1=dead/inactive, 0=S, 1=E, 2=I, 3=R)
+    strain:         array of strain IDs for each individual
     potentially_paralyzed: array (0 or 1) if the person is potentially paralyzed
     paralyzed:      array (0 or 1) if the person is paralyzed
     n_nodes:        total number of nodes
+    n_strains:      total number of strains
 
-    Returns: S, E, I, R, P arrays, each length n_nodes
+    Returns: S, E, I, R, E_by_strain, I_by_strain, potentially_paralyzed, paralyzed where:
+        S, E, I, R, potentially_paralyzed, paralyzed have shape (n_nodes,)
+        E_by_strain, I_by_strain have shape (n_nodes, n_strains)
     """
 
     n_threads = nb.get_num_threads()
-    SEIR = np.zeros((n_threads, n_nodes, 4), dtype=np.int32)  # S, E, I, R
+    S = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    E_by_strain = np.zeros((n_threads, n_nodes, n_strains), dtype=np.int32)
+    I_by_strain = np.zeros((n_threads, n_nodes, n_strains), dtype=np.int32)
+    R = np.zeros((n_threads, n_nodes), dtype=np.int32)
     POTP = np.zeros((n_threads, n_nodes), dtype=np.int32)
     P = np.zeros((n_threads, n_nodes), dtype=np.int32)
 
@@ -1172,10 +1181,17 @@ def count_SEIRP(node_id, disease_state, potentially_paralyzed, paralyzed, n_node
         if disease_state[i] >= 0:  # Only count those who are alive
             nd = node_id[i]
             ds = disease_state[i]
-
+            st = strain[i]
             tid = nb.get_thread_id()
-            # NOTE: This only works if disease_state is contiguous, 0..N
-            SEIR[tid, nd, ds] += 1
+
+            if ds == 0:  # Susceptible
+                S[tid, nd] += 1
+            elif ds == 1:  # Exposed
+                E_by_strain[tid, nd, st] += 1
+            elif ds == 2:  # Infected
+                I_by_strain[tid, nd, st] += 1
+            elif ds == 3:  # Recovered
+                R[tid, nd] += 1
 
             # Check paralyzed
             if potentially_paralyzed[i] == 1:
@@ -1183,14 +1199,28 @@ def count_SEIRP(node_id, disease_state, potentially_paralyzed, paralyzed, n_node
             if paralyzed[i] == 1:
                 P[tid, nd] += 1
 
-    # return S, E, I, R, P
+    # Sum across threads and strains where needed
+    S_final = S.sum(axis=0)
+    E_by_strain_final = E_by_strain.sum(axis=0)
+    I_by_strain_final = I_by_strain.sum(axis=0)
+    R_final = R.sum(axis=0)
+    POTP_final = POTP.sum(axis=0)
+    P_final = P.sum(axis=0)
+
+    # Sum across strains for backward compatibility
+    E_final = E_by_strain_final.sum(axis=1)
+    I_final = I_by_strain_final.sum(axis=1)
+
+    # return S, E, I, R, E_by_strain, I_by_strain, potentially_paralyzed, paralyzed
     return (
-        SEIR[:, :, 0].sum(axis=0),
-        SEIR[:, :, 1].sum(axis=0),
-        SEIR[:, :, 2].sum(axis=0),
-        SEIR[:, :, 3].sum(axis=0),
-        POTP.sum(axis=0),
-        P.sum(axis=0),
+        S_final,
+        E_final,
+        I_final,
+        R_final,
+        E_by_strain_final,
+        I_by_strain_final,
+        POTP_final,
+        P_final,
     )
 
 
@@ -1543,11 +1573,13 @@ class Transmission_ABM:
                 beta_by_node_strain[:, s] += transfer.sum(axis=0) - transfer.sum(axis=1)  # Add incoming, subtract outgoing
 
             # Step 3: Scale by seasonality and R0 scalars
-            beta_by_node_strain = beta_by_node_strain * beta_seasonality * self.r0_scalars
+            beta_by_node_strain = beta_by_node_strain * beta_seasonality * self.r0_scalars[:, np.newaxis]
 
             # Step 4: Compute the exposure rate for each node
             alive_counts = self.results.pop[self.sim.t]
-            per_agent_exp_rate = beta_by_node_strain / np.maximum(alive_counts, 1)  # convert total FOI to per-agent exposure rate
+            per_agent_exp_rate = beta_by_node_strain / np.maximum(
+                alive_counts[:, np.newaxis], 1
+            )  # convert total FOI to per-agent exposure rate
             prob_exp_by_node_strain = 1 - np.exp(-per_agent_exp_rate)  # convert rate to probability of exposure
             total_exposure_prob_per_node = prob_exp_by_node_strain.sum(axis=1)  # Total prob of exposure per node (sum across all strains)
             expected_exposures_per_node = exposure_by_node * total_exposure_prob_per_node  # Expected exposures per node
@@ -1620,19 +1652,23 @@ class Transmission_ABM:
 
     def log(self, t):
         # Get the counts for each node in one pass
-        S_counts, E_counts, I_counts, R_counts, POTP_counts, P_counts = count_SEIRP(
+        S_counts, E_counts, I_counts, R_counts, E_by_strain_counts, I_by_strain_counts, POTP_counts, P_counts = count_SEIRP(
             node_id=self.people.node_id,
             disease_state=self.people.disease_state,
+            strain=self.people.strain,
             potentially_paralyzed=self.people.potentially_paralyzed,
             paralyzed=self.people.paralyzed,
             n_nodes=np.int32(len(self.nodes)),
+            n_strains=np.int32(len(self.pars.strain_ids)),
             n_people=np.int32(self.people.count),
         )
 
         # Store them in results
         self.results.S[t, :] = S_counts
-        self.results.E[t, :] = E_counts
-        self.results.I[t, :] = I_counts
+        self.results.E[t, :] = E_counts  # Already summed across strains
+        self.results.I[t, :] = I_counts  # Already summed across strains
+        self.results.E_by_strain[t, :, :] = E_by_strain_counts  # Store strain-specific counts
+        self.results.I_by_strain[t, :, :] = I_by_strain_counts  # Store strain-specific counts
         # Note that we add to existing non-zero EULA values for R
         self.results.R[t, :] += R_counts
         self.results.potentially_paralyzed[t, :] = POTP_counts
@@ -1974,6 +2010,7 @@ def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, 
         nb.int32[:],
         nb.int8[:],
         nb.int8[:],
+        nb.int8[:],
         nb.int32[:],
         nb.int64,
         nb.float64[:],
@@ -1983,6 +2020,7 @@ def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, 
         nb.int32[:, :],
         nb.uint8[:],
         nb.int8[:],
+        nb.int8,
     ),
     parallel=True,
     cache=False,
@@ -1991,6 +2029,7 @@ def fast_ri(
     step_size,
     node_id,
     disease_state,
+    strain,
     ipv_protected,
     ri_timer,
     sim_t,
@@ -2001,6 +2040,7 @@ def fast_ri(
     local_ipv_counts,
     chronically_missed,
     potentially_paralyzed,
+    ri_vaccine_strain,
 ):
     """
     Optimized vaccination step with thread-local storage and parallel execution.
@@ -2028,10 +2068,11 @@ def fast_ri(
             if np.random.rand() < prob_ri:
                 local_ri_counts[nb.get_thread_id(), node] += 1
                 if state == 0:
-                    # We don't check for vx_eff here, since that is already accounted for in the prob_ri file
-                    disease_state[i] = 3
-                    # TODO remove this when we have strain tracking
-                    potentially_paralyzed[i] = 0
+                    # Expose to vaccine strain instead of immediate recovery
+                    disease_state[i] = 1  # Set to exposed
+                    strain[i] = ri_vaccine_strain  # Set vaccine strain
+                    # TODO remove when we have strain tracking hooked up into paralysis
+                    potentially_paralyzed[i] = 0  # Assume that vaccine strains don't cause paralysis
             if np.random.rand() < prob_ipv:
                 local_ipv_counts[nb.get_thread_id(), node] += 1
                 ipv_protected[i] = 1
@@ -2104,6 +2145,15 @@ class RI_ABM:
         else:
             vx_prob_ipv = self.pars["vx_prob_ipv"]
 
+        # Determine RI vaccine strain based on vaccine type
+        ri_vaccine_type = getattr(self.pars, "ri_vaccine_type", "bOPV")  # Default to bOPV if not specified
+        if "nOPV" in ri_vaccine_type:
+            ri_vaccine_strain = np.int8(2)  # nOPV strain
+        elif any(vtype in ri_vaccine_type for vtype in ["bOPV", "mOPV", "tOPV", "topv"]):
+            ri_vaccine_strain = np.int8(1)  # Sabin strain
+        else:
+            ri_vaccine_strain = np.int8(1)  # Default to Sabin strain
+
         # Promote to 1D arrays if needed
         if np.isscalar(vx_prob_ri):
             vx_prob_ri = np.full(num_nodes, vx_prob_ri, dtype=np.float64)
@@ -2117,6 +2167,7 @@ class RI_ABM:
                 step_size=np.int32(self.step_size),
                 node_id=self.people.node_id,
                 disease_state=self.people.disease_state,
+                strain=self.people.strain,
                 ipv_protected=self.people.ipv_protected,
                 ri_timer=self.people.ri_timer,
                 sim_t=np.int32(self.sim.t),
@@ -2127,6 +2178,7 @@ class RI_ABM:
                 local_ipv_counts=local_ipv_counts,
                 chronically_missed=self.people.chronically_missed,
                 potentially_paralyzed=self.people.potentially_paralyzed,
+                ri_vaccine_strain=ri_vaccine_strain,
             )
             # Sum up the counts from all threads
             self.results.ri_vaccinated[self.sim.t] = local_ri_counts.sum(axis=0)
@@ -2159,6 +2211,7 @@ class RI_ABM:
 def fast_sia(
     node_ids,
     disease_states,
+    strain,
     dobs,
     sim_t,
     vx_prob,
@@ -2171,6 +2224,7 @@ def fast_sia(
     local_protected,
     chronically_missed,
     potentially_paralyzed,
+    sia_vaccine_strain,
 ):
     """
     Numbified supplemental immunization activity (SIA) vaccination step.
@@ -2215,10 +2269,11 @@ def fast_sia(
             local_vaccinated[thread_id, node] += 1  # Increment vaccinated count
             if disease_states[i] == 0:  # If susceptible
                 if r < prob_vx * vx_eff:  # Check probability that vaccine takes/protects
-                    disease_states[i] = 3  # Move to Recovered state
+                    disease_states[i] = 1  # Move to Exposed state (vaccine infection)
+                    strain[i] = sia_vaccine_strain  # Set vaccine strain
                     local_protected[thread_id, node] += 1  # Increment protected count
-                    # TODO remove this when we have strain tracking
-                    potentially_paralyzed[i] = 0
+                    # TODO remove when we have strain tracking hooked up into paralysis
+                    potentially_paralyzed[i] = 0  # Vaccine strains don't cause paralysis
 
     return
 
@@ -2269,12 +2324,21 @@ class SIA_ABM:
                 vx_eff = self.pars["vx_efficacy"][vaccinetype]
                 min_age, max_age = event["age_range"]
 
+                # Determine SIA vaccine strain based on vaccine type
+                if "nOPV" in vaccinetype:
+                    sia_vaccine_strain = np.int8(2)  # nOPV strain
+                elif any(vtype in vaccinetype for vtype in ["bOPV", "mOPV", "tOPV", "topv"]):
+                    sia_vaccine_strain = np.int8(1)  # Sabin strain
+                else:
+                    sia_vaccine_strain = np.int8(1)  # Default to Sabin strain
+
                 # Suppose we have num_people individuals
                 local_vaccinated = np.zeros((nb.get_num_threads(), len(self.sim.nodes)), dtype=np.int32)
                 local_protected = np.zeros((nb.get_num_threads(), len(self.sim.nodes)), dtype=np.int32)
                 fast_sia(
                     self.people.node_id,
                     self.people.disease_state,
+                    self.people.strain,
                     self.people.date_of_birth,
                     self.sim.t,
                     vx_prob_sia,
@@ -2287,6 +2351,7 @@ class SIA_ABM:
                     local_protected,
                     chronically_missed=self.people.chronically_missed,
                     potentially_paralyzed=self.people.potentially_paralyzed,
+                    sia_vaccine_strain=sia_vaccine_strain,
                 )
                 self.results.sia_vaccinated[t] = local_vaccinated.sum(axis=0)
                 self.results.sia_protected[t] = local_protected.sum(axis=0)
