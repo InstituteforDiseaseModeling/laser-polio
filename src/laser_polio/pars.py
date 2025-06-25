@@ -19,10 +19,10 @@ default_pars = PropertySet(
         "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",
         "cbr": [37, 41],  # Crude birth rate per 1000 per year
         # Disease
-        "strain_ids": {"VDPV": 0, "Sabin": 1, "nOPV2": 2},
+        "strain_ids": {"VDPV2": 0, "Sabin2": 1, "nOPV2": 2},
         "strain_r0_scalars": {
-            0: 1.0,  # VDPV
-            1: 0.25,  # Sabin
+            0: 1.0,  # VDPV2
+            1: 0.25,  # Sabin2
             2: 0.125,  # nOPV2
         },
         "init_immun": [0.0, 0.0],  # Initial immunity per node

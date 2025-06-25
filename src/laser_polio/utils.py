@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numba as nb
 import numpy as np
 import pandas as pd
+import sciris as sc
 
 __all__ = [
     "TimingStats",
@@ -427,6 +428,25 @@ def process_sia_schedule_polio(df, region_names, sim_start_date, n_days, filter_
     summary = summary[summary["date"] >= sim_start_date]
     sim_end_date = sim_start_date + datetime.timedelta(days=n_days)
     summary = summary[summary["date"] <= sim_end_date]
+
+    # Curate vaccine strain (the strain that will be transmitted in the sim)
+    # Options are Sabin2 or nOPV2
+    def assign_vaccine_strain(vaccinetype):
+        """Assign vaccine strain based on vaccine type."""
+        if "nOPV2" in vaccinetype:
+            return "nOPV2"
+        elif any(vtype in vaccinetype for vtype in ["bOPV", "mOPV", "tOPV", "topv"]):
+            return "Sabin2"
+        else:
+            return np.nan
+
+    summary["vaccine_strain"] = summary["vaccinetype"].apply(assign_vaccine_strain)
+
+    # Throw a warning if there are any NA values in the vaccine_strain column
+    if summary["vaccine_strain"].isna().any():
+        sc.printred(
+            "WARNING from process_sia_schedule_polio(): There are NA values in the vaccine_strain column that will cause errors in the sim. Please check the SIA calendar."
+        )
 
     # Convert to dictionary format
     result = summary.to_dict(orient="records")
