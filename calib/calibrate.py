@@ -3,10 +3,11 @@ import shutil
 import traceback
 from pathlib import Path
 
-import calib_db
 import click
 import optuna
 import sciris as sc
+
+import calib_db
 from report import plot_likelihoods
 from report import plot_optuna
 from report import plot_targets
@@ -38,7 +39,7 @@ if os.getenv("POLIO_ROOT"):
     lp.root = Path(os.getenv("POLIO_ROOT"))
 
 
-def resolve_paths(study_name, model_config, calib_config, results_path=None, actual_data_file=None):
+def resolve_paths(study_name, model_config, calib_config, results_path=".", actual_data_file=None):
     """
     Build composite paths
     """
@@ -53,8 +54,8 @@ def resolve_paths(study_name, model_config, calib_config, results_path=None, act
         calib_config = root / "calib/calib_configs" / calib_config
 
     results_path = Path(results_path) if results_path else root / "results" / study_name
-    if not results_path.is_absolute():
-        results_path = root / "results" / study_name
+    #if not results_path.is_absolute():
+    #    results_path = root / "results" / study_name
 
     actual_data_file = Path(actual_data_file) if actual_data_file else results_path / "actual_data.csv"
     if not actual_data_file.is_absolute():
@@ -64,9 +65,12 @@ def resolve_paths(study_name, model_config, calib_config, results_path=None, act
 
 
 def main(study_name, model_config, calib_config, fit_function, n_replicates, n_trials, results_path, actual_data_file, dry_run):
+    print( f"{results_path=}" )
+
     model_config, calib_config, results_path, actual_data_file = resolve_paths(
         study_name, model_config, calib_config, results_path, actual_data_file
     )
+    print( f"{results_path=}" )
 
     print(f"🔍 Running calibration for study '{study_name}'...")
 
@@ -115,7 +119,7 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
 @click.option("--dry-run", default=False, show_default=True, type=bool)
 def cli(**kwargs):
     # 2 params have None to trigger default behavior. None is not real value.
-    main(results_path=None, actual_data_file=None, **kwargs)
+    main(results_path=".", actual_data_file=None, **kwargs)
 
 
 if __name__ == "__main__":

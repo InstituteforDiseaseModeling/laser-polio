@@ -12,7 +12,7 @@ seed_schedule:
 migration_method: "gravity"
 max_migr_frac: 1.0
 results_path: "results/demo_nigeria"
-save_plots: false
+save_plots: true
 save_data: true
 summary_config:
   region_groups:
