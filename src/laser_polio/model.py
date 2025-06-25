@@ -243,6 +243,7 @@ class SEIR_ABM:
             self.people.add_scalar_property("paralyzed", dtype=np.int8, default=0)
             self.people.add_scalar_property("ipv_protected", dtype=np.int8, default=0)
             self.results = LaserFrame(capacity=1)
+            self.people.add_scalar_property("strain", dtype=np.int8, default=0)  # 0 = VDPV, 1 = Sabin, 2 = nOPV2
 
             # Setup spatial component with node IDs
             self.people.add_scalar_property("node_id", dtype=np.int32, default=0)
@@ -638,6 +639,8 @@ class DiseaseState_ABM:
         self.results.add_array_property("E", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("I", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("R", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.add_array_property("E_by_strain", shape=(self.sim.nt, len(self.nodes), len(self.sim.pars.strain_ids)), dtype=np.int32)
+        self.results.add_array_property("I_by_strain", shape=(self.sim.nt, len(self.nodes), len(self.sim.pars.strain_ids)), dtype=np.int32)
         self.results.add_array_property("potentially_paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("new_potentially_paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
@@ -1147,22 +1150,29 @@ class DiseaseState_ABM:
             plt.show()
 
 
-@nb.njit((nb.int32[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32), parallel=True, nogil=True)
-def count_SEIRP(node_id, disease_state, potentially_paralyzed, paralyzed, n_nodes, n_people):
+@nb.njit((nb.int32[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32, nb.int32), parallel=True, nogil=True)
+def count_SEIRP(node_id, disease_state, strain, potentially_paralyzed, paralyzed, n_nodes, n_strains, n_people):
     """
-    Go through each person exactly once and increment counters for their node.
+    Go through each person exactly once and increment counters for their node and strain.
 
     node_id:        array of node IDs for each individual
     disease_state:  array storing each person's disease state (-1=dead/inactive, 0=S, 1=E, 2=I, 3=R)
+    strain:         array of strain IDs for each individual
     potentially_paralyzed: array (0 or 1) if the person is potentially paralyzed
     paralyzed:      array (0 or 1) if the person is paralyzed
     n_nodes:        total number of nodes
+    n_strains:      total number of strains
 
-    Returns: S, E, I, R, P arrays, each length n_nodes
+    Returns: S, E, I, R, E_by_strain, I_by_strain, potentially_paralyzed, paralyzed where:
+        S, E, I, R, potentially_paralyzed, paralyzed have shape (n_nodes,)
+        E_by_strain, I_by_strain have shape (n_nodes, n_strains)
     """
 
     n_threads = nb.get_num_threads()
-    SEIR = np.zeros((n_threads, n_nodes, 4), dtype=np.int32)  # S, E, I, R
+    S = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    E_by_strain = np.zeros((n_threads, n_nodes, n_strains), dtype=np.int32)
+    I_by_strain = np.zeros((n_threads, n_nodes, n_strains), dtype=np.int32)
+    R = np.zeros((n_threads, n_nodes), dtype=np.int32)
     POTP = np.zeros((n_threads, n_nodes), dtype=np.int32)
     P = np.zeros((n_threads, n_nodes), dtype=np.int32)
 
@@ -1171,10 +1181,17 @@ def count_SEIRP(node_id, disease_state, potentially_paralyzed, paralyzed, n_node
         if disease_state[i] >= 0:  # Only count those who are alive
             nd = node_id[i]
             ds = disease_state[i]
-
+            st = strain[i]
             tid = nb.get_thread_id()
-            # NOTE: This only works if disease_state is contiguous, 0..N
-            SEIR[tid, nd, ds] += 1
+
+            if ds == 0:  # Susceptible
+                S[tid, nd] += 1
+            elif ds == 1:  # Exposed
+                E_by_strain[tid, nd, st] += 1
+            elif ds == 2:  # Infected
+                I_by_strain[tid, nd, st] += 1
+            elif ds == 3:  # Recovered
+                R[tid, nd] += 1
 
             # Check paralyzed
             if potentially_paralyzed[i] == 1:
@@ -1182,14 +1199,28 @@ def count_SEIRP(node_id, disease_state, potentially_paralyzed, paralyzed, n_node
             if paralyzed[i] == 1:
                 P[tid, nd] += 1
 
-    # return S, E, I, R, P
+    # Sum across threads and strains where needed
+    S_final = S.sum(axis=0)
+    E_by_strain_final = E_by_strain.sum(axis=0)
+    I_by_strain_final = I_by_strain.sum(axis=0)
+    R_final = R.sum(axis=0)
+    POTP_final = POTP.sum(axis=0)
+    P_final = P.sum(axis=0)
+
+    # Sum across strains for backward compatibility
+    E_final = E_by_strain_final.sum(axis=1)
+    I_final = I_by_strain_final.sum(axis=1)
+
+    # return S, E, I, R, E_by_strain, I_by_strain, potentially_paralyzed, paralyzed
     return (
-        SEIR[:, :, 0].sum(axis=0),
-        SEIR[:, :, 1].sum(axis=0),
-        SEIR[:, :, 2].sum(axis=0),
-        SEIR[:, :, 3].sum(axis=0),
-        POTP.sum(axis=0),
-        P.sum(axis=0),
+        S_final,
+        E_final,
+        I_final,
+        R_final,
+        E_by_strain_final,
+        I_by_strain_final,
+        POTP_final,
+        P_final,
     )
 
 
@@ -1197,6 +1228,8 @@ def count_SEIRP(node_id, disease_state, potentially_paralyzed, paralyzed, n_node
 def tx_step_prep_nb(
     num_nodes,
     num_people,
+    n_strains,
+    strains,
     disease_states,
     node_ids,
     daily_infectivity,  # per agent infectivity/shedding (heterogeneous)
@@ -1208,42 +1241,46 @@ def tx_step_prep_nb(
     #  - exposure (susceptibility/node)
     #  - susceptible individuals (count/node)
     #  - beta (infectivity/node)
-    tl_beta_by_node = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float32)
+    tl_beta_by_node_strain = np.zeros((nb.get_num_threads(), num_nodes, n_strains), dtype=np.float32)
+    # tl_beta_by_node = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float32)
     tl_exposure_by_node = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float32)
     tl_sus_by_node = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
     for i in nb.prange(num_people):
         state = disease_states[i]
+        tid = nb.get_thread_id()
+        strain = strains[i]
+        nid = node_ids[i]
         if state == 0:
-            tid = nb.get_thread_id()
-            nid = node_ids[i]
             tl_exposure_by_node[tid, nid] += risks[i]
             tl_sus_by_node[tid, nid] += 1
         if state == 2:
-            tl_beta_by_node[nb.get_thread_id(), node_ids[i]] += daily_infectivity[i]
-    beta_by_node_pre = tl_beta_by_node.sum(axis=0)  # Sum across threads
-    beta_by_node = beta_by_node_pre.copy()  # Copy to avoid modifying the original
-    exposure_by_node = tl_exposure_by_node.sum(axis=0)
+            tl_beta_by_node_strain[tid, nid, strain] += daily_infectivity[i]
+    exposure_by_node = tl_exposure_by_node.sum(axis=0)  # Sum across threads
     sus_by_node = tl_sus_by_node.sum(axis=0)  # Sum across threads
+    beta_by_node_strain_pre = tl_beta_by_node_strain.sum(axis=0)  # Sum across threads
+    beta_by_node_strain = beta_by_node_strain_pre.copy()  # Copy to avoid modifying the original
 
-    return beta_by_node, exposure_by_node, sus_by_node
+    return beta_by_node_strain, exposure_by_node, sus_by_node
 
 
 @nb.njit(parallel=True)
 def tx_infect_nb(
     num_nodes,
     num_people,
+    num_strains,
     sus_by_node,
     node_ids,
+    strain,
     disease_state,
     sus_indices_storage,
     sus_probs_storage,
     risks,
-    base_prob_inf,
-    new_infections,
+    prob_exp_by_node_strain,
+    n_exposures_to_create_by_node_strain,  # shape: (num_nodes, num_strains)
 ):
     """
     Parallelizes over nodes, computing a CDF for each node's susceptible population.
-    Selects 'n_to_draw' indices via binary search of random values, and marks them as exposed.
+    Selects unique indices via weighted sampling, and allocates them to strains based on relative FOI.
     """
 
     # Susceptible agents in a node are _not_ necessarily contiguous in the array because
@@ -1272,17 +1309,20 @@ def tx_infect_nb(
     next_index[:] = offsets
     for i in range(num_people):
         nid = node_ids[i]
-        if (new_infections[nid] > 0) and (disease_state[i] == 0):
+        total_exposures = n_exposures_to_create_by_node_strain[nid, :].sum()
+        if (total_exposures > 0) and (disease_state[i] == 0):
             idx = next_index[nid]
             sus_indices_storage[idx] = i
-            sus_probs_storage[idx] = risks[i] * base_prob_inf[nid]
+            sus_probs_storage[idx] = risks[i]  # base susceptibility, will be scaled by strain FOI later
             next_index[nid] = idx + 1
 
-    n_new_exposures = np.zeros(num_nodes, dtype=np.int32)
+    already_exposed = np.zeros(num_people, dtype=nb.boolean)  # global per-person flag to prevent double infection
+    n_new_exposures = np.zeros((num_nodes, num_strains), dtype=np.int32)
 
     for node in nb.prange(num_nodes):
-        n_to_draw = new_infections[node]
-        if n_to_draw <= 0:
+        # Calculate total exposures needed for this node across all strains
+        total_exposures_needed = n_exposures_to_create_by_node_strain[node, :].sum()
+        if total_exposures_needed <= 0:
             continue
 
         # Get and check count of susceptible agents in _this_ node
@@ -1290,38 +1330,68 @@ def tx_infect_nb(
         if sus_count == 0:
             continue
 
-        sus_indices = sus_indices_storage[offsets[node] : offsets[node] + sus_by_node[node]]
-        sus_probs = sus_probs_storage[offsets[node] : offsets[node] + sus_by_node[node]]
+        offset = offsets[node]  # offset of the first susceptible agent in this node
+        sus_indices = sus_indices_storage[offset : offset + sus_count]  # indices of the susceptible agents in this node
+        base_probs = sus_probs_storage[offset : offset + sus_count]  # base probabilities for susceptible agents in this node
 
-        # Choose unique indices from susceptible population
-        # using variation of NumPy random.choice()
+        # Calculate total FOI for this node (sum across all strains)
+        total_foi = prob_exp_by_node_strain[node, :].sum()
+        if total_foi <= 0:
+            continue
+
+        # Scale base probabilities by total FOI for unique selection
+        scaled_probs = base_probs * total_foi
+
+        # Choose unique indices from susceptible population using weighted sampling
         n_uniq = 0  # How many unique indices have we selected so far
-        p = sus_probs  # alias sus_probs because the original algorithm uses p
-        size = n_to_draw  # alias n_to_draw because the original algorithm uses size
+        p = scaled_probs.copy()  # working copy of probabilities
+        size = min(total_exposures_needed, sus_count)  # can't expose more than available susceptibles
+
+        selected_indices = np.empty(size, dtype=np.int32)  # store selected indices
+
         while n_uniq < size:
-            # The magic is here with the random probes, the cumulative sum of the weights,
-            # which effectively makes each index scaled by its weight,
-            # and the binary search to find the indices.
-
-            # Easy example, imagine two susceptible individuals, one with p=0.1 and one with p=0.9
-            # If we draw a random number x in [0..1), we can find the index of the individual
-            # that will be exposed by searching for the index of the first element in the cumulative
-            # sum of the weights that is greater than x, which is much more likely to be the second
-            # individual than the first.
-
+            # Weighted random sampling with unique selection
             x = np.random.rand(size - n_uniq)  # Random values for sampling [0..1)
             cdf = np.cumsum(p)  # cumsum of weights for searching
-            if cdf[-1] == 0:  # exit early if no susceptibles remaining
+            if cdf[-1] <= 0:  # exit early if no susceptibles remaining
                 break
+
             # Binary search for indices, modify x to be in [0..cdf[-1])
-            # One multiply vs thousands of divides for cdf /= cdf[-1]
             indices = np.searchsorted(cdf, x * cdf[-1], side="right")
-            indices = np.unique(indices)  # unique indices only
-            disease_state[sus_indices[indices]] = 1  # expose the chosen individuals
-            n_new_exposures[node] += indices.size  # update the count with new exposures
-            n_uniq += indices.size  # update the number of unique indices selected
+            indices = np.unique(indices)  # ensure unique indices only
+
+            # Store the selected indices
+            n_selected = min(indices.size, size - n_uniq)
+            selected_indices[n_uniq : n_uniq + n_selected] = indices[:n_selected]
+            n_uniq += n_selected
+
             if n_uniq < size:  # if we haven't selected enough unique indices, we need to retry
                 p[indices] = 0.0  # set the probabilities for the selected indices to zero
+
+                # Now allocate the selected individuals to strains based on relative FOI
+        if n_uniq > 0:
+            # Calculate strain probabilities for allocation
+            strain_probs = prob_exp_by_node_strain[node, :] / total_foi
+
+            # Allocate each selected individual to a strain
+            for i in range(n_uniq):
+                person_idx = sus_indices[selected_indices[i]]
+                if not already_exposed[person_idx] and disease_state[person_idx] == 0:
+                    # Randomly assign strain based on relative FOI
+                    r = np.random.rand()
+                    cumulative_prob = 0.0
+                    assigned_strain = 0
+                    for s in range(num_strains):
+                        cumulative_prob += strain_probs[s]
+                        if r < cumulative_prob:
+                            assigned_strain = s
+                            break
+
+                    # Expose the individual
+                    disease_state[person_idx] = 1
+                    strain[person_idx] = assigned_strain
+                    already_exposed[person_idx] = True
+                    n_new_exposures[node, assigned_strain] += 1
 
     return n_new_exposures
 
@@ -1380,7 +1450,7 @@ class Transmission_ABM:
         )  # Individual-level acquisition risk multiplier (multiplied by base probability for an agent becoming infected)
         self.people.add_scalar_property(
             "daily_infectivity", dtype=np.float32, default=1.0
-        )  # Individual daily infectivity (e.g., number of infections generated per day in a fully susceptible population; mean = R0/dur_inf = 14/24)
+        )  # Individual daily infectivity (e.g., number of exposures generated per day in a fully susceptible population; mean = R0/dur_inf = 14/24)
 
         # Step 4: Transform normal variables into target distributions
         # Set individual heterogeneity properties
@@ -1436,6 +1506,9 @@ class Transmission_ABM:
         self.do_ni_time = 0
 
         self.sim.results.add_array_property("new_exposed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.sim.results.add_array_property(
+            "new_exposed_by_strain", shape=(self.sim.nt, len(self.nodes), len(self.pars.strain_ids)), dtype=np.int32
+        )
 
         self.people.add_scalar_property("sus_indices", dtype=np.int32, default=0)
         self.people.add_scalar_property("sus_probs", dtype=np.float32, default=0.0)
@@ -1451,12 +1524,14 @@ class Transmission_ABM:
 
         with self.step_stats.start("Part 1"):
             # 1) Stash variables for later use
+            strain = self.people.strain[: self.people.count]
             disease_state = self.people.disease_state[: self.people.count]
             node_ids = self.people.node_id[: self.people.count]
             infectivity = self.people.daily_infectivity[: self.people.count]
             risk = self.people.acq_risk_multiplier[: self.people.count]
             num_nodes = len(self.nodes)
             num_people = self.sim.people.count
+            n_strains = len(self.pars.strain_ids)
 
             # Manual validation
             if self.verbose >= 3:
@@ -1473,9 +1548,11 @@ class Transmission_ABM:
         with self.step_stats.start("Part 2"):
             # 2) Compute force of infection, scale by seasonality and geographic scalars, and compute the number of new exposures
             beta_seasonality = lp.get_seasonality(self.sim)
-            beta_by_node, exposure_by_node, sus_by_node = tx_step_prep_nb(
+            beta_by_node_strain, exposure_by_node, sus_by_node = tx_step_prep_nb(
                 num_nodes,
                 num_people,
+                n_strains,
+                strain,
                 disease_state,
                 node_ids,
                 infectivity,
@@ -1489,66 +1566,83 @@ class Transmission_ABM:
             # network is a square matrix where network[i, j] is the migration fraction from node i to node j
             # beta_by_node is a vector where beta_by_node[i] is the contagion/transmission rate for node i
             # This formulation, (beta * network.T).T, returns transfer so transfer[i, j] is the contagion transferred from node i to node j
-            transfer = (beta_by_node * self.network.T).T  # beta_j * network_ij
-            # sum(axis=0) sums each column, i.e., _incoming_ contagion to each node
-            # sum(axis=1) sums each row, i.e., _outgoing_ contagion from each node
-            beta_by_node += transfer.sum(axis=0) - transfer.sum(axis=1)  # Add incoming, subtract outgoing
+            for s in range(n_strains):
+                transfer = (beta_by_node_strain[:, s] * self.network.T).T  # beta_j * network_ij
+                # sum(axis=0) sums each column, i.e., _incoming_ contagion to each node
+                # sum(axis=1) sums each row, i.e., _outgoing_ contagion from each node
+                beta_by_node_strain[:, s] += transfer.sum(axis=0) - transfer.sum(axis=1)  # Add incoming, subtract outgoing
 
             # Step 3: Scale by seasonality and R0 scalars
-            beta_by_node = beta_by_node * beta_seasonality * self.r0_scalars
+            beta_by_node_strain = beta_by_node_strain * beta_seasonality * self.r0_scalars[:, np.newaxis]
 
             # Step 4: Compute the exposure rate for each node
-            #   - convert total FOI to per-agent exposure rate
-            #   - convert rate to probability of infection
             alive_counts = self.results.pop[self.sim.t]
-            per_agent_inf_rate = beta_by_node / np.maximum(alive_counts, 1)  # Avoid div by zero
-            base_prob_inf = 1 - np.exp(-per_agent_inf_rate)  # Convert to probability of infection
+            per_agent_exp_rate = beta_by_node_strain / np.maximum(
+                alive_counts[:, np.newaxis], 1
+            )  # convert total FOI to per-agent exposure rate
+            prob_exp_by_node_strain = 1 - np.exp(-per_agent_exp_rate)  # convert rate to probability of exposure
+            total_exposure_prob_per_node = prob_exp_by_node_strain.sum(axis=1)  # Total prob of exposure per node (sum across all strains)
+            expected_exposures_per_node = exposure_by_node * total_exposure_prob_per_node  # Expected exposures per node
 
-            exposure_by_node *= base_prob_inf  # Scale by base infection probability
-
-            # Step 5: Compute the number of new infections per node
-            new_infections = np.empty(num_nodes, dtype=np.int32)
-            for i in range(num_nodes):
-                new_infections[i] = np.random.poisson(exposure_by_node[i])
+            # Step 5: Compute the number of new exposures per node, by strain
+            # Draw total new exposures (across all strains) per node
+            sampled_exposures_per_node = np.random.poisson(expected_exposures_per_node).astype(np.int32)  # shape: (n_nodes,)
+            # Compute fractional contribution of each strain
+            with np.errstate(divide="ignore", invalid="ignore"):
+                strain_fraction_of_foi = np.where(
+                    total_exposure_prob_per_node[:, np.newaxis] > 0,
+                    prob_exp_by_node_strain / total_exposure_prob_per_node[:, np.newaxis],
+                    0.0,
+                )  # shape: (n_nodes, n_strains)
+            # Allocate sampled exposures by strain using multinomial draw
+            n_exposures_to_create_by_node_strain = np.zeros_like(prob_exp_by_node_strain, dtype=np.int32)  # shape: (n_nodes, n_strains)
+            for n in range(num_nodes):
+                if sampled_exposures_per_node[n] > 0:
+                    n_exposures_to_create_by_node_strain[n, :] = np.random.multinomial(
+                        sampled_exposures_per_node[n], strain_fraction_of_foi[n, :]
+                    )
 
             # Manual validation
             if self.verbose >= 3:
                 logger.info(f"beta_seasonality: {fmt(beta_seasonality, 2)}")
                 logger.info(f"R0 scalars: {fmt(self.r0_scalars, 2)}")
-                logger.info(f"beta: {fmt(beta_by_node, 2)}")
-                logger.info(f"Total beta: {fmt(beta_by_node.sum(), 2)}")
+                logger.info(f"beta: {fmt(beta_by_node_strain, 2)}")
+                logger.info(f"Total beta: {fmt(beta_by_node_strain.sum(), 2)}")
                 logger.info(f"Alive counts: {fmt(alive_counts, 2)}")
-                logger.info(f"Base prob infection: {fmt(base_prob_inf, 2)}")
-                logger.info(f"Exp inf (sans acq risk): {fmt(num_susceptibles * base_prob_inf, 2)}")
+                logger.info(f"Base prob infection: {fmt(prob_exp_by_node_strain, 2)}")
+                logger.info(f"Exp inf (sans acq risk): {fmt(num_susceptibles * prob_exp_by_node_strain, 2)}")
                 disease_state_pre_infect = disease_state.copy()  # Copy before infection
 
         with self.step_stats.start("Part 3"):
             # 3) Distribute new exposures
-            new_exposed = tx_infect_nb(
+            new_exposed_by_node_strain = tx_infect_nb(
                 num_nodes,
                 num_people,
+                n_strains,
                 sus_by_node,
                 node_ids,
+                strain,
                 disease_state,
                 self.people.sus_indices,
                 self.people.sus_probs,
                 risk,
-                base_prob_inf,
-                new_infections,
+                prob_exp_by_node_strain,
+                n_exposures_to_create_by_node_strain,
             )
-            self.sim.results.new_exposed[self.sim.t, :] = new_exposed
+            self.sim.results.new_exposed[self.sim.t, :] = new_exposed_by_node_strain.sum(axis=1)
+            self.sim.results.new_exposed_by_strain[self.sim.t, :, :] = new_exposed_by_node_strain
 
             # Manual validation
             if self.verbose >= 3:
                 logger.info(f"exposure_by_node: {fmt(exposure_by_node, 2)}")
-                logger.info(f"Expected new exposures: {new_infections}")
-                logger.info(f"Observed new exposures: {new_exposed}")
+                logger.info(f"Expected new exposures: {n_exposures_to_create_by_node_strain}")
+                logger.info(f"Observed new exposures: {new_exposed_by_node_strain}")
                 total_expected = np.sum(exposure_by_node)
-                tot_poisson_draw = np.sum(new_infections)
+                tot_poisson_draw = np.sum(sampled_exposures_per_node)
                 # Check the number of people that are newly exposed
                 num_new_exposed = np.sum(disease_state == 1) - np.sum(disease_state_pre_infect == 1)
                 logger.info(
-                    f"Tot exp infections: {total_expected:.2f}, Total pois draw: {tot_poisson_draw}, Tot realized infections: {num_new_exposed}"
+                    f"Tot exp exposures: {total_expected:.2f}, Total pois draw: {tot_poisson_draw}, Tot realized exposures: {num_new_exposed}"
                 )
 
         if self.sim.t == self.sim.nt - 1:
@@ -1558,19 +1652,23 @@ class Transmission_ABM:
 
     def log(self, t):
         # Get the counts for each node in one pass
-        S_counts, E_counts, I_counts, R_counts, POTP_counts, P_counts = count_SEIRP(
+        S_counts, E_counts, I_counts, R_counts, E_by_strain_counts, I_by_strain_counts, POTP_counts, P_counts = count_SEIRP(
             node_id=self.people.node_id,
             disease_state=self.people.disease_state,
+            strain=self.people.strain,
             potentially_paralyzed=self.people.potentially_paralyzed,
             paralyzed=self.people.paralyzed,
             n_nodes=np.int32(len(self.nodes)),
+            n_strains=np.int32(len(self.pars.strain_ids)),
             n_people=np.int32(self.people.count),
         )
 
         # Store them in results
         self.results.S[t, :] = S_counts
-        self.results.E[t, :] = E_counts
-        self.results.I[t, :] = I_counts
+        self.results.E[t, :] = E_counts  # Already summed across strains
+        self.results.I[t, :] = I_counts  # Already summed across strains
+        self.results.E_by_strain[t, :, :] = E_by_strain_counts  # Store strain-specific counts
+        self.results.I_by_strain[t, :, :] = I_by_strain_counts  # Store strain-specific counts
         # Note that we add to existing non-zero EULA values for R
         self.results.R[t, :] += R_counts
         self.results.potentially_paralyzed[t, :] = POTP_counts
@@ -1912,6 +2010,7 @@ def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, 
         nb.int32[:],
         nb.int8[:],
         nb.int8[:],
+        nb.int8[:],
         nb.int32[:],
         nb.int64,
         nb.float64[:],
@@ -1921,6 +2020,7 @@ def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, 
         nb.int32[:, :],
         nb.uint8[:],
         nb.int8[:],
+        nb.int8,
     ),
     parallel=True,
     cache=False,
@@ -1929,6 +2029,7 @@ def fast_ri(
     step_size,
     node_id,
     disease_state,
+    strain,
     ipv_protected,
     ri_timer,
     sim_t,
@@ -1939,6 +2040,7 @@ def fast_ri(
     local_ipv_counts,
     chronically_missed,
     potentially_paralyzed,
+    ri_vaccine_strain,
 ):
     """
     Optimized vaccination step with thread-local storage and parallel execution.
@@ -1966,10 +2068,11 @@ def fast_ri(
             if np.random.rand() < prob_ri:
                 local_ri_counts[nb.get_thread_id(), node] += 1
                 if state == 0:
-                    # We don't check for vx_eff here, since that is already accounted for in the prob_ri file
-                    disease_state[i] = 3
-                    # TODO remove this when we have strain tracking
-                    potentially_paralyzed[i] = 0
+                    # Expose to vaccine strain instead of immediate recovery
+                    disease_state[i] = 1  # Set to exposed
+                    strain[i] = ri_vaccine_strain  # Set vaccine strain
+                    # TODO remove when we have strain tracking hooked up into paralysis
+                    potentially_paralyzed[i] = 0  # Assume that vaccine strains don't cause paralysis
             if np.random.rand() < prob_ipv:
                 local_ipv_counts[nb.get_thread_id(), node] += 1
                 ipv_protected[i] = 1
@@ -2042,6 +2145,15 @@ class RI_ABM:
         else:
             vx_prob_ipv = self.pars["vx_prob_ipv"]
 
+        # Determine RI vaccine strain based on vaccine type
+        ri_vaccine_type = getattr(self.pars, "ri_vaccine_type", "bOPV")  # Default to bOPV if not specified
+        if "nOPV" in ri_vaccine_type:
+            ri_vaccine_strain = np.int8(2)  # nOPV strain
+        elif any(vtype in ri_vaccine_type for vtype in ["bOPV", "mOPV", "tOPV", "topv"]):
+            ri_vaccine_strain = np.int8(1)  # Sabin strain
+        else:
+            ri_vaccine_strain = np.int8(1)  # Default to Sabin strain
+
         # Promote to 1D arrays if needed
         if np.isscalar(vx_prob_ri):
             vx_prob_ri = np.full(num_nodes, vx_prob_ri, dtype=np.float64)
@@ -2055,6 +2167,7 @@ class RI_ABM:
                 step_size=np.int32(self.step_size),
                 node_id=self.people.node_id,
                 disease_state=self.people.disease_state,
+                strain=self.people.strain,
                 ipv_protected=self.people.ipv_protected,
                 ri_timer=self.people.ri_timer,
                 sim_t=np.int32(self.sim.t),
@@ -2065,6 +2178,7 @@ class RI_ABM:
                 local_ipv_counts=local_ipv_counts,
                 chronically_missed=self.people.chronically_missed,
                 potentially_paralyzed=self.people.potentially_paralyzed,
+                ri_vaccine_strain=ri_vaccine_strain,
             )
             # Sum up the counts from all threads
             self.results.ri_vaccinated[self.sim.t] = local_ri_counts.sum(axis=0)
@@ -2097,6 +2211,7 @@ class RI_ABM:
 def fast_sia(
     node_ids,
     disease_states,
+    strain,
     dobs,
     sim_t,
     vx_prob,
@@ -2109,6 +2224,7 @@ def fast_sia(
     local_protected,
     chronically_missed,
     potentially_paralyzed,
+    sia_vaccine_strain,
 ):
     """
     Numbified supplemental immunization activity (SIA) vaccination step.
@@ -2153,10 +2269,11 @@ def fast_sia(
             local_vaccinated[thread_id, node] += 1  # Increment vaccinated count
             if disease_states[i] == 0:  # If susceptible
                 if r < prob_vx * vx_eff:  # Check probability that vaccine takes/protects
-                    disease_states[i] = 3  # Move to Recovered state
+                    disease_states[i] = 1  # Move to Exposed state (vaccine infection)
+                    strain[i] = sia_vaccine_strain  # Set vaccine strain
                     local_protected[thread_id, node] += 1  # Increment protected count
-                    # TODO remove this when we have strain tracking
-                    potentially_paralyzed[i] = 0
+                    # TODO remove when we have strain tracking hooked up into paralysis
+                    potentially_paralyzed[i] = 0  # Vaccine strains don't cause paralysis
 
     return
 
@@ -2207,12 +2324,21 @@ class SIA_ABM:
                 vx_eff = self.pars["vx_efficacy"][vaccinetype]
                 min_age, max_age = event["age_range"]
 
+                # Determine SIA vaccine strain based on vaccine type
+                if "nOPV" in vaccinetype:
+                    sia_vaccine_strain = np.int8(2)  # nOPV strain
+                elif any(vtype in vaccinetype for vtype in ["bOPV", "mOPV", "tOPV", "topv"]):
+                    sia_vaccine_strain = np.int8(1)  # Sabin strain
+                else:
+                    sia_vaccine_strain = np.int8(1)  # Default to Sabin strain
+
                 # Suppose we have num_people individuals
                 local_vaccinated = np.zeros((nb.get_num_threads(), len(self.sim.nodes)), dtype=np.int32)
                 local_protected = np.zeros((nb.get_num_threads(), len(self.sim.nodes)), dtype=np.int32)
                 fast_sia(
                     self.people.node_id,
                     self.people.disease_state,
+                    self.people.strain,
                     self.people.date_of_birth,
                     self.sim.t,
                     vx_prob_sia,
@@ -2225,6 +2351,7 @@ class SIA_ABM:
                     local_protected,
                     chronically_missed=self.people.chronically_missed,
                     potentially_paralyzed=self.people.potentially_paralyzed,
+                    sia_vaccine_strain=sia_vaccine_strain,
                 )
                 self.results.sia_vaccinated[t] = local_vaccinated.sum(axis=0)
                 self.results.sia_protected[t] = local_protected.sum(axis=0)
