@@ -245,7 +245,10 @@ def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual
         else:
             return "2022-2023"
 
-    df["time_period"] = df["date"].apply(assign_time_period)
+    # Add time period column with three periods (fast version)
+    bins = [pd.Timestamp.min, pd.Timestamp("2020-01-01"), pd.Timestamp("2022-01-01"), pd.Timestamp.max]
+    labels = ["2018-2019", "2020-2021", "2022-2023"]
+    df["time_period"] = pd.cut(df["date"], bins=bins, labels=labels, right=False)
 
     targets = {}
 

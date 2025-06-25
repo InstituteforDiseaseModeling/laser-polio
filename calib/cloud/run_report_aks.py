@@ -26,7 +26,7 @@ def port_forward():
 def main():
     pf_process = port_forward()
     try:
-        print(f"📊 Loading study '{cfg.study_name}'...")
+        print(f"📊 Loading study '{cfg.study_name} from {cfg.storage_url}'...")
         study = optuna.load_study(study_name=cfg.study_name, storage=cfg.storage_url)
         study.storage_url = cfg.storage_url
         study.study_name = cfg.study_name
@@ -56,9 +56,9 @@ def main():
 
         # print("📊 Running top trials on COMPS...")
         # from report import run_top_n_on_comps
-        # from report import sweep_seed_best_comps
+        from report import sweep_seed_best_comps
         # run_top_n_on_comps(study, n=1, output_dir=results_path)
-        # sweep_seed_best_comps(study, output_dir=results_path)
+        sweep_seed_best_comps(study, output_dir=results_path)
 
     finally:
         print("🧹 Cleaning up port forwarding...")
