@@ -1505,6 +1505,7 @@ class Transmission_ABM:
             base_prob_inf = 1 - np.exp(-per_agent_inf_rate)  # Convert to probability of infection
 
             exposure_by_node *= base_prob_inf  # Scale by base infection probability
+            exposure_by_node[exposure_by_node < 0] = 0 #  patch for now
 
             # Step 5: Compute the number of new infections per node
             new_infections = np.empty(num_nodes, dtype=np.int32)
