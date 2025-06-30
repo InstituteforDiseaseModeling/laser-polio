@@ -1508,7 +1508,6 @@ class Transmission_ABM:
             # Step 5: Compute the number of new infections per node
             new_infections = np.zeros(num_nodes, dtype=np.int32)
             for i in range(num_nodes):
-                # new_infections[i] = np.random.poisson(exposure_by_node[i])
                 if exposure_by_node[i] < 0:
                     raise ValueError(
                         f"exposure_by_node[{i}] is negative: {exposure_by_node[i]}. The base probability of infection is {base_prob_inf[i]}, beta_by_node is {beta_by_node[i]}, and alive_counts is {alive_counts[i]}"
