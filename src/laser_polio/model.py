@@ -1201,8 +1201,6 @@ def tx_step_prep_nb(
     node_ids,
     daily_infectivity,  # per agent infectivity/shedding (heterogeneous)
     risks,  # per agent susceptibility (heterogeneous)
-    node_seeding_dispersion,
-    node_seeding_zero_inflation,
 ):
     # Step 1: Use parallelized loop to obtain per node sums or counts of:
     #  - exposure (susceptibility/node)
@@ -1457,6 +1455,8 @@ class Transmission_ABM:
             risk = self.people.acq_risk_multiplier[: self.people.count]
             num_nodes = len(self.nodes)
             num_people = self.sim.people.count
+            node_seeding_zero_inflation = self.sim.pars.node_seeding_zero_inflation
+            node_seeding_dispersion = self.sim.pars.node_seeding_dispersion
 
             # Manual validation
             if self.verbose >= 3:
@@ -1480,8 +1480,6 @@ class Transmission_ABM:
                 node_ids,
                 infectivity,
                 risk,
-                self.sim.pars.node_seeding_dispersion,
-                self.sim.pars.node_seeding_zero_inflation,
             )
 
         with self.step_stats.start("Part 2b"):
@@ -1503,14 +1501,45 @@ class Transmission_ABM:
             alive_counts = self.results.pop[self.sim.t]
             per_agent_inf_rate = beta_by_node / np.maximum(alive_counts, 1)  # Avoid div by zero
             base_prob_inf = 1 - np.exp(-per_agent_inf_rate)  # Convert to probability of infection
-
             exposure_by_node *= base_prob_inf  # Scale by base infection probability
-            exposure_by_node[exposure_by_node < 0] = 0  #  patch for now
 
             # Step 5: Compute the number of new infections per node
-            new_infections = np.empty(num_nodes, dtype=np.int32)
+            new_infections = np.zeros(num_nodes, dtype=np.int32)
             for i in range(num_nodes):
-                new_infections[i] = np.random.poisson(exposure_by_node[i])
+                # new_infections[i] = np.random.poisson(exposure_by_node[i])
+                if exposure_by_node[i] < 0:
+                    raise ValueError(
+                        f"exposure_by_node[{i}] is negative: {exposure_by_node[i]}. The base probability of infection is {base_prob_inf[i]}, beta_by_node is {beta_by_node[i]}, and alive_counts is {alive_counts[i]}"
+                    )
+                if exposure_by_node[i] == 0:
+                    new_infections[i] = 0
+                elif beta_by_node[i] == 0:
+                    # Over-disperse seeded infections to make takeoff more challenging
+                    # Apply only to nodes with zero local transmission. All infectivity is coming from neighboring nodes.
+
+                    # Handle edge case where zero inflation is 100%
+                    if node_seeding_zero_inflation >= 1.0:
+                        new_infections[i] = 0
+                        continue
+
+                    # Adjust mean to account for expected zero inflation
+                    desired_mean = exposure_by_node[i] / (
+                        1 - node_seeding_zero_inflation
+                    )  # E[X] matches Poisson on average, increased for zero-inflation
+
+                    # Compute dispersion and success probability for Negative Binomial
+                    r_int = max(1, int(np.round(node_seeding_dispersion)))
+                    p = r_int / (r_int + desired_mean)
+
+                    # Apply zero inflation
+                    if np.random.rand() < node_seeding_zero_inflation:
+                        new_infections[i] = 0
+                    else:
+                        new_infections[i] = np.random.negative_binomial(r_int, p)
+
+                else:
+                    # Nodes with pre-existing local transmission sample should have business as usual and sample from standard Poisson
+                    new_infections[i] = np.random.poisson(exposure_by_node[i])
 
             # Manual validation
             if self.verbose >= 3:
