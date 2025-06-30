@@ -1486,6 +1486,8 @@ class Transmission_ABM:
             # Step 2: Compute the force of infection for each node accounting for immigration and emmigration
             # network is a square matrix where network[i, j] is the migration fraction from node i to node j
             # beta_by_node is a vector where beta_by_node[i] is the contagion/transmission rate for node i
+            # Save a copy before distributing infectivity to know which nodes have zero local infectivity
+            beta_by_node_pre = beta_by_node.copy()
             # This formulation, (beta * network.T).T, returns transfer so transfer[i, j] is the contagion transferred from node i to node j
             transfer = (beta_by_node * self.network.T).T  # beta_j * network_ij
             # sum(axis=0) sums each column, i.e., _incoming_ contagion to each node
@@ -1513,7 +1515,7 @@ class Transmission_ABM:
                     )
                 if exposure_by_node[i] == 0:
                     new_infections[i] = 0
-                elif beta_by_node[i] == 0:
+                elif beta_by_node_pre[i] == 0:
                     # Over-disperse seeded infections to make takeoff more challenging
                     # Apply only to nodes with zero local transmission. All infectivity is coming from neighboring nodes.
 
