@@ -291,7 +291,6 @@ def test_zero_inflation():
         sim_no_inflation.run()
         total_cases_by_node_no_inflation = sim_no_inflation.results.E[1:].sum(axis=0)  # Sum over time, keep nodes separate
         nodes_with_cases_no_inflation.append(np.sum(total_cases_by_node_no_inflation > 0))  # Number of nodes with cases across all time
-        day1_exposures_no_inflation = sim_no_inflation.results.E[1]  # Exposures on day 1
         day1_nodes_with_cases_no_inflation.append(np.sum(sim_no_inflation.results.E[1] > 0))  # Number of nodes with cases on day 1
 
         # 50% zero inflation
@@ -299,7 +298,6 @@ def test_zero_inflation():
         sim_half_inflation.run()
         total_cases_by_node_half_inflation = sim_half_inflation.results.E[1:].sum(axis=0)  # Sum over time, keep nodes separate
         nodes_with_cases_half_inflation.append(np.sum(total_cases_by_node_half_inflation > 0))  # Number of nodes with cases across all time
-        day1_exposures_half_inflation = sim_half_inflation.results.E[1]  # Exposures on day 1
         day1_nodes_with_cases_half_inflation.append(np.sum(sim_half_inflation.results.E[1] > 0))  # Number of nodes with cases on day 1
 
     nodes_with_cases_no_inflation = np.array(nodes_with_cases_no_inflation)
