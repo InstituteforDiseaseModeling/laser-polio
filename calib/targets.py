@@ -244,7 +244,7 @@ def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual
     targets = {}
 
     # 1. Total infected (split by time period)
-    total_by_period = df.groupby("time_period")[case_col].sum() * scale_factor
+    total_by_period = df.groupby("time_period", observed=True)[case_col].sum() * scale_factor
     targets["total_by_period"] = total_by_period.to_dict()
 
     # 2. Monthly timeseries (full time series)
@@ -258,7 +258,7 @@ def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual
     df["adm1"] = dot_parts[2]
     df["adm01"] = df["adm0"] + ":" + df["adm1"]
     # Group by adm01 and time period
-    adm01_by_period = df.groupby(["adm01", "time_period"])[case_col].sum() * scale_factor
+    adm01_by_period = df.groupby(["adm01", "time_period"], observed=True)[case_col].sum() * scale_factor
     targets["adm01_by_period"] = adm01_by_period.to_dict()
 
     print(f"{targets=}")
