@@ -1487,7 +1487,7 @@ class Transmission_ABM:
             )
 
         with self.step_stats.start("Part 2b"):
-            # Step 2: Compute the force of infection for each node accounting for immigration and emmigration
+            # Step 2: Compute the force of infection for each node accounting for immigration and emigration
             # network is a square matrix where network[i, j] is the migration fraction from node i to node j
             # beta_by_node is a vector where beta_by_node[i] is the contagion/transmission rate for node i
             # Save a copy before distributing infectivity to know which nodes have zero local infectivity
