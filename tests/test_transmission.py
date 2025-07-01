@@ -236,9 +236,116 @@ def test_linear_transmission():
     return
 
 
+def test_zero_inflation():
+    """
+    Test that zero inflation reduces the number of nodes with cases.
+    Zero inflation only affects nodes with beta_by_node[i] == 0 (seeded infections).
+    """
+    n_reps = 20
+    duration = 10
+    n_nodes = 20
+
+    def setup_zero_inflation_sim(zero_inflation=0.0, seed=None):
+        # Set up a scenario where some nodes will have zero local transmission
+        # and rely on seeding from neighbors
+        init_prev = np.zeros(n_nodes, dtype=np.float32)
+        init_prev[0] = 0.3  # Only first node starts with infections
+
+        pars = PropertySet(
+            {
+                "seed": seed,
+                "start_date": lp.date("2020-01-01"),
+                "dur": duration,
+                "n_ppl": np.array([5000] * n_nodes),
+                "cbr": np.array([36.5] * n_nodes, dtype=np.float32),
+                "r0_scalars": np.ones(n_nodes, dtype=np.float32),
+                "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",
+                "init_immun": np.array([0.8] * n_nodes, dtype=np.float32),
+                "init_prev": init_prev,
+                "distances": np.ones((n_nodes, n_nodes)) * 1,  # All nodes 100km apart
+                "gravity_k": 5,
+                "gravity_a": 5,
+                "gravity_b": 5,
+                "gravity_c": 1.0,
+                "max_migr_frac": 1.0,
+                "node_seeding_zero_inflation": zero_inflation,
+                "node_seeding_dispersion": 10,  # Lower dispersion for more variability
+            }
+        )
+
+        sim = lp.SEIR_ABM(pars)
+        sim.components = [lp.DiseaseState_ABM, lp.Transmission_ABM, lp.VitalDynamics_ABM]
+        return sim
+
+    # Run simulations with different zero inflation values
+    seeds = np.arange(1000, 1000 + n_reps)  # Fixed seeds for reproducibility
+
+    nodes_with_cases_no_inflation = []
+    nodes_with_cases_half_inflation = []
+    day1_nodes_with_cases_no_inflation = []
+    day1_nodes_with_cases_half_inflation = []
+
+    for seed in seeds:
+        # No zero inflation
+        sim_no_inflation = setup_zero_inflation_sim(zero_inflation=0.0, seed=seed)
+        sim_no_inflation.run()
+        total_cases_by_node_no_inflation = sim_no_inflation.results.E[1:].sum(axis=0)  # Sum over time, keep nodes separate
+        nodes_with_cases_no_inflation.append(np.sum(total_cases_by_node_no_inflation > 0))  # Number of nodes with cases across all time
+        day1_nodes_with_cases_no_inflation.append(np.sum(sim_no_inflation.results.E[1] > 0))  # Number of nodes with cases on day 1
+
+        # 50% zero inflation
+        sim_half_inflation = setup_zero_inflation_sim(zero_inflation=0.5, seed=seed)
+        sim_half_inflation.run()
+        total_cases_by_node_half_inflation = sim_half_inflation.results.E[1:].sum(axis=0)  # Sum over time, keep nodes separate
+        nodes_with_cases_half_inflation.append(np.sum(total_cases_by_node_half_inflation > 0))  # Number of nodes with cases across all time
+        day1_nodes_with_cases_half_inflation.append(np.sum(sim_half_inflation.results.E[1] > 0))  # Number of nodes with cases on day 1
+
+    nodes_with_cases_no_inflation = np.array(nodes_with_cases_no_inflation)
+    nodes_with_cases_half_inflation = np.array(nodes_with_cases_half_inflation)
+    day1_nodes_with_cases_no_inflation = np.array(day1_nodes_with_cases_no_inflation)
+    day1_nodes_with_cases_half_inflation = np.array(day1_nodes_with_cases_half_inflation)
+
+    # --- Assertions ---
+    # Both should have at least node 0 with cases (the initially infected node)
+    assert np.all(nodes_with_cases_no_inflation >= 1), "No inflation simulations should always have at least 1 node with cases"
+    assert np.all(nodes_with_cases_half_inflation >= 1), "Half inflation simulations should always have at least 1 node with cases"
+
+    # With zero inflation, we should generally have fewer nodes with cases
+    mean_nodes_no_inflation_day1 = np.mean(day1_nodes_with_cases_no_inflation)
+    mean_nodes_half_inflation_day1 = np.mean(day1_nodes_with_cases_half_inflation)
+    assert mean_nodes_half_inflation_day1 < mean_nodes_no_inflation_day1, (
+        f"Zero inflation should reduce nodes with cases. No inflation: {mean_nodes_no_inflation_day1:.2f}, Half inflation: {mean_nodes_half_inflation_day1:.2f}"
+    )
+    mean_nodes_no_inflation = np.mean(nodes_with_cases_no_inflation)
+    mean_nodes_half_inflation = np.mean(nodes_with_cases_half_inflation)
+    assert mean_nodes_half_inflation < mean_nodes_no_inflation, (
+        f"Zero inflation should reduce nodes with cases. No inflation: {mean_nodes_no_inflation:.2f}, Half inflation: {mean_nodes_half_inflation:.2f}"
+    )
+
+    # Test extreme case: 99% zero inflation should dramatically reduce spread
+    nodes_with_cases_extreme_inflation = []
+    day1_nodes_with_cases_extreme_inflation = []
+    for seed in seeds[:5]:  # Fewer reps for extreme case
+        sim_extreme_inflation = setup_zero_inflation_sim(zero_inflation=0.99, seed=seed)
+        sim_extreme_inflation.run()
+        total_cases_by_node_extreme = sim_extreme_inflation.results.E[1:].sum(axis=0)
+        nodes_with_cases_extreme_inflation.append(np.sum(total_cases_by_node_extreme > 0))
+        day1_nodes_with_cases_extreme_inflation.append(np.sum(sim_extreme_inflation.results.E[1] > 0))
+
+    mean_nodes_extreme_inflation = np.mean(nodes_with_cases_extreme_inflation)
+    mean_nodes_extreme_inflation_day1 = np.mean(day1_nodes_with_cases_extreme_inflation)
+    assert mean_nodes_extreme_inflation_day1 < mean_nodes_half_inflation_day1, (
+        f"Extreme zero inflation should reduce spread even more. Half: {mean_nodes_half_inflation_day1:.2f}, Extreme: {mean_nodes_extreme_inflation_day1:.2f}"
+    )
+    assert mean_nodes_extreme_inflation < mean_nodes_half_inflation, (
+        f"Extreme zero inflation should reduce spread even more. Half: {mean_nodes_half_inflation:.2f}, Extreme: {mean_nodes_extreme_inflation:.2f}"
+    )
+
+
 if __name__ == "__main__":
     test_trans_default()
     test_zero_trans()
     test_double_trans()
     test_linear_transmission()
+    test_zero_inflation()
     print("All transmission tests passed!")

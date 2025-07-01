@@ -1,6 +1,7 @@
 import logging
 import numbers
 import os
+import warnings
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
@@ -158,7 +159,10 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
 
     logger.info("FIXME: This chunk of code to initialize acq_risk_out and infectivity_out is know to be slow right now.")
     z = np.random.normal(size=(n, 2))
-    z_corr = z @ L.T
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("default")  # or "ignore", or "once", etc.
+        z_corr = z @ L.T
 
     if pars.individual_heterogeneity:
         acq_risk_out[start:end] = np.exp(mu_ln + sigma_ln * z_corr[:, 0])
@@ -1201,8 +1205,6 @@ def tx_step_prep_nb(
     node_ids,
     daily_infectivity,  # per agent infectivity/shedding (heterogeneous)
     risks,  # per agent susceptibility (heterogeneous)
-    node_seeding_dispersion,
-    node_seeding_zero_inflation,
 ):
     # Step 1: Use parallelized loop to obtain per node sums or counts of:
     #  - exposure (susceptibility/node)
@@ -1457,6 +1459,8 @@ class Transmission_ABM:
             risk = self.people.acq_risk_multiplier[: self.people.count]
             num_nodes = len(self.nodes)
             num_people = self.sim.people.count
+            node_seeding_zero_inflation = self.sim.pars.node_seeding_zero_inflation
+            node_seeding_dispersion = self.sim.pars.node_seeding_dispersion
 
             # Manual validation
             if self.verbose >= 3:
@@ -1480,14 +1484,14 @@ class Transmission_ABM:
                 node_ids,
                 infectivity,
                 risk,
-                self.sim.pars.node_seeding_dispersion,
-                self.sim.pars.node_seeding_zero_inflation,
             )
 
         with self.step_stats.start("Part 2b"):
-            # Step 2: Compute the force of infection for each node accounting for immigration and emmigration
+            # Step 2: Compute the force of infection for each node accounting for immigration and emigration
             # network is a square matrix where network[i, j] is the migration fraction from node i to node j
             # beta_by_node is a vector where beta_by_node[i] is the contagion/transmission rate for node i
+            # Save a copy before distributing infectivity to know which nodes have zero local infectivity
+            beta_by_node_pre = beta_by_node.copy()
             # This formulation, (beta * network.T).T, returns transfer so transfer[i, j] is the contagion transferred from node i to node j
             transfer = (beta_by_node * self.network.T).T  # beta_j * network_ij
             # sum(axis=0) sums each column, i.e., _incoming_ contagion to each node
@@ -1503,13 +1507,47 @@ class Transmission_ABM:
             alive_counts = self.results.pop[self.sim.t]
             per_agent_inf_rate = beta_by_node / np.maximum(alive_counts, 1)  # Avoid div by zero
             base_prob_inf = 1 - np.exp(-per_agent_inf_rate)  # Convert to probability of infection
-
             exposure_by_node *= base_prob_inf  # Scale by base infection probability
 
             # Step 5: Compute the number of new infections per node
-            new_infections = np.empty(num_nodes, dtype=np.int32)
+            new_infections = np.zeros(num_nodes, dtype=np.int32)
             for i in range(num_nodes):
-                new_infections[i] = np.random.poisson(exposure_by_node[i])
+                if exposure_by_node[i] < 0:
+                    sc.printred(f"Warning: exposure_by_node[{i}] is negative: {exposure_by_node[i]}. Setting to 0.")
+                    sc.printred(f"base_prob_inf[{i}] is {base_prob_inf[i]}")
+                    sc.printred(f"beta_by_node[{i}] is {beta_by_node[i]}")
+                    sc.printred(f"alive_counts[{i}] is {alive_counts[i]}")
+                    sc.printred(f"per_agent_inf_rate[{i}] is {per_agent_inf_rate[i]}")
+                    exposure_by_node[i] = 0  # Set to 0 to avoid issues
+                if exposure_by_node[i] == 0:
+                    new_infections[i] = 0
+                elif beta_by_node_pre[i] == 0:
+                    # Over-disperse seeded infections to make takeoff more challenging
+                    # Apply only to nodes with zero local transmission. All infectivity is coming from neighboring nodes.
+
+                    # Handle edge case where zero inflation is 100%
+                    if node_seeding_zero_inflation >= 1.0:
+                        new_infections[i] = 0
+                        continue
+
+                    # Adjust mean to account for expected zero inflation
+                    desired_mean = exposure_by_node[i] / (
+                        1 - node_seeding_zero_inflation
+                    )  # E[X] matches Poisson on average, increased for zero-inflation
+
+                    # Compute dispersion and success probability for Negative Binomial
+                    r_int = max(1, int(np.round(node_seeding_dispersion)))
+                    p = r_int / (r_int + desired_mean)
+
+                    # Apply zero inflation
+                    if np.random.rand() < node_seeding_zero_inflation:
+                        new_infections[i] = 0
+                    else:
+                        new_infections[i] = np.random.negative_binomial(r_int, p)
+
+                else:
+                    # Nodes with pre-existing local transmission sample should have business as usual and sample from standard Poisson
+                    new_infections[i] = np.random.poisson(exposure_by_node[i])
 
             # Manual validation
             if self.verbose >= 3:
