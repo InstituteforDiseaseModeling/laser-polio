@@ -1,6 +1,7 @@
 import logging
 import numbers
 import os
+import warnings
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
@@ -158,7 +159,10 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
 
     logger.info("FIXME: This chunk of code to initialize acq_risk_out and infectivity_out is know to be slow right now.")
     z = np.random.normal(size=(n, 2))
-    z_corr = z @ L.T
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("default")  # or "ignore", or "once", etc.
+        z_corr = z @ L.T
 
     if pars.individual_heterogeneity:
         acq_risk_out[start:end] = np.exp(mu_ln + sigma_ln * z_corr[:, 0])
