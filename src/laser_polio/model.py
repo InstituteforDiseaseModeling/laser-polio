@@ -1104,7 +1104,7 @@ class DiseaseState_ABM:
                 if np.sum(infections) > 0:
                     ax.plot(infections, label=node_label, alpha=0.7)
 
-                    # Formatting
+            # Formatting
             ax.set_title(f"{strain_name} Infections by Node", fontsize=12, fontweight="bold")
             ax.set_xlabel("Time (days)")
             ax.set_ylabel("Number of Infected")
