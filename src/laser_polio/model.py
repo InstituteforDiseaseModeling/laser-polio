@@ -1513,9 +1513,12 @@ class Transmission_ABM:
             new_infections = np.zeros(num_nodes, dtype=np.int32)
             for i in range(num_nodes):
                 if exposure_by_node[i] < 0:
-                    raise ValueError(
-                        f"exposure_by_node[{i}] is negative: {exposure_by_node[i]}. The base probability of infection is {base_prob_inf[i]}, beta_by_node is {beta_by_node[i]}, and alive_counts is {alive_counts[i]}"
-                    )
+                    sc.printred(f"Warning: exposure_by_node[{i}] is negative: {exposure_by_node[i]}. Setting to 0.")
+                    sc.printred(f"base_prob_inf[{i}] is {base_prob_inf[i]}")
+                    sc.printred(f"beta_by_node[{i}] is {beta_by_node[i]}")
+                    sc.printred(f"alive_counts[{i}] is {alive_counts[i]}")
+                    sc.printred(f"per_agent_inf_rate[{i}] is {per_agent_inf_rate[i]}")
+                    exposure_by_node[i] = 0  # Set to 0 to avoid issues
                 if exposure_by_node[i] == 0:
                     new_infections[i] = 0
                 elif beta_by_node_pre[i] == 0:
