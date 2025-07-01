@@ -27,7 +27,7 @@ immun_scalar_katsina: 1.10
 immun_scalar_kebbi: 0.95
 immun_scalar_kwara: 0.9
 results_path: "results/demo_nigeria"
-save_plots: true
+save_plots: false
 save_data: true
 summary_config:
   region_groups:
