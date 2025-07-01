@@ -1130,7 +1130,6 @@ class DiseaseState_ABM:
 
             plot_path = Path(results_path) / "infected_by_node_strain.png"
             plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-            print(f"✅ Saved plot to {plot_path}")
             plt.close()
         else:
             plt.show()

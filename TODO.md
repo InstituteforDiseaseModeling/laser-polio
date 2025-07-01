@@ -1,7 +1,4 @@
 # --- PRIORITIES ---
-- Time the importation of packages
-- Ask Chatty about the meaning of a high demand issue on Artifactory
-- Curate SIA schedule so that it only contains Sabin2 or nOPV2
 - Add weights to the total_by_period
 - Change seeding to only be two spots in each outbreak
 - Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)

@@ -7,7 +7,7 @@ import laser_polio as lp
 
 regions = ["NIGERIA"]
 start_year = 2018
-n_days = 365 * 3
+n_days = 365 * 6
 pop_scale = 1 / 1
 init_region = "BIRINIWA"
 init_prev = 200
