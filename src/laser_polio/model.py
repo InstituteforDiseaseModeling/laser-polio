@@ -1007,6 +1007,7 @@ class DiseaseState_ABM:
     def plot(self, save=False, results_path=None):
         self.plot_total_seir_counts(save=save, results_path=results_path)
         self.plot_infected_by_node(save=save, results_path=results_path)
+        self.plot_infected_by_node_strain(save=save, results_path=results_path)
         self.plot_infected_dot_map(save=save, results_path=results_path)
         self.plot_cum_new_exposed_paralyzed(save=save, results_path=results_path)
         if self.pars.shp is not None:
@@ -1056,6 +1057,82 @@ class DiseaseState_ABM:
         if save:
             plt.savefig(results_path / "n_infected_by_node.png")
         if not save:
+            plt.show()
+
+    def plot_infected_by_node_strain(self, save=False, results_path=None, figsize=(15, 20)):
+        """
+        Plot infected population by node for each strain, with a subplot for each strain.
+        """
+        # Get the strain-specific infection data
+        I_by_strain = self.results.I_by_strain  # Shape: (time, nodes, strains)
+        n_time, n_nodes, n_strains = I_by_strain.shape
+
+        # Create reverse mapping from strain index to strain name
+        strain_names = {v: k for k, v in self.pars.strain_ids.items()}
+
+        # Set up subplots - stack vertically (one column)
+        n_rows = n_strains
+        n_cols = 1
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, sharex=True, sharey=True)
+
+        # Handle case where we have only one subplot
+        if n_strains == 1:
+            axes = [axes]
+        else:
+            # axes is already a 1D array when n_cols=1, but ensure it's iterable
+            axes = axes if isinstance(axes, np.ndarray) else [axes]
+
+        # Plot each strain
+        for strain_idx in range(n_strains):
+            ax = axes[strain_idx]
+            strain_name = strain_names.get(strain_idx, f"Strain {strain_idx}")
+
+            # Plot infection timeseries for each node for this strain
+            for node_idx in range(n_nodes):
+                # Get node label
+                if self.pars.node_lookup and node_idx in self.pars.node_lookup:
+                    # Use the last part of dot_name for cleaner labels
+                    node_label = self.pars.node_lookup[node_idx].get("dot_name", f"Node {node_idx}").split(":")[-1]
+                else:
+                    node_label = f"Node {node_idx}"
+
+                # Plot this node's infections for this strain
+                infections = I_by_strain[:, node_idx, strain_idx]
+
+                # Only plot if there are any infections (to reduce clutter)
+                if np.sum(infections) > 0:
+                    ax.plot(infections, label=node_label, alpha=0.7)
+
+                    # Formatting
+            ax.set_title(f"{strain_name} Infections by Node", fontsize=12, fontweight="bold")
+            ax.set_xlabel("Time (days)")
+            ax.set_ylabel("Number of Infected")
+            ax.grid(True, alpha=0.3)
+
+            # Add text indicating no infections if no lines plotted
+            if len(ax.get_lines()) == 0:
+                ax.text(0.5, 0.5, "No infections", transform=ax.transAxes, ha="center", va="center", fontsize=12, alpha=0.5)
+
+        # Turn off any unused subplots
+        for idx in range(n_strains, len(axes)):
+            axes[idx].axis("off")
+
+        # Overall formatting
+        # plt.suptitle("Infected Population by Node and Strain", fontsize=16, fontweight="bold")
+        plt.tight_layout()
+
+        # Save or show
+        if save:
+            if results_path is None:
+                raise ValueError("Please provide a results_path to save the plot.")
+            from pathlib import Path
+
+            plot_path = Path(results_path) / "infected_by_node_strain.png"
+            plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+            print(f"✅ Saved plot to {plot_path}")
+            plt.close()
+        else:
             plt.show()
 
     def plot_infected_dot_map(self, save=False, results_path=None, n_panels=6):
@@ -1307,10 +1384,10 @@ def tx_infect_nb(
     offsets[1:] = sus_by_node[:-1].cumsum()
     next_index = np.empty(num_nodes, dtype=np.int32)
     next_index[:] = offsets
-    for i in range(num_people):
+    total_exposures_by_node = n_exposures_to_create_by_node_strain.sum(axis=1)  # shape: [num_nodes]
+    for i in nb.prange(num_people):
         nid = node_ids[i]
-        total_exposures = n_exposures_to_create_by_node_strain[nid, :].sum()
-        if (total_exposures > 0) and (disease_state[i] == 0):
+        if (total_exposures_by_node[nid] > 0) and (disease_state[i] == 0):
             idx = next_index[nid]
             sus_indices_storage[idx] = i
             sus_probs_storage[idx] = risks[i]  # base susceptibility, will be scaled by strain FOI later
