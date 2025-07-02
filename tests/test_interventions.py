@@ -146,7 +146,8 @@ def test_ri_no_effect_on_non_susceptibles():
     sim.people.disease_state[5:10] = 2  # Infected
     sim.people.disease_state[10:15] = 3  # Recovered
     sim.run()
-    assert np.sum(sim.results.ri_vaccinated) == np.sum(sim.results.new_exposed) == 20, "All individuals should've been vaccinated."
+    assert np.sum(sim.results.ri_vaccinated) == 20, "All individuals should've been vaccinated."
+    assert np.sum(sim.results.new_exposed) == 5, "Only the 5 susceptible individuals should've become exposed via RI."
 
 
 # --- SIA_ABM Tests ---
@@ -223,13 +224,13 @@ def test_chronically_missed():
 
 
 if __name__ == "__main__":
-    test_ri_initialization()
-    test_ri_manually_seeded()
-    test_ri_on_births()
-    test_ri_zero()
-    test_ri_vx_prob()
+    # test_ri_initialization()
+    # test_ri_manually_seeded()
+    # test_ri_on_births()
+    # test_ri_zero()
+    # test_ri_vx_prob()
     test_ri_no_effect_on_non_susceptibles()
-    test_sia_schedule()
-    test_chronically_missed()
+    # test_sia_schedule()
+    # test_chronically_missed()
 
     print("All initialization tests passed.")
