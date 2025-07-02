@@ -1,9 +1,6 @@
 # --- PRIORITIES ---
 - Calibrate without strains, with strains but strain_r0_scalars = 0, and another with strain_r0_scalars defaults
-- Reconsider how to tally new exposures. Should they include SIA + RI? Or should we have separate ones for each component and then add them togeter after the fact? 
-- Test that exposures = sum(exposures by strain + transmission exposures)
 - Add plot for new exposures, by strain, for total, trans & sia
-- Check why check_strain_trans isn't showing any campaigns with nOPV2
 - Add weights to the total_by_period
 - Change seeding to only be two spots in each outbreak
 - Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
