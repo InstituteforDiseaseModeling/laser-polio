@@ -1,6 +1,7 @@
 import logging
 import numbers
 import os
+import warnings
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
@@ -158,7 +159,10 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
 
     logger.info("FIXME: This chunk of code to initialize acq_risk_out and infectivity_out is know to be slow right now.")
     z = np.random.normal(size=(n, 2))
-    z_corr = z @ L.T
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("default")  # or "ignore", or "once", etc.
+        z_corr = z @ L.T
 
     if pars.individual_heterogeneity:
         acq_risk_out[start:end] = np.exp(mu_ln + sigma_ln * z_corr[:, 0])
@@ -1408,8 +1412,6 @@ def tx_step_prep_nb(
     node_ids,
     daily_infectivity,  # per agent infectivity/shedding (heterogeneous)
     risks,  # per agent susceptibility (heterogeneous)
-    node_seeding_dispersion,
-    node_seeding_zero_inflation,
 ):
     # Step 1: Use parallelized loop to obtain per node sums or counts of:
     #  - exposure (susceptibility/node)
@@ -1709,6 +1711,8 @@ class Transmission_ABM:
             num_nodes = len(self.nodes)
             num_people = self.sim.people.count
             n_strains = len(self.pars.strain_ids)
+            node_seeding_zero_inflation = self.sim.pars.node_seeding_zero_inflation
+            node_seeding_dispersion = self.sim.pars.node_seeding_dispersion
 
             # Manual validation
             if self.verbose >= 3:
@@ -1735,14 +1739,14 @@ class Transmission_ABM:
                 node_ids,
                 infectivity,
                 risk,
-                self.sim.pars.node_seeding_dispersion,
-                self.sim.pars.node_seeding_zero_inflation,
             )
 
         with self.step_stats.start("Part 2b"):
-            # Step 2: Compute the force of infection for each node accounting for immigration and emmigration
-            # network is a square matrix where network[i, j] is the migration fraction from node i to node j
-            # beta_by_node is a vector where beta_by_node[i] is the contagion/transmission rate for node i
+            # Step 2: Compute the force of infection for each node accounting for immigration and emigration.
+            # network is a square matrix where network[i, j] is the migration fraction from node i to node j.
+            # beta_by_node_strain is a vector where beta_by_node_strain[i] is the contagion/transmission rate for node i.
+            # Save a copy before distributing infectivity to know which nodes have zero local infectivity.
+            beta_by_node_strain_pre = beta_by_node_strain.copy()
             # This formulation, (beta * network.T).T, returns transfer so transfer[i, j] is the contagion transferred from node i to node j
             for s in range(n_strains):
                 transfer = (beta_by_node_strain[:, s] * self.network.T).T  # beta_j * network_ij
@@ -1762,23 +1766,111 @@ class Transmission_ABM:
             total_exposure_prob_per_node = prob_exp_by_node_strain.sum(axis=1)  # Total prob of exposure per node (sum across all strains)
             expected_exposures_per_node = exposure_by_node * total_exposure_prob_per_node  # Expected exposures per node
 
+            # --- COMBO VERSION
             # Step 5: Compute the number of new exposures per node, by strain
-            # Draw total new exposures (across all strains) per node
-            sampled_exposures_per_node = np.random.poisson(expected_exposures_per_node).astype(np.int32)  # shape: (n_nodes,)
-            # Compute fractional contribution of each strain
-            with np.errstate(divide="ignore", invalid="ignore"):
-                strain_fraction_of_foi = np.where(
-                    total_exposure_prob_per_node[:, np.newaxis] > 0,
-                    prob_exp_by_node_strain / total_exposure_prob_per_node[:, np.newaxis],
-                    0.0,
-                )  # shape: (n_nodes, n_strains)
-            # Allocate sampled exposures by strain using multinomial draw
             n_exposures_to_create_by_node_strain = np.zeros_like(prob_exp_by_node_strain, dtype=np.int32)  # shape: (n_nodes, n_strains)
+
             for n in range(num_nodes):
-                if sampled_exposures_per_node[n] > 0:
-                    n_exposures_to_create_by_node_strain[n, :] = np.random.multinomial(
-                        sampled_exposures_per_node[n], strain_fraction_of_foi[n, :]
-                    )
+                exposure = expected_exposures_per_node[n]  # scalar expected total exposure in node n
+                if exposure < 0:
+                    # If exposure is negative, set to 0 and print a warning
+                    sc.printred(f"Warning: exposure_by_node[{n}] is negative: {exposure_by_node[n]}. Setting to 0.")
+                    sc.printred(f"beta_by_node_strain_pre[{n}] is {beta_by_node_strain_pre[n]}")
+                    sc.printred(f"alive_counts[{n}] is {alive_counts[n]}")
+                    sc.printred(f"per_agent_exp_rate[{n}] is {per_agent_exp_rate[n]}")
+                    exposure = 0
+
+                if exposure == 0:
+                    total_exposures_to_create = 0
+
+                elif np.sum(beta_by_node_strain_pre[n]) == 0:
+                    # If node has no local transmission, apply zero-inflated NB
+                    if node_seeding_zero_inflation >= 1.0:
+                        total_exposures_to_create = 0
+                    else:
+                        desired_mean = exposure / (1 - node_seeding_zero_inflation)
+                        r = max(1, int(np.round(node_seeding_dispersion)))
+                        p = r / (r + desired_mean)
+
+                        if np.random.rand() < node_seeding_zero_inflation:
+                            total_exposures_to_create = 0
+                        else:
+                            total_exposures_to_create = np.random.negative_binomial(r, p)
+
+                else:
+                    # If node has local transmission, sample from Poisson
+                    total_exposures_to_create = np.random.poisson(exposure)
+
+                # Strain allocation
+                if total_exposures_to_create > 0:
+                    total_prob = total_exposure_prob_per_node[n]
+                    if total_prob > 0:
+                        strain_probs = prob_exp_by_node_strain[n] / total_prob
+                    else:
+                        strain_probs = np.zeros(n_strains)
+
+                    n_exposures_to_create_by_node_strain[n] = np.random.multinomial(total_exposures_to_create, strain_probs)
+                    print(f"n_exposures_to_create_by_node_strain[{n}] is {n_exposures_to_create_by_node_strain[n]}")
+
+            # # --- STRAIN-SPECIFIC EXPOSURES ---
+            # # Step 5: Compute the number of new exposures per node, by strain
+            # # Draw total new exposures (across all strains) per node
+            # sampled_exposures_per_node = np.random.poisson(expected_exposures_per_node).astype(np.int32)  # shape: (n_nodes,)
+            # # Compute fractional contribution of each strain
+            # with np.errstate(divide="ignore", invalid="ignore"):
+            #     strain_fraction_of_foi = np.where(
+            #         total_exposure_prob_per_node[:, np.newaxis] > 0,
+            #         prob_exp_by_node_strain / total_exposure_prob_per_node[:, np.newaxis],
+            #         0.0,
+            #     )  # shape: (n_nodes, n_strains)
+            # # Allocate sampled exposures by strain using multinomial draw
+            # n_exposures_to_create_by_node_strain = np.zeros_like(prob_exp_by_node_strain, dtype=np.int32)  # shape: (n_nodes, n_strains)
+            # for n in range(num_nodes):
+            #     if sampled_exposures_per_node[n] > 0:
+            #         n_exposures_to_create_by_node_strain[n, :] = np.random.multinomial(
+            #             sampled_exposures_per_node[n], strain_fraction_of_foi[n, :]
+            #         )
+
+            # # --- ZINB ---
+            # # Step 5: Compute the number of new infections per node
+            # new_infections = np.zeros(num_nodes, dtype=np.int32)
+            # for i in range(num_nodes):
+            #     if exposure_by_node[i] < 0:
+            #         sc.printred(f"Warning: exposure_by_node[{i}] is negative: {exposure_by_node[i]}. Setting to 0.")
+            #         sc.printred(f"base_prob_inf[{i}] is {base_prob_inf[i]}")
+            #         sc.printred(f"beta_by_node[{i}] is {beta_by_node[i]}")
+            #         sc.printred(f"alive_counts[{i}] is {alive_counts[i]}")
+            #         sc.printred(f"per_agent_inf_rate[{i}] is {per_agent_inf_rate[i]}")
+            #         exposure_by_node[i] = 0  # Set to 0 to avoid issues
+            #     if exposure_by_node[i] == 0:
+            #         new_infections[i] = 0
+            #     elif beta_by_node_pre[i] == 0:
+            #         # Over-disperse seeded infections to make takeoff more challenging
+            #         # Apply only to nodes with zero local transmission. All infectivity is coming from neighboring nodes.
+
+            #         # Handle edge case where zero inflation is 100%
+            #         if node_seeding_zero_inflation >= 1.0:
+            #             new_infections[i] = 0
+            #             continue
+
+            #         # Adjust mean to account for expected zero inflation
+            #         desired_mean = exposure_by_node[i] / (
+            #             1 - node_seeding_zero_inflation
+            #         )  # E[X] matches Poisson on average, increased for zero-inflation
+
+            #         # Compute dispersion and success probability for Negative Binomial
+            #         r_int = max(1, int(np.round(node_seeding_dispersion)))
+            #         p = r_int / (r_int + desired_mean)
+
+            #         # Apply zero inflation
+            #         if np.random.rand() < node_seeding_zero_inflation:
+            #             new_infections[i] = 0
+            #         else:
+            #             new_infections[i] = np.random.negative_binomial(r_int, p)
+
+            #     else:
+            #         # Nodes with pre-existing local transmission sample should have business as usual and sample from standard Poisson
+            #         new_infections[i] = np.random.poisson(exposure_by_node[i])
 
             # Manual validation
             if self.verbose >= 3:
@@ -1819,8 +1911,8 @@ class Transmission_ABM:
                 logger.info(f"exposure_by_node: {fmt(exposure_by_node, 2)}")
                 logger.info(f"Expected new exposures: {n_exposures_to_create_by_node_strain}")
                 logger.info(f"Observed new exposures: {new_exposed_by_node_strain}")
-                total_expected = np.sum(exposure_by_node)
-                tot_poisson_draw = np.sum(sampled_exposures_per_node)
+                total_expected = np.sum(expected_exposures_per_node)
+                tot_poisson_draw = np.sum(n_exposures_to_create_by_node_strain)
                 # Check the number of people that are newly exposed
                 num_new_exposed = np.sum(disease_state == 1) - np.sum(disease_state_pre_infect == 1)
                 logger.info(

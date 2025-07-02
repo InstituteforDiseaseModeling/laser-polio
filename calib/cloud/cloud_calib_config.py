@@ -31,7 +31,7 @@ import yaml
 # calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet.yaml"
 
 job_name = "laser-polio-sk6"
-study_name = "calib_nigeria_6y_2018_underwt_gravity_zinb_ipv_moreseeds_alt_wts_20250623"
+study_name = "calib_nigeria_6y_2018_underwt_gravity_zinb_ipv_moreseeds_alt_wts_20250701"
 model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_moreseeds_alt.yaml"
 calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts.yaml"
 

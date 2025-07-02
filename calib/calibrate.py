@@ -17,13 +17,13 @@ import laser_polio as lp
 
 # ------------------- USER CONFIGS -------------------
 
-# study_name = "calib_kano_jigawa_ipv_6y_20250619_v2"
-# model_config = "config_kano_jigawa_ipv.yaml"
-# calib_config = "r0_k_ssn_period.yaml"
+study_name = "calib_kano_jigawa_ipv_6y_20250619_v2"
+model_config = "config_kano_jigawa_ipv.yaml"
+calib_config = "r0_k_ssn_period.yaml"
 
-study_name = "calib_nigeria_6y_2018_underwt_gravity_zinb_ipv_moreseeds_alt_wts_20250623"
-model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_moreseeds_alt.yaml"
-calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts.yaml"
+# study_name = "calib_nigeria_6y_2018_underwt_gravity_zinb_ipv_moreseeds_alt_wts_20250623"
+# model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_moreseeds_alt.yaml"
+# calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts.yaml"
 
 
 fit_function = "log_likelihood"

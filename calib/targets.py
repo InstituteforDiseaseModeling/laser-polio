@@ -236,21 +236,15 @@ def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual
         max_date = lp.find_latest_end_of_month(df["date"])
         df = df[df["date"] <= max_date]
 
-    # Add time period column with three periods
-    def assign_time_period(date):
-        if date < pd.to_datetime("2020-01-01"):
-            return "2018-2019"
-        elif date < pd.to_datetime("2022-01-01"):
-            return "2020-2021"
-        else:
-            return "2022-2023"
-
-    df["time_period"] = df["date"].apply(assign_time_period)
+    # Add time period column with three periods (fast version)
+    bins = [pd.Timestamp.min, pd.Timestamp("2020-01-01"), pd.Timestamp("2022-01-01"), pd.Timestamp.max]
+    labels = ["2018-2019", "2020-2021", "2022-2023"]
+    df["time_period"] = pd.cut(df["date"], bins=bins, labels=labels, right=False)
 
     targets = {}
 
     # 1. Total infected (split by time period)
-    total_by_period = df.groupby("time_period")[case_col].sum() * scale_factor
+    total_by_period = df.groupby("time_period", observed=True)[case_col].sum() * scale_factor
     targets["total_by_period"] = total_by_period.to_dict()
 
     # 2. Monthly timeseries (full time series)
@@ -264,7 +258,7 @@ def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual
     df["adm1"] = dot_parts[2]
     df["adm01"] = df["adm0"] + ":" + df["adm1"]
     # Group by adm01 and time period
-    adm01_by_period = df.groupby(["adm01", "time_period"])[case_col].sum() * scale_factor
+    adm01_by_period = df.groupby(["adm01", "time_period"], observed=True)[case_col].sum() * scale_factor
     targets["adm01_by_period"] = adm01_by_period.to_dict()
 
     print(f"{targets=}")

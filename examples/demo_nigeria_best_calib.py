@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import sciris as sc
 
 import laser_polio as lp
@@ -8,24 +7,41 @@ import laser_polio as lp
 
 regions = ["NIGERIA"]
 start_year = 2018
-n_days = 365  # 6 years
+n_days = 2190
 pop_scale = 1 / 1
-init_region = "ANKA"
-migration_method = "radiation"
-max_migr_frac = 1.0
-results_path = "results/demo_nigeria_best_calib"
-vx_prob_ri = None
-
-# From best calib
+init_region = "BIRINIWA"
 init_prev = 0
+migration_method = "gravity"
+max_migr_frac = 1.0
+vx_prob_ri = 0.0
+missed_frac = 0.0
+node_seeding_dispersion = 1.0
+use_pim_scalars = False
+results_path = "results/demo_nigeria_best_calib"
 seed_schedule = [
-    {"date": "2018-02-06", "dot_name": "AFRO:NIGERIA:JIGAWA:BIRINIWA", "prevalence": 200},
-    {"date": "2020-11-24", "dot_name": "AFRO:NIGERIA:ZAMFARA:SHINKAFI", "prevalence": 200},
+    {"date": "2018-01-02", "dot_name": "AFRO:NIGERIA:JIGAWA:HADEJIA", "prevalence": 100},  # day 1
+    {"date": "2018-01-02", "dot_name": "AFRO:NIGERIA:JIGAWA:GARKI", "prevalence": 100},  # day 1
+    {"date": "2020-07-01", "dot_name": "AFRO:NIGERIA:ZAMFARA:TALATA_MAFARA", "prevalence": 100},  # day 2
+    {"date": "2020-10-01", "dot_name": "AFRO:NIGERIA:NIGER:SULEJA", "prevalence": 100},  # day 2
 ]
-r0 = 18.42868241650029
-radiation_k = 0.0956175096168661
-seasonal_amplitude = 0.19102804223372347
-seasonal_peak_doy = 193
+
+# Calib pars
+seed = 1750269819
+r0 = 15.506866736240125
+seasonal_amplitude = 0.176162343111089
+seasonal_peak_doy = 178
+gravity_k_exponent = -12.043699682205505
+gravity_a = 0.8490349873341755
+gravity_b = 1.7323377362260461
+gravity_c = 0.19707497280084302
+node_seeding_zero_inflation = 0.8565107799601033
+r0_scalar_wt_slope = 63.92688046855615
+r0_scalar_wt_intercept = 0.011494954640707458
+r0_scalar_wt_center = 0.43106321507924644
+sia_re_center = 0.3297917372188261
+sia_re_scale = 0.4866729181159698
+init_immun_scalar = 1.7383406836075246
+
 
 ######### END OF USER PARS ########
 ###################################
@@ -38,121 +54,34 @@ sim = lp.run_sim(
     pop_scale=pop_scale,
     init_region=init_region,
     init_prev=init_prev,
-    r0=r0,
-    vx_prob_ri=vx_prob_ri,
+    seed_schedule=seed_schedule,
     migration_method=migration_method,
-    radiation_k=radiation_k,
     max_migr_frac=max_migr_frac,
+    vx_prob_ri=vx_prob_ri,
+    missed_frac=missed_frac,
+    use_pim_scalars=use_pim_scalars,
+    r0=r0,
+    seasonal_amplitude=seasonal_amplitude,
+    seasonal_peak_doy=seasonal_peak_doy,
+    gravity_k_exponent=gravity_k_exponent,
+    gravity_a=gravity_a,
+    gravity_b=gravity_b,
+    gravity_c=gravity_c,
+    node_seeding_zero_inflation=node_seeding_zero_inflation,
+    r0_scalar_wt_slope=r0_scalar_wt_slope,
+    r0_scalar_wt_intercept=r0_scalar_wt_intercept,
+    r0_scalar_wt_center=r0_scalar_wt_center,
+    sia_re_center=sia_re_center,
+    sia_re_scale=sia_re_scale,
+    init_immun_scalar=init_immun_scalar,
+    node_seeding_dispersion=node_seeding_dispersion,
     results_path=results_path,
     save_plots=True,
     save_data=True,
     verbose=1,
-    seed=1,
+    seed=seed,
     save_init_pop=False,
-    seed_schedule=seed_schedule,
-    seasonal_amplitude=seasonal_amplitude,
-    seasonal_peak_doy=seasonal_peak_doy,
+    plot_pars=True,
 )
-
-
-# --- Setup ---
-node_lookup = sim.pars.node_lookup
-S = sim.results.S
-I = sim.results.I
-sia_schedule = sim.pars.sia_schedule
-start_date = sim.pars.start_date
-datevec = sim.datevec
-max_sim_date = max(datevec)
-
-# --- Choose regions to plot ---
-regions_to_plot = ["ZAMFARA", "JIGAWA"]
-
-
-# --- Generate plots ---
-for region in regions_to_plot:
-    region = region.upper()
-
-    # 1. Get nodes for this region
-    region_nodes = [node_id for node_id, info in node_lookup.items() if region in info["dot_name"].upper()]
-    if not region_nodes:
-        print(f"⚠️ No nodes found for region: {region}")
-        continue
-
-    # 2. Get SIA dates targeting this region
-    region_sia_dates = [
-        campaign["date"]
-        for campaign in sia_schedule
-        if campaign["date"] <= max_sim_date and any(n in region_nodes for n in campaign["nodes"])
-    ]
-
-    # 3. Plot
-    plt.figure(figsize=(12, 6))
-
-    # Plot susceptible traces
-    for idx in region_nodes:
-        label = node_lookup[idx]["dot_name"].split(":")[-1]
-        plt.plot(datevec, S[:, idx], label=label, linestyle="-", alpha=0.7)
-
-    # Short vertical ticks for SIA dates
-    ymin = 0
-    ymax = plt.ylim()[1]
-    tick_height = (ymax - ymin) / 20
-    for dt in region_sia_dates:
-        plt.plot([dt, dt], [ymin, ymin + tick_height], color="red", lw=1.5)
-
-    # Format
-    plt.xlabel("Date")
-    plt.ylabel("Number of Susceptibles")
-    plt.title(f"Susceptible Traces in {region}")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.ylim(bottom=ymin, top=ymax)
-    # plt.legend(fontsize='small', ncol=2, loc='upper right')
-    # Move legend outside the plot
-    plt.legend(fontsize="small", ncol=1, loc="center left", bbox_to_anchor=(1.0, 0.5), title="Nodes")
-
-    # Adjust layout to make space for legend
-    plt.subplots_adjust(right=0.85)  # Shrink plot area
-
-    # 4. Save
-    filename = f"{results_path}/susceptibles_{region}.png"
-    plt.savefig(filename)
-    plt.close()
-    print(f"✅ Saved plot for {region} to {filename}")
-
-    # --- INFECTED PLOT ---
-
-    plt.figure(figsize=(12, 6))
-
-    # Plot infected traces
-    for idx in region_nodes:
-        label = node_lookup[idx]["dot_name"].split(":")[-1]
-        plt.plot(datevec, I[:, idx], label=label, linestyle="--", alpha=0.7)
-
-    # Short vertical ticks for SIA dates
-    ymin = 0
-    ymax = plt.ylim()[1]
-    tick_height = (ymax - ymin) / 20
-    for dt in region_sia_dates:
-        plt.plot([dt, dt], [ymin, ymin + tick_height], color="red", lw=1.5)
-
-    # Axis and legend
-    plt.xlabel("Date")
-    plt.ylabel("Number of Infected")
-    plt.title(f"Infected Traces in {region}")
-    plt.grid(True)
-    plt.ylim(bottom=0, top=ymax)
-
-    # Legend outside
-    plt.legend(fontsize="small", ncol=1, loc="center left", bbox_to_anchor=(1.0, 0.5), title="Nodes")
-    plt.subplots_adjust(right=0.78)
-    plt.tight_layout()
-
-    # Save plot
-    inf_filename = f"{results_path}/infected_{region}.png"
-    plt.savefig(inf_filename)
-    plt.close()
-    print(f"📈 Saved infected plot for {region} to {inf_filename}")
-
 
 sc.printcyan("Done.")
