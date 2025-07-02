@@ -22,4 +22,4 @@ RUN pip3 install pipdeptree && pipdeptree -p laser-polio > /app/laser_polio_deps
 RUN pip3 cache purge
 
 # Entrypoint
-ENTRYPOINT ["python3", "calibrate.py"]
+ENTRYPOINT ["python3", "calib/calibrate.py"]
