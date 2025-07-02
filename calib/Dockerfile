@@ -15,7 +15,7 @@ COPY calib/model_configs/ ./calib/model_configs/
 COPY ./data/ /app/data/
 
 # Ensure script permissions after code is copied
-RUN chmod a+x cloud/check_study.sh
+RUN chmod a+x calib/cloud/check_study.sh
 
 # Analyze dependencies (after laser-polio is installed)
 RUN pip3 install pipdeptree && pipdeptree -p laser-polio > /app/laser_polio_deps.txt
