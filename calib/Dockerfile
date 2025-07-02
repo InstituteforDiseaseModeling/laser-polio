@@ -10,8 +10,6 @@ RUN pip3 install -i https://packages.idmod.org/api/pypi/pypi-production/simple l
 
 # Copy application code and configuration files
 COPY calib/ ./calib/
-COPY calib/calib_configs/ ./calib/calib_configs/
-COPY calib/model_configs/ ./calib/model_configs/
 COPY ./data/ /app/data/
 
 # Ensure script permissions after code is copied
