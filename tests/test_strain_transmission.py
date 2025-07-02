@@ -432,16 +432,16 @@ def test_strain_r0_scalars_nopv2_vs_sabin2():
     )
     sim_nopv.run()
 
-    # Plot the number of new exposures by strain for each sim
-    import matplotlib.pyplot as plt
+    # # Plot the number of new exposures by strain for each sim
+    # import matplotlib.pyplot as plt
 
-    plt.plot(np.sum(sim_sabin.results.new_exposed_by_strain[:, :, sim_sabin.pars.strain_ids["Sabin2"]], axis=1), label="Sabin2")
-    plt.plot(np.sum(sim_nopv.results.new_exposed_by_strain[:, :, sim_nopv.pars.strain_ids["nOPV2"]], axis=1), label="nOPV2")
-    plt.xlabel("Day")
-    plt.ylabel("New Exposures")
-    plt.title("New Exposures by Strain")
-    plt.legend()
-    plt.show()
+    # plt.plot(np.sum(sim_sabin.results.new_exposed_by_strain[:, :, sim_sabin.pars.strain_ids["Sabin2"]], axis=1), label="Sabin2")
+    # plt.plot(np.sum(sim_nopv.results.new_exposed_by_strain[:, :, sim_nopv.pars.strain_ids["nOPV2"]], axis=1), label="nOPV2")
+    # plt.xlabel("Day")
+    # plt.ylabel("New Exposures")
+    # plt.title("New Exposures by Strain")
+    # plt.legend()
+    # plt.show()
 
     # Get strain indices
     sabin2_idx = sim_sabin.pars.strain_ids["Sabin2"]
@@ -487,6 +487,56 @@ def test_strain_r0_scalars_nopv2_vs_sabin2():
     assert sim_nopv.results.E_by_strain[:, :, sabin2_idx].sum() == 0, "No Sabin2 transmission in nOPV2 test"
 
 
+@patch("laser_polio.root", Path("tests/"))
+def test_new_exposed_by_strain_results():
+    """Test that the new_exposed_by_strain results are correct.
+
+    This test checks that the new_exposed, new_exposed_by_strain, and sia_new_exposed_by_strain results are correct.
+    new_exposed_by_strain should contain all new exposures, including those from SIA.
+    sia_new_exposed_by_strain should contain only new exposures from SIA.
+    new_exposed should contain all new exposures, including those from SIA.
+    """
+
+    sim = lp.run_sim(
+        regions=["SOKOTO"],
+        start_year=2020,
+        n_days=365 * 2,  # 2 years as requested
+        pop_scale=0.1,  # Small scale for faster testing
+        init_region="AFRO:NIGERIA:SOKOTO:BINJI",
+        init_prev=200,
+        results_path=None,
+        save_plots=False,
+        save_data=False,
+        verbose=0,
+        r0=12,  # Moderate R0 for transmission
+        vx_prob_ri=0.0,  # No routine immunization to focus on strain dynamics
+        stop_if_no_cases=False,  # Don't stop early
+        seed=42,  # Fixed seed for reproducibility
+    )
+
+    # Get the new_exposed results
+    new_exposed = sim.results.new_exposed
+    new_exposed_by_strain = sim.results.new_exposed_by_strain
+    sia_new_exposed_by_strain = sim.results.sia_new_exposed_by_strain
+
+    # # Plot the number of new exposures by strain for each sim
+    # import matplotlib.pyplot as plt
+
+    # plt.plot(np.sum(new_exposed, axis=1), label="Total new exposures")
+    # plt.plot(np.sum(new_exposed_by_strain, axis=1).sum(axis=1), label="New exposures by strain", linestyle="--")
+    # plt.plot(np.sum(sia_new_exposed_by_strain, axis=1).sum(axis=1), label="SIA new exposures by strain", linestyle="--")
+    # plt.xlabel("Day")
+    # plt.ylabel("New Exposures")
+    # plt.legend()
+    # plt.show()
+
+    # Check that new_exposed is the sum of new_exposed_by_strain
+    assert np.all(new_exposed == new_exposed_by_strain.sum(axis=2)), "new_exposed should be the sum of new_exposed_by_strain"
+    assert np.all(new_exposed >= sia_new_exposed_by_strain.sum(axis=2)), (
+        "new_exposed should include transmission and SIA exposures, and therefore be less than or equal to sia_new_exposed_by_strain"
+    )
+
+
 if __name__ == "__main__":
     test_strain_arrays_exist()
     test_vdpv_only_transmission()
@@ -496,4 +546,5 @@ if __name__ == "__main__":
     test_mixed_strain_transmission()
     test_realistic_strain_transmission_sokoto()
     test_strain_r0_scalars_nopv2_vs_sabin2()
+    test_new_exposed_by_strain_results()
     print("\n🎉 All strain transmission tests passed!")
