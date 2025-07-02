@@ -1131,8 +1131,6 @@ class DiseaseState_ABM:
         if save:
             if results_path is None:
                 raise ValueError("Please provide a results_path to save the plot.")
-            from pathlib import Path
-
             plot_path = Path(results_path) / "infected_by_node_strain.png"
             plt.savefig(plot_path, dpi=300, bbox_inches="tight")
             plt.close()
@@ -1227,8 +1225,6 @@ class DiseaseState_ABM:
         if save:
             if results_path is None:
                 raise ValueError("Please provide a results_path to save the plot.")
-            from pathlib import Path
-
             plot_path = Path(results_path) / "new_exposed_by_strain_detailed.png"
             plt.savefig(plot_path, dpi=300, bbox_inches="tight")
             plt.close()

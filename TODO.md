@@ -1,4 +1,5 @@
 # --- PRIORITIES ---
+- Sweep over zero inflation by strain
 - Calibrate without strains, with strains but strain_r0_scalars = 0, and another with strain_r0_scalars defaults
 - Add plot for new exposures, by strain, for total, trans & sia
 - Add weights to the total_by_period
@@ -16,9 +17,7 @@ CALIBRATION
 - Plot out 'bad' calib trials, get a smattering of options for each r0, both high and low likelihoods
 
 NEW FEATURES
-- Enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
 - Enable RI for nOPV2
-- Tally new exposures from RI
 - Add age pyramid by country
 - Reactive SIAs
 - Perf improvements

@@ -77,9 +77,9 @@ def test_strain_arrays_exist():
 
     # Check strain indices are consistent with strain_ids
     strain_ids = sim.pars.strain_ids  # {"VDPV2": 0, "Sabin2": 1, "nOPV2": 2}
-    assert "VDPV2" in strain_ids and strain_ids["VDPV2"] == 0, "VDPV2 should map to strain index 0"
-    assert "Sabin2" in strain_ids and strain_ids["Sabin2"] == 1, "Sabin2 should map to strain index 1"
-    assert "nOPV2" in strain_ids and strain_ids["nOPV2"] == 2, "nOPV2 should map to strain index 2"
+    assert "VDPV2" in strain_ids and strain_ids["VDPV2"] == 0, "VDPV2 should map to strain index 0"  # noqa: PT018
+    assert "Sabin2" in strain_ids and strain_ids["Sabin2"] == 1, "Sabin2 should map to strain index 1"  # noqa: PT018
+    assert "nOPV2" in strain_ids and strain_ids["nOPV2"] == 2, "nOPV2 should map to strain index 2"  # noqa: PT018
 
 
 # Test (b): VDPV infections with no SIA should only produce VDPV2 strains
@@ -272,8 +272,8 @@ def test_mixed_strain_transmission():
     total_I_vdpv2 = sim.results.I_by_strain[:, :, vdpv2_idx].sum()
 
     # Should have vaccine strain transmission (from SIA)
-    total_E_vaccine = sim.results.E_by_strain[:, :, sabin2_idx:].sum()  # Sabin2 + nOPV2
-    total_I_vaccine = sim.results.I_by_strain[:, :, sabin2_idx:].sum()
+    total_E_vaccine = sim.results.E_by_strain[:, :, sabin2_idx].sum() + sim.results.E_by_strain[:, :, nopv2_idx].sum()  # Sabin2 + nOPV2
+    total_I_vaccine = sim.results.I_by_strain[:, :, sabin2_idx].sum() + sim.results.I_by_strain[:, :, nopv2_idx].sum()  # Sabin2 + nOPV2
 
     assert total_E_vdpv2 > 0, "Should have VDPV2 exposures from initial seeding"
     assert total_I_vdpv2 > 0, "Should have VDPV2 infections from initial seeding"

@@ -1,14 +1,13 @@
-#!/usr/bin/env python3
 """
 Script to measure and plot import times for packages used in laser_polio.
 Uses subprocess to ensure each import is timed independently in a fresh Python process.
 """
 
-import os
 import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 
@@ -71,8 +70,8 @@ except ImportError as e:
     finally:
         # Clean up temporary file
         try:
-            os.unlink(temp_script)
-        except:
+            Path.unlink(temp_script)
+        except OSError:
             pass
 
 
@@ -142,7 +141,8 @@ def main():
     import_times_subprocess = {}
 
     for module_name, from_module in modules_to_test:
-        print(f"Testing {from_module}.{module_name if from_module else module_name}...", end=" ", flush=True)
+        display_name = f"{from_module}.{module_name}" if from_module else module_name
+        print(f"Testing {display_name}...", end=" ", flush=True)
 
         import_time = time_import_subprocess(module_name, from_module)
 
@@ -196,7 +196,7 @@ def create_comparison_plot(subprocess_times, inprocess_times):
     ax1.grid(axis="x", alpha=0.3)
 
     # Add value labels
-    for i, (bar, time_val) in enumerate(zip(bars1, subprocess_values, strict=False)):
+    for i, (_bar, time_val) in enumerate(zip(bars1, subprocess_values, strict=False)):
         if time_val > 0:
             ax1.text(time_val + max(subprocess_values) * 0.01, i, f"{time_val:.1f} ms", va="center", fontsize=8)
 
@@ -209,7 +209,7 @@ def create_comparison_plot(subprocess_times, inprocess_times):
     ax2.grid(axis="x", alpha=0.3)
 
     # Add value labels
-    for i, (bar, time_val) in enumerate(zip(bars2, inprocess_values, strict=False)):
+    for i, (_bar, time_val) in enumerate(zip(bars2, inprocess_values, strict=False)):
         if time_val > 0:
             ax2.text(time_val + max(inprocess_values) * 0.01, i, f"{time_val:.1f} ms", va="center", fontsize=8)
 
@@ -229,7 +229,7 @@ def create_comparison_plot(subprocess_times, inprocess_times):
     plt.grid(axis="x", alpha=0.3)
 
     # Add value labels
-    for i, (bar, time_val) in enumerate(zip(bars, subprocess_values, strict=False)):
+    for i, (_bar, time_val) in enumerate(zip(bars, subprocess_values, strict=False)):
         if time_val > 0:
             plt.text(time_val + max(subprocess_values) * 0.01, i, f"{time_val:.1f} ms", va="center", fontsize=9)
 
