@@ -1582,10 +1582,12 @@ class Transmission_ABM:
         self.calc_ni_time = 0
         self.do_ni_time = 0
 
-        self.sim.results.add_array_property("new_exposed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.sim.results.add_array_property(
+            "new_exposed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32
+        )  # Includes all exposures (transmission + SIA)
         self.sim.results.add_array_property(
             "new_exposed_by_strain", shape=(self.sim.nt, len(self.nodes), len(self.pars.strain_ids)), dtype=np.int32
-        )
+        )  # Includes all exposures (transmission + SIA)
 
         self.people.add_scalar_property("sus_indices", dtype=np.int32, default=0)
         self.people.add_scalar_property("sus_probs", dtype=np.float32, default=0.0)
