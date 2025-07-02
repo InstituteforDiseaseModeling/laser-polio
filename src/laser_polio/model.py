@@ -1010,6 +1010,7 @@ class DiseaseState_ABM:
         self.plot_infected_by_node_strain(save=save, results_path=results_path)
         self.plot_infected_dot_map(save=save, results_path=results_path)
         self.plot_cum_new_exposed_paralyzed(save=save, results_path=results_path)
+        self.plot_new_exposed_by_strain(save=save, results_path=results_path)
         if self.pars.shp is not None:
             self.plot_infected_choropleth(save=save, results_path=results_path)
 
@@ -1129,6 +1130,102 @@ class DiseaseState_ABM:
             from pathlib import Path
 
             plot_path = Path(results_path) / "infected_by_node_strain.png"
+            plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+            plt.close()
+        else:
+            plt.show()
+
+    def plot_new_exposed_by_strain(self, save=False, results_path=None, figsize=(20, 20)):
+        """
+        Plot new exposures by strain in a 3x3 grid.
+        Rows: VDPV2, Sabin2, nOPV2
+        Columns: Total exposures, Transmission only, SIA only
+        """
+        # Check if we have the required exposure data
+        if not hasattr(self.results, "new_exposed_by_strain"):
+            print("No strain-specific exposure data available")
+            return
+
+        # Get the strain-specific exposure data
+        new_exposed_by_strain = self.results.new_exposed_by_strain  # Shape: (time, nodes, strains)
+        n_time, n_nodes, n_strains = new_exposed_by_strain.shape
+
+        # Create reverse mapping from strain index to strain name
+        strain_names = {v: k for k, v in self.pars.strain_ids.items()}
+
+        # Set up 3x3 subplot grid
+        n_rows = 3  # One for each strain
+        n_cols = 3  # Total, Transmission, SIA
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, sharex=True)
+
+        # Column titles
+        col_titles = ["Total New Exposures", "Transmission Only", "SIA Only"]
+
+        # Plot each strain (row)
+        for strain_idx in range(min(n_strains, 3)):  # Limit to 3 strains
+            strain_name = strain_names.get(strain_idx, f"Strain {strain_idx}")
+
+            # Get total exposures for this strain (sum across all nodes)
+            total_exposures = np.sum(new_exposed_by_strain[:, :, strain_idx], axis=1)
+
+            # Calculate transmission and SIA exposures
+            if hasattr(self.results, "sia_new_exposed_by_strain"):
+                sia_exposures = np.sum(self.results.sia_new_exposed_by_strain[:, :, strain_idx], axis=1)
+                trans_exposures = total_exposures - sia_exposures
+            else:
+                # If no SIA data, assume all exposures are from transmission
+                trans_exposures = total_exposures
+                sia_exposures = np.zeros_like(total_exposures)
+
+            # Column 1: Total exposures
+            ax = axes[strain_idx, 0]
+            if np.any(total_exposures > 0):
+                ax.plot(total_exposures, linewidth=2, color="black", label="Total")
+            else:
+                ax.text(0.5, 0.5, "No exposures", transform=ax.transAxes, ha="center", va="center", fontsize=10, alpha=0.5)
+
+            ax.set_title(f"{strain_name}\n{col_titles[0]}", fontsize=11, fontweight="bold")
+            ax.set_ylabel("New Exposures per Day")
+            ax.grid(True, alpha=0.3)
+
+            # Column 2: Transmission only
+            ax = axes[strain_idx, 1]
+            if np.any(trans_exposures > 0):
+                ax.plot(trans_exposures, linewidth=2, color="green", label="Transmission")
+            else:
+                ax.text(0.5, 0.5, "No transmission", transform=ax.transAxes, ha="center", va="center", fontsize=10, alpha=0.5)
+
+            ax.set_title(f"{strain_name}\n{col_titles[1]}", fontsize=11, fontweight="bold")
+            ax.set_ylabel("New Exposures per Day")
+            ax.grid(True, alpha=0.3)
+
+            # Column 3: SIA only
+            ax = axes[strain_idx, 2]
+            if np.any(sia_exposures > 0):
+                ax.plot(sia_exposures, linewidth=2, color="red", label="SIA")
+            else:
+                ax.text(0.5, 0.5, "No SIA", transform=ax.transAxes, ha="center", va="center", fontsize=10, alpha=0.5)
+
+            ax.set_title(f"{strain_name}\n{col_titles[2]}", fontsize=11, fontweight="bold")
+            ax.set_ylabel("New Exposures per Day")
+            ax.grid(True, alpha=0.3)
+
+        # Set x-labels for bottom row
+        for col in range(n_cols):
+            axes[n_rows - 1, col].set_xlabel("Time (days)")
+
+        # Overall formatting
+        plt.suptitle("New Exposures by Strain and Source", fontsize=16, fontweight="bold")
+        plt.tight_layout()
+
+        # Save or show
+        if save:
+            if results_path is None:
+                raise ValueError("Please provide a results_path to save the plot.")
+            from pathlib import Path
+
+            plot_path = Path(results_path) / "new_exposed_by_strain_detailed.png"
             plt.savefig(plot_path, dpi=300, bbox_inches="tight")
             plt.close()
         else:
