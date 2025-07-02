@@ -1,5 +1,7 @@
 FROM idm-docker-staging.packages.idmod.org/laser/laser-polio-base:latest
 
+WORKDIR /app
+
 # Set environment variables early
 ENV POLIO_ROOT=/app
 ENV NUMBA_CPU_NAME=generic
