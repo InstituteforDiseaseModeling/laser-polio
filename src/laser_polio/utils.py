@@ -435,7 +435,7 @@ def process_sia_schedule_polio(df, region_names, sim_start_date, n_days, filter_
         """Assign vaccine strain based on vaccine type."""
         if "nOPV2" in vaccinetype:
             return "nOPV2"
-        elif any(vtype in vaccinetype for vtype in ["bOPV", "mOPV", "tOPV", "topv"]):
+        elif any(vtype in vaccinetype for vtype in ["mOPV2", "tOPV", "topv"]):
             return "Sabin2"
         else:
             return np.nan
