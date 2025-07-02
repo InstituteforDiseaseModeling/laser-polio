@@ -10,6 +10,8 @@ def setup_sim(dur=30, n_ppl=None, vx_prob_ri=0.5, vx_prob_ipv=0.75, cbr=None, r0
         n_ppl = np.array([50000, 50000])
     if cbr is None:
         cbr = np.array([30, 25])
+    strain_r0_scalars_zero = {"VDPV2": 1.0, "Sabin2": 0.0, "nOPV2": 0.0}
+
     pars = PropertySet(
         {
             "dur": dur,
@@ -24,6 +26,7 @@ def setup_sim(dur=30, n_ppl=None, vx_prob_ri=0.5, vx_prob_ipv=0.75, cbr=None, r0
             "vx_prob_ipv": vx_prob_ipv,  # IPV probability
             "stop_if_no_cases": False,  # Stop simulation if no cases are present,
             "seed": seed,
+            "strain_r0_scalars": strain_r0_scalars_zero,
         }
     )
     pars += new_pars if new_pars is not None else {}
@@ -96,18 +99,18 @@ def test_ri_vx_prob(n_reps=10):
     vx_prob_ipv = 0.85
     vx_counts = []
     vx_ipv_counts = []
-    r_counts = []
+    e_counts = []
     for _ in range(n_reps):
         sim = setup_sim(n_ppl=n_ppl, dur=dur, vx_prob_ri=vx_prob_ri, vx_prob_ipv=vx_prob_ipv, cbr=np.array([0, 0]), seed=_)
         sim.people.ri_timer[:total_agents] = np.random.randint(0, dur, total_agents)
         sim.run()
         vx_counts.append(np.sum(sim.results.ri_vaccinated))
         vx_ipv_counts.append(np.sum(sim.results.ipv_vaccinated))
-        r_counts.append(np.sum(sim.results.R[-1]))
+        e_counts.append(np.sum(sim.results.new_exposed))
 
     vx_counts = np.array(vx_counts)
     vx_ipv_counts = np.array(vx_ipv_counts)
-    r_counts = np.array(r_counts)
+    e_counts = np.array(e_counts)
 
     # Binomial confidence interval around expected value
     expected_mean = total_agents * vx_prob_ri
@@ -127,8 +130,8 @@ def test_ri_vx_prob(n_reps=10):
         f"Mean vaccinated ({mean_vx_ipv:.1f}) outside expected CI around {expected_mean_ipv:.1f} ± {margin_ipv:.1f}"
     )
 
-    # Recovered should exactly match vaccinated in each replicate (vx efficacy = 100%)
-    assert np.all(np.abs(vx_counts - r_counts) <= 1), "Each vaccinated individual should be recovered (within ±1) if efficacy is 100%."
+    # Exposed should exactly match vaccinated in each replicate (vx efficacy = 100%)
+    assert np.all(np.abs(vx_counts - e_counts) <= 1), "Each vaccinated individual should be exposed (within ±1) if efficacy is 100%."
     # IPV does not affect recovery
 
 
@@ -143,7 +146,7 @@ def test_ri_no_effect_on_non_susceptibles():
     sim.people.disease_state[5:10] = 2  # Infected
     sim.people.disease_state[10:15] = 3  # Recovered
     sim.run()
-    assert np.sum(sim.results.ri_vaccinated) == np.sum(sim.results.R[-1]) == 20, "All individuals should've been vaccinated."
+    assert np.sum(sim.results.ri_vaccinated) == np.sum(sim.results.new_exposed) == 20, "All individuals should've been vaccinated."
 
 
 # --- SIA_ABM Tests ---
@@ -180,15 +183,15 @@ def test_sia_schedule():
     exp_vx = age_eligible * sim.pars.vx_prob_sia[0]  # Expected number of vaccinated individuals
     assert np.isclose(n_vx_day10, exp_vx, atol=500), "Number of vaccinated individuals does not match expected value."
 
-    # Check recovered count
-    n_recovered = np.sum(sim.results.R[-1])
-    assert n_recovered > 0, "No individuals recovered after SIA."
-    assert n_recovered == np.sum(sim.results.sia_protected), "Number of recovered individuals does not match expected value."
+    # Check exposed count
+    n_exposed = np.sum(sim.results.new_exposed)
+    assert n_exposed > 0, "No individuals exposed after SIA."
+    assert n_exposed == np.sum(sim.results.sia_protected), "Number of exposed individuals does not match expected value."
 
-    # Check ages of recovereds
-    recovereds = sim.people.disease_state == 3
-    ages = sim.t - sim.people.date_of_birth[recovereds]
-    assert np.all(ages <= (5 * 365 + 22)), "Recovered individuals should be <5 years old."
+    # Check ages of exposeds
+    exposeds = sim.people.disease_state == 1
+    ages = sim.t - sim.people.date_of_birth[exposeds]
+    assert np.all(ages <= (5 * 365 + 22)), "Exposed individuals should be <5 years old."
 
 
 def test_chronically_missed():
@@ -207,15 +210,15 @@ def test_chronically_missed():
     n_missed = np.sum(missed)
     assert np.isclose(n_missed, sim.pars.n_ppl.sum() * 0.2, atol=100), "No missed individuals were created."
 
-    # Assert none of the missed were recovered
-    recovered = sim.people.disease_state[: sim.people.count] == 3
-    assert not np.any(recovered & missed), "Some chronically missed individuals were vaccinated!"
+    # Assert none of the missed were exposed
+    eir = np.isin(sim.people.disease_state[: sim.people.count], [1, 2, 3])
+    assert not np.any(eir & missed), "Some chronically missed individuals were vaccinated!"
 
     # Assert that the number of vaccinated individuals is equal to the expected number of vaccinated individuals
     age = sim.t - sim.people.date_of_birth[: sim.people.count]  # Age of individuals
     age_eligible = np.sum(age < 5 * 365)  # Filter to <5 years old
     exp_vx = age_eligible * (1 - sim.pars.missed_frac)  # Expected number of vaccinated individuals
-    n_vx = np.sum(recovered)
+    n_vx = np.sum(eir)
     assert np.isclose(n_vx, exp_vx, atol=500), "Number of vaccinated individuals does not match expected value."
 
 
