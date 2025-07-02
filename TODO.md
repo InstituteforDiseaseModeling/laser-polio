@@ -1,4 +1,5 @@
 # --- PRIORITIES ---
+- Calibrate without strains, with strains but strain_r0_scalars = 0, and another with strain_r0_scalars defaults
 - Add weights to the total_by_period
 - Change seeding to only be two spots in each outbreak
 - Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
