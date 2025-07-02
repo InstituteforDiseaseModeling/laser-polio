@@ -1708,8 +1708,12 @@ class Transmission_ABM:
                 prob_exp_by_node_strain,
                 n_exposures_to_create_by_node_strain,
             )
-            self.sim.results.new_exposed[self.sim.t, :] = new_exposed_by_node_strain.sum(axis=1)
-            self.sim.results.new_exposed_by_strain[self.sim.t, :, :] = new_exposed_by_node_strain
+            self.sim.results.new_exposed[self.sim.t, :] += new_exposed_by_node_strain.sum(
+                axis=1
+            )  # Add here b/c we're also counting SIA exposures
+            self.sim.results.new_exposed_by_strain[self.sim.t, :, :] += (
+                new_exposed_by_node_strain  # Add here b/c we're also counting SIA exposures
+            )
 
             # Manual validation
             if self.verbose >= 3:
@@ -2225,10 +2229,10 @@ class RI_ABM:
             vx_prob_ipv = self.pars["vx_prob_ipv"]
 
         # Determine RI vaccine strain based on vaccine type
-        ri_vaccine_type = getattr(self.pars, "ri_vaccine_type", "bOPV")  # Default to bOPV if not specified
+        ri_vaccine_type = getattr(self.pars, "ri_vaccine_type", "tOPV")  # Default to tOPV if not specified
         if "nOPV" in ri_vaccine_type:
             ri_vaccine_strain = np.int8(2)  # nOPV strain
-        elif any(vtype in ri_vaccine_type for vtype in ["bOPV", "mOPV", "tOPV", "topv"]):
+        elif any(vtype in ri_vaccine_type for vtype in ["mOPV2", "tOPV", "topv"]):
             ri_vaccine_strain = np.int8(1)  # Sabin strain
         else:
             ri_vaccine_strain = np.int8(1)  # Default to Sabin strain
@@ -2311,16 +2315,19 @@ def fast_sia(
     Parameters:
         node_ids: Array of node IDs for each agent.
         disease_states: Array of disease states for each agent.
+        strain: Array of strain IDs for each agent.
         dobs: Array of date of birth for each agent.
         sim_t: Current simulation timestep.
+        vx_prob: Array of vaccination probabilities by node.
         vx_eff: Vaccine efficacy for this vaccine type (scalar).
-        vx_prob_sia: Array of coverage probabilities by node.
-        results_vaccinated: Output array for vaccinated counts (timesteps x nodes).
-        results_protected: Output array for protected counts (timesteps x nodes).
-        rand_vals: Random array of uniform [0,1] values, length >= count.
         count: Number of active agents.
         nodes_to_vaccinate: Array of nodes targeted by this campaign.
         min_age, max_age: Integers, age range eligibility in days.
+        local_vaccinated: Output array for vaccinated counts (threads x nodes).
+        local_protected: Output array for protected counts (threads x nodes).
+        chronically_missed: Array indicating chronically missed individuals.
+        potentially_paralyzed: Array for paralysis tracking.
+        sia_vaccine_strain: Integer strain ID for this vaccine type.
     """
     num_people = count
 
@@ -2382,6 +2389,11 @@ class SIA_ABM:
     def _initialize_results(self):
         self.results.add_array_property("sia_vaccinated", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("sia_protected", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
+        self.results.add_array_property(
+            "sia_new_exposed_by_strain",
+            shape=(self.sim.nt, len(self.nodes), len(self.pars.strain_ids)),
+            dtype=np.int32,
+        )
 
     def _load_schedule(self):
         self.sia_schedule = [] if "sia_schedule" not in self.pars or self.pars["sia_schedule"] is None else self.pars["sia_schedule"]
@@ -2406,7 +2418,7 @@ class SIA_ABM:
                 # Determine SIA vaccine strain based on vaccine type
                 if "nOPV" in vaccinetype:
                     sia_vaccine_strain = np.int8(2)  # nOPV strain
-                elif any(vtype in vaccinetype for vtype in ["bOPV", "mOPV", "tOPV", "topv"]):
+                elif any(vtype in vaccinetype for vtype in ["mOPV", "tOPV", "topv"]):
                     sia_vaccine_strain = np.int8(1)  # Sabin strain
                 else:
                     sia_vaccine_strain = np.int8(1)  # Default to Sabin strain
@@ -2432,46 +2444,21 @@ class SIA_ABM:
                     potentially_paralyzed=self.people.potentially_paralyzed,
                     sia_vaccine_strain=sia_vaccine_strain,
                 )
-                self.results.sia_vaccinated[t] = local_vaccinated.sum(axis=0)
-                self.results.sia_protected[t] = local_protected.sum(axis=0)
+                self.results.sia_vaccinated[t] = local_vaccinated.sum(
+                    axis=0
+                )  # Count those who received the vaccine, but didn't necessarily get protected/exposed
+                self.results.sia_protected[t] = local_protected.sum(axis=0)  # Count those who received the vaccine and got protected
+                self.results.new_exposed[t] += local_protected.sum(
+                    axis=0
+                )  # Count those who received the vaccine and got protected, including wild transmission
+                self.results.new_exposed_by_strain[t, :, sia_vaccine_strain] += local_protected.sum(
+                    axis=0
+                )  # Count those who received the vaccine and got protected, including wild transmission
+                self.results.sia_new_exposed_by_strain[t, :, sia_vaccine_strain] += local_protected.sum(
+                    axis=0
+                )  # Count those who received the vaccine and got protected, only including SIA exposures
 
         return
-
-    # def run_vaccination(self, event):
-    #     """
-    #     Execute vaccination for the given event.
-
-    #     Args:
-    #         event: Dictionary containing 'nodes', 'age_range', and 'coverage'.
-    #     """
-    #     min_age, max_age = event["age_range"]
-    #     nodes_to_vaccinate = event["nodes"]
-    #     vaccinetype = event["vaccinetype"]
-    #     vx_eff = self.pars["vx_efficacy"][vaccinetype]
-
-    #     node_ids = self.people.node_id[: self.people.count]
-    #     disease_states = self.people.disease_state[: self.people.count]
-    #     dobs = self.people.date_of_birth[: self.people.count]
-
-    #     for node in nodes_to_vaccinate:
-    #         # Find eligible individuals: Alive, susceptible, in the age range
-    #         alive_in_node = (node_ids == node) & (disease_states >= 0)
-    #         age = self.sim.t - dobs
-    #         in_age_range = (age >= min_age) & (age <= max_age)
-    #         susceptible = disease_states == 0
-    #         eligible = alive_in_node & in_age_range & susceptible
-
-    #         # Apply vaccine coverage probability
-    #         prob_vx = self.pars["vx_prob_sia"][node]
-    #         rand_vals = np.random.rand(np.sum(eligible))
-    #         for i in len(eligible):
-    #             if rand_vals[i] < prob_vx:  # Check probability of vaccination
-    #                 self.sim.results.sia_vaccinated[self.sim.t, node] += 1  # Increment vaccinated count
-    #                 if disease_states[i] == 0:  # If susceptible
-    #                     if rand_vals[i] < vx_eff:  # Check probability that vaccine takes/protects
-    #                         # Move vaccinated individuals to the Recovered (R) state
-    #                         disease_states[i] = 3  # Move to Recovered state
-    #                         self.sim.results.n_protected_sia[self.sim.t, node] += 1  # Increment protected count
 
     def log(self, t):
         pass
