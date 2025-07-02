@@ -10,7 +10,7 @@ def setup_sim(dur=30, n_ppl=None, vx_prob_ri=0.5, vx_prob_ipv=0.75, cbr=None, r0
         n_ppl = np.array([50000, 50000])
     if cbr is None:
         cbr = np.array([30, 25])
-    strain_r0_scalars_zero = {"VDPV2": 1.0, "Sabin2": 0.0, "nOPV2": 0.0}
+    strain_r0_scalars_zero = {0: 1.0, 1: 0.0, 2: 0.0}
 
     pars = PropertySet(
         {
