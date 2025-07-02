@@ -1810,7 +1810,6 @@ class Transmission_ABM:
                         strain_probs = np.zeros(n_strains)
 
                     n_exposures_to_create_by_node_strain[n] = np.random.multinomial(total_exposures_to_create, strain_probs)
-                    print(f"n_exposures_to_create_by_node_strain[{n}] is {n_exposures_to_create_by_node_strain[n]}")
 
             # # --- STRAIN-SPECIFIC EXPOSURES ---
             # # Step 5: Compute the number of new exposures per node, by strain
@@ -2292,6 +2291,7 @@ def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, 
         nb.int64,
         nb.int32[:, :],
         nb.int32[:, :],
+        nb.int32[:, :],
         nb.uint8[:],
         nb.int8[:],
         nb.int8,
@@ -2311,6 +2311,7 @@ def fast_ri(
     vx_prob_ipv,
     num_people,
     local_ri_counts,
+    local_ri_protected,
     local_ipv_counts,
     chronically_missed,
     potentially_paralyzed,
@@ -2345,6 +2346,7 @@ def fast_ri(
                     # Expose to vaccine strain instead of immediate recovery
                     disease_state[i] = 1  # Set to exposed
                     strain[i] = ri_vaccine_strain  # Set vaccine strain
+                    local_ri_protected[nb.get_thread_id(), node] += 1  # Increment protected count
                     # TODO remove when we have strain tracking hooked up into paralysis
                     potentially_paralyzed[i] = 0  # Assume that vaccine strains don't cause paralysis
             if np.random.rand() < prob_ipv:
@@ -2400,6 +2402,16 @@ class RI_ABM:
             dtype=np.int32,
         )
         self.sim.results.add_array_property(
+            "ri_protected",
+            shape=(self.sim.nt, len(self.sim.nodes)),
+            dtype=np.int32,
+        )
+        self.sim.results.add_array_property(
+            "ri_new_exposed_by_strain",
+            shape=(self.sim.nt, len(self.sim.nodes), len(self.pars.strain_ids)),
+            dtype=np.int32,
+        )
+        self.sim.results.add_array_property(
             "ipv_vaccinated",
             shape=(self.sim.nt, len(self.sim.nodes)),
             dtype=np.int32,
@@ -2436,6 +2448,7 @@ class RI_ABM:
 
         if self.sim.t % self.step_size == 0:
             local_ri_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+            local_ri_protected = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
             local_ipv_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
             fast_ri(
                 step_size=np.int32(self.step_size),
@@ -2449,13 +2462,26 @@ class RI_ABM:
                 vx_prob_ipv=vx_prob_ipv,
                 num_people=np.int32(self.people.count),
                 local_ri_counts=local_ri_counts,
+                local_ri_protected=local_ri_protected,
                 local_ipv_counts=local_ipv_counts,
                 chronically_missed=self.people.chronically_missed,
                 potentially_paralyzed=self.people.potentially_paralyzed,
                 ri_vaccine_strain=ri_vaccine_strain,
             )
             # Sum up the counts from all threads
-            self.results.ri_vaccinated[self.sim.t] = local_ri_counts.sum(axis=0)
+            self.results.ri_vaccinated[self.sim.t] = local_ri_counts.sum(
+                axis=0
+            )  # Count those who received the vaccine, but didn't necessarily get protected/exposed
+            self.results.ri_protected[self.sim.t] = local_ri_protected.sum(axis=0)  # Count those who received the vaccine and got protected
+            self.results.new_exposed[self.sim.t] += local_ri_protected.sum(
+                axis=0
+            )  # Count those who received the vaccine and got protected, including wild transmission
+            self.results.new_exposed_by_strain[self.sim.t, :, ri_vaccine_strain] += local_ri_protected.sum(
+                axis=0
+            )  # Count those who received the vaccine and got protected, including wild transmission
+            self.results.ri_new_exposed_by_strain[self.sim.t, :, ri_vaccine_strain] = local_ri_protected.sum(
+                axis=0
+            )  # Count those who received the vaccine and got protected, only including SIA exposures
             self.results.ipv_vaccinated[self.sim.t] = local_ipv_counts.sum(axis=0)
 
         return
