@@ -1306,6 +1306,7 @@ def tx_step_prep_nb(
     num_people,
     n_strains,
     strains,
+    strain_r0_scalars,
     disease_states,
     node_ids,
     daily_infectivity,  # per agent infectivity/shedding (heterogeneous)
@@ -1330,7 +1331,7 @@ def tx_step_prep_nb(
             tl_exposure_by_node[tid, nid] += risks[i]
             tl_sus_by_node[tid, nid] += 1
         if state == 2:
-            tl_beta_by_node_strain[tid, nid, strain] += daily_infectivity[i]
+            tl_beta_by_node_strain[tid, nid, strain] += daily_infectivity[i] * strain_r0_scalars[strain]
     exposure_by_node = tl_exposure_by_node.sum(axis=0)  # Sum across threads
     sus_by_node = tl_sus_by_node.sum(axis=0)  # Sum across threads
     beta_by_node_strain_pre = tl_beta_by_node_strain.sum(axis=0)  # Sum across threads
@@ -1601,6 +1602,7 @@ class Transmission_ABM:
         with self.step_stats.start("Part 1"):
             # 1) Stash variables for later use
             strain = self.people.strain[: self.people.count]
+            strain_r0_scalars = np.array(list(self.pars.strain_r0_scalars.values()))
             disease_state = self.people.disease_state[: self.people.count]
             node_ids = self.people.node_id[: self.people.count]
             infectivity = self.people.daily_infectivity[: self.people.count]
@@ -1629,6 +1631,7 @@ class Transmission_ABM:
                 num_people,
                 n_strains,
                 strain,
+                strain_r0_scalars,
                 disease_state,
                 node_ids,
                 infectivity,
