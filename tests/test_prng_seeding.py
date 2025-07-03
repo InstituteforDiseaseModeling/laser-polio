@@ -7,9 +7,9 @@ from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
 
-
 # Use later to be more resilient to different working directories
-ROOT_DIR = Path(__file__).parent.parent
+SCRIPT_DIR = Path(__file__).parent.resolve()
+ROOT_DIR = SCRIPT_DIR.parent.resolve()
 
 
 class TestPRNGSeeding(unittest.TestCase):
@@ -72,13 +72,13 @@ def setup_sim(seed):
     r0 = 14
 
     # Find the dot_names matching the specified string(s)
-    dot_names = lp.find_matching_dot_names(regions, "data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
+    dot_names = lp.find_matching_dot_names(regions, SCRIPT_DIR / "data" / "compiled_cbr_pop_ri_sia_underwt_africa.csv")
 
     # Load the node_lookup dictionary with node_id, dot_names, centroids
-    node_lookup = lp.get_node_lookup("data/node_lookup.json", dot_names)
+    node_lookup = lp.get_node_lookup(SCRIPT_DIR / "data" / "node_lookup.json", dot_names)
 
     # Initial immunity
-    init_immun = pd.read_hdf("data/init_immunity_0.5coverage_january.h5", key="immunity")
+    init_immun = pd.read_hdf(SCRIPT_DIR / "data" / "init_immunity_0.5coverage_january.h5", key="immunity")
     init_immun = init_immun.set_index("dot_name").loc[dot_names]
     init_immun = init_immun[init_immun["period"] == start_year]
 
@@ -92,12 +92,12 @@ def setup_sim(seed):
     init_prevs[prev_indices] = init_prev
 
     # Distance matrix
-    dist_matrix = lp.get_distance_matrix("data/distance_matrix_africa_adm2.h5", dot_names)  # Load distances matrix (km)
+    dist_matrix = lp.get_distance_matrix(SCRIPT_DIR / "data" / "distance_matrix_africa_adm2.h5", dot_names)  # Load distances matrix (km)
 
     # SIA schedule
     start_date = lp.date(f"{start_year}-01-01")
-    historic_sia_schedule = pd.read_csv("data/sia_historic_schedule.csv")
-    future_sia_schedule = pd.read_csv("data/sia_scenario_1.csv")
+    historic_sia_schedule = pd.read_csv(SCRIPT_DIR / "data" / "sia_historic_schedule.csv")
+    future_sia_schedule = pd.read_csv(SCRIPT_DIR / "data" / "sia_scenario_1.csv")
     sia_schedule_raw = pd.concat([historic_sia_schedule, future_sia_schedule], ignore_index=True)  # combine the two schedules
     sia_schedule = lp.process_sia_schedule_polio(sia_schedule_raw, dot_names, start_date, n_days)  # Load sia schedule
 
@@ -106,7 +106,7 @@ def setup_sim(seed):
     age = pd.read_csv(ROOT_DIR / "data" / "age_africa.csv")
     age = age[(age["adm0_name"] == "NIGERIA") & (age["Year"] == start_year)]
     # Compiled data
-    df_comp = pd.read_csv(ROOT_DIR / "data" / "compiled_cbr_pop_ri_sia_underwt_africa.csv")
+    df_comp = pd.read_csv(SCRIPT_DIR / "data" / "compiled_cbr_pop_ri_sia_underwt_africa.csv")
     df_comp = df_comp[df_comp["year"] == start_year]
     # Population data
     pop = df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values  # total population (all ages)
@@ -127,7 +127,9 @@ def setup_sim(seed):
             "dur": n_days,  # Number of timesteps
             # Population
             "n_ppl": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
-            "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
+            "age_pyramid_path": SCRIPT_DIR
+            / "data"
+            / "Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
             "cbr": cbr,  # Crude birth rate per 1000 per year
             # Disease
             "init_immun": init_immun,  # Initial immunity per node
