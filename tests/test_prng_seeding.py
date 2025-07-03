@@ -1,10 +1,15 @@
 import unittest
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
+
+
+# Use later to be more resilient to different working directories
+ROOT_DIR = Path(__file__).parent.parent
 
 
 class TestPRNGSeeding(unittest.TestCase):
@@ -98,10 +103,10 @@ def setup_sim(seed):
 
     ### Load the demographic, coverage, and risk data
     # Age pyramid
-    age = pd.read_csv("data/age_africa.csv")
+    age = pd.read_csv(ROOT_DIR / "data" / "age_africa.csv")
     age = age[(age["adm0_name"] == "NIGERIA") & (age["Year"] == start_year)]
     # Compiled data
-    df_comp = pd.read_csv("data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
+    df_comp = pd.read_csv(ROOT_DIR / "data" / "compiled_cbr_pop_ri_sia_underwt_africa.csv")
     df_comp = df_comp[df_comp["year"] == start_year]
     # Population data
     pop = df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values  # total population (all ages)
