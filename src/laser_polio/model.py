@@ -1480,7 +1480,7 @@ def tx_infect_nb(
     next_index = np.empty(num_nodes, dtype=np.int32)
     next_index[:] = offsets
     total_exposures_by_node = n_exposures_to_create_by_node_strain.sum(axis=1)  # shape: [num_nodes]
-    for i in nb.prange(num_people):
+    for i in range(num_people):
         nid = node_ids[i]
         if (total_exposures_by_node[nid] > 0) and (disease_state[i] == 0):
             idx = next_index[nid]
