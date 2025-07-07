@@ -827,7 +827,7 @@ def plot_targets(study, output_dir=None, shp=None, start_year=2018):
                     for j, rep in enumerate(preds):
                         label = f"Rep {j + 1}"
                         rep_data = {}
-                        for key, value in rep.get("adm01_by_period", {}).items():
+                        for key, value in rep.get("regional_by_period", {}).items():
                             # Parse the same way to extract period
                             parts = key.strip("()").split("', '")
                             if len(parts) == 2:
