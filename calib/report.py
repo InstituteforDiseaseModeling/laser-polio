@@ -771,10 +771,10 @@ def plot_targets(study, output_dir=None, shp=None, start_year=2018):
         width = 0.1
         plt.figure()
         plt.title("Regional")
-        plt.bar(x, actual["regional"].values(), width, label="Actual", color=color_map["Actual"])
+        plt.bar(x, [actual["regional"][r] for r in region_labels], width, label="Actual", color=color_map["Actual"])
         for i, rep in enumerate(preds):
             label = f"Rep {i + 1}"
-            plt.bar(x + (i + 1) * width, rep["regional"].values(), width, label=f"Rep {i + 1}", color=color_map[label])
+            plt.bar(x + (i + 1) * width, [rep["regional"][r] for r in region_labels], width, label=f"Rep {i + 1}", color=color_map[label])
         plt.xticks(x + width * (len(preds) // 2), region_labels)
         plt.ylabel("Cases")
         plt.legend()
