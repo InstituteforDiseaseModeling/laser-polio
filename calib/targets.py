@@ -220,6 +220,8 @@ def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual
     """
     # Load the data & config
     df = pd.read_csv(filename)
+    with open(model_config_path) as f:
+        model_config = yaml.safe_load(f)
 
     # Parse dates to datetime object if needed
     if "date" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["date"]):
@@ -237,8 +239,8 @@ def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual
         df = df[df["date"] <= max_date]
 
     # Add time period column with three periods (fast version)
-    bins = [pd.Timestamp.min, pd.Timestamp("2020-01-01"), pd.Timestamp("2022-01-01"), pd.Timestamp.max]
-    labels = ["2018-2019", "2020-2021", "2022-2023"]
+    bins = [pd.Timestamp.min, pd.Timestamp("2020-07-01"), pd.Timestamp("2022-07-01"), pd.Timestamp.max]
+    labels = ["2018-2020.5", "2020.5-2022.5", "2022.5-2024"]
     df["time_period"] = pd.cut(df["date"], bins=bins, labels=labels, right=False)
 
     targets = {}
@@ -260,6 +262,16 @@ def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual
     # Group by adm01 and time period
     adm01_by_period = df.groupby(["adm01", "time_period"], observed=True)[case_col].sum() * scale_factor
     targets["adm01_by_period"] = adm01_by_period.to_dict()
+
+    # 4. Regional group cases
+    if model_config and "summary_config" in model_config:
+        region_groups = model_config["summary_config"].get("region_groups", {})
+        regional_cases = []
+        for name in region_groups:
+            node_list = region_groups[name]
+            total = df[df["node"].isin(node_list)][case_col].sum() * scale_factor
+            regional_cases.append(total)
+        targets["regional_cases"] = np.array(regional_cases)
 
     print(f"{targets=}")
     return targets
