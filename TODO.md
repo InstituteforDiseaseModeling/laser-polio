@@ -1,5 +1,4 @@
 # --- PRIORITIES ---
-- Change calib year to 2022 (confirm if this is correct)
 - Make synthetic calibration with JB
 - Sweep over zero inflation by strain
 - Calibrate without strains, with strains but strain_r0_scalars = 0, and another with strain_r0_scalars defaults
