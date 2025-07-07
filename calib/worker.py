@@ -1,6 +1,7 @@
 import importlib
 from functools import partial
 from pathlib import Path
+import os
 
 import calib_db
 import optuna
@@ -52,7 +53,10 @@ def run_worker_main(
         return
 
     sc.printcyan(f"[INFO] Running study: {study_name} with {n_trials} trials")
-    storage_url = calib_db.get_storage()
+    #storage_url = calib_db.get_storage()
+    storage_url = os.environ.get( "STORAGE_URL" )
+    print( f"{storage_url=}" )
+
 
     # sampler = optuna.samplers.RandomSampler(seed=42)  # seed is optional for reproducibility
     try:

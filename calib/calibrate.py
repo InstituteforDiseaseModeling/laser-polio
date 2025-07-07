@@ -2,6 +2,8 @@ import os
 import shutil
 import traceback
 from pathlib import Path
+import sys
+sys.path.append(os.path.dirname(__file__))
 
 import click
 import optuna
@@ -15,6 +17,7 @@ from report import save_study_results
 from worker import run_worker_main
 
 import laser_polio as lp
+
 
 # ------------------- USER CONFIGS -------------------
 
@@ -43,7 +46,8 @@ def resolve_paths(study_name, model_config, calib_config, results_path=".", actu
     """
     Build composite paths
     """
-    root = lp.root
+    #root = lp.root
+    root = Path(".")
 
     model_config = Path(model_config)
     if not model_config.is_absolute():
@@ -67,6 +71,7 @@ def resolve_paths(study_name, model_config, calib_config, results_path=".", actu
 def main(study_name, model_config, calib_config, fit_function, n_replicates, n_trials, results_path, actual_data_file, dry_run):
     print( f"{results_path=}" )
 
+    # This function call actually blows things up in cases where we don't want to make everything an absolute path: COMPS calibration.
     model_config, calib_config, results_path, actual_data_file = resolve_paths(
         study_name, model_config, calib_config, results_path, actual_data_file
     )
@@ -94,6 +99,8 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
 
     print("💾 Saving study results...")
     storage_url = calib_db.get_storage()
+    print( f"{storage_url=}" )
+
     study = optuna.load_study(study_name=study_name, storage=storage_url)
     study.results_path = results_path
     study.storage_url = storage_url
@@ -105,7 +112,7 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
         plot_targets(study, output_dir=results_path)
         plot_likelihoods(study, output_dir=results_path, use_log=True)
 
-    sc.printcyan("✅ Calibration complete. Results saved.")
+    print("Calibration complete. Results saved.")
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
