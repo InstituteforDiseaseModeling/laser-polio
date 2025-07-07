@@ -2,10 +2,12 @@
 - Make synthetic calibration with JB
 - Sweep over zero inflation by strain
 - Calibrate without strains, with strains but strain_r0_scalars = 0, and another with strain_r0_scalars defaults
-- Add plot for new exposures, by strain, for total, trans & sia
+- Try more general geographic counters (NE, NW, S, central Nigeria)
+- Add 0 weight to adm01 fits
+- Check that weights are working correctly
+- Make synthetic calibration with JB - try just KANO? Or a small geography? SK will noodle on it, write up script for making synthetic data, and send to JB. 
+- Sweep over zero inflation by strain
 - Add weights to the total_by_period
-- Change seeding to only be two spots in each outbreak
-- Write out spec to enable vx transmission (& add genome R0 multiplier, Sabin = 1/4; nOPV2 = 1/8)
 - Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
 - Try playing with links between N & S Nigeria in network (maybe a scalar???)
 

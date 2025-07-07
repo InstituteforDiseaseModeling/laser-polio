@@ -31,7 +31,7 @@ container = client.V1Container(
     image_pull_policy="Always",
     command=[
         "python3",
-        "calibrate.py",
+        "calib/calibrate.py",
         "--study-name",
         cfg.study_name,
         "--n-trials",
