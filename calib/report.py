@@ -765,6 +765,90 @@ def plot_targets(study, output_dir=None, shp=None, start_year=2018):
             plt.savefig(best_dir / "plot_best_adm01_by_period.png")
             plt.close()
 
+    # Regional Cases (bar plot)
+    if "regional" in actual:
+        x = np.arange(len(region_labels))
+        width = 0.1
+        plt.figure()
+        plt.title("Regional")
+        plt.bar(x, actual["regional"].values(), width, label="Actual", color=color_map["Actual"])
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            plt.bar(x + (i + 1) * width, rep["regional"].values(), width, label=f"Rep {i + 1}", color=color_map[label])
+        plt.xticks(x + width * (len(preds) // 2), region_labels)
+        plt.ylabel("Cases")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(best_dir / "plot_best_regional.png")
+        # plt.show()
+
+    if "regional_by_period" in actual:
+        regional_by_period_actual = actual.get("regional_by_period")
+
+        # Extract periods and regions from the dictionary keys
+        periods = []
+        period_data = {}
+
+        for key, value in regional_by_period_actual.items():
+            # Parse the tuple key format: "('NIGERIA:JIGAWA', '2018-2019')"
+            # Extract both the region and period from the tuple-like string
+            parts = key.strip("()").split("', '")
+            if len(parts) == 2:
+                adm01_name = parts[0].strip("'")
+                period = parts[1].strip("'")
+
+                if period not in periods:
+                    periods.append(period)
+                    period_data[period] = {}
+
+                period_data[period][adm01_name] = value
+
+        # Use the periods in the order they appear in the dictionary
+        # Create figure with subplots stacked vertically
+        n_periods = len(periods)
+        if n_periods > 0:
+            fig, axes = plt.subplots(n_periods, 1, figsize=(12, 4 * n_periods))
+            if n_periods == 1:
+                axes = [axes]
+
+            for i, period in enumerate(periods):
+                ax = axes[i]
+                data = period_data.get(period, {})
+
+                if data:
+                    adm_labels = sorted(data.keys())
+                    x = np.arange(len(adm_labels))
+                    actual_vals = [data.get(adm, 0) for adm in adm_labels]
+
+                    # Plot actual as outlined bar
+                    ax.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
+
+                    # Plot predicted reps as colored dots
+                    for j, rep in enumerate(preds):
+                        label = f"Rep {j + 1}"
+                        rep_data = {}
+                        for key, value in rep.get("adm01_by_period", {}).items():
+                            # Parse the same way to extract period
+                            parts = key.strip("()").split("', '")
+                            if len(parts) == 2:
+                                rep_adm01_name = parts[0].strip("'")
+                                rep_period = parts[1].strip("'")
+                                if rep_period == period:
+                                    rep_data[rep_adm01_name] = value
+
+                        rep_vals = [rep_data.get(adm, 0) for adm in adm_labels]
+                        ax.scatter(x, rep_vals, label=label, color=color_map[label], marker="o", s=50)
+
+                    ax.set_title(f"Regional Cases - {period}")
+                    ax.set_xticks(x)
+                    ax.set_xticklabels(adm_labels, rotation=45, ha="right")
+                    ax.set_ylabel("Cases")
+                    ax.legend()
+
+            plt.tight_layout()
+            plt.savefig(best_dir / "plot_best_regional_by_period.png")
+            plt.close()
+
 
 def plot_likelihoods(study, output_dir=None, use_log=True):
     # Default output directory to current working dir if not provided
