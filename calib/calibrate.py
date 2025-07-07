@@ -21,9 +21,9 @@ import laser_polio as lp
 # model_config = "config_kano_jigawa_ipv.yaml"
 # calib_config = "r0_k_ssn_period.yaml"
 
-study_name = "calib_nigeria_6y_2018_underwt_gravity_zinb_ipv_wts_vxtranszero_20250703"
-model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_moreseeds_alt_zerovxtrans.yaml"
-calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts.yaml"
+study_name = "calib_nigeria_6y_2018_underwt_gravity_zinb_ipv_vxtrans_nsnga_20250707"
+model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_nsnga.yaml"
+calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts_nsnga.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 2

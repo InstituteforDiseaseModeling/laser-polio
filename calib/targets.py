@@ -220,6 +220,64 @@ def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual
     """
     # Load the data & config
     df = pd.read_csv(filename)
+
+    # Parse dates to datetime object if needed
+    if "date" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["date"]):
+        df["date"] = pd.to_datetime(df["date"])
+
+    # Choose the column to summarize
+    if is_actual_data:
+        case_col = "P"
+        scale_factor = 1.0
+    else:
+        case_col = "new_potentially_paralyzed"
+        scale_factor = 1 / 2000.0
+        # The actual data is in months & the sim has a tendency to rap into the next year (e.g., 2020-01-01) so we need to exclude and dates beyond the last month of the actual data
+        max_date = lp.find_latest_end_of_month(df["date"])
+        df = df[df["date"] <= max_date]
+
+    # Add time period column with three periods (fast version)
+    bins = [pd.Timestamp.min, pd.Timestamp("2020-01-01"), pd.Timestamp("2022-01-01"), pd.Timestamp.max]
+    labels = ["2018-2019", "2020-2021", "2022-2023"]
+    df["time_period"] = pd.cut(df["date"], bins=bins, labels=labels, right=False)
+
+    targets = {}
+
+    # 1. Total infected (split by time period)
+    total_by_period = df.groupby("time_period", observed=True)[case_col].sum() * scale_factor
+    targets["total_by_period"] = total_by_period.to_dict()
+
+    # 2. Monthly timeseries (full time series)
+    monthly_df = df.groupby([df["date"].dt.to_period("M")])[case_col].sum().sort_index().astype(float) * scale_factor
+    targets["monthly_timeseries"] = monthly_df.values
+
+    # 3. Regional aggregation (adm01_cases split by time period)
+    # Split dot_name into columns
+    dot_parts = df["dot_name"].str.split(":", expand=True)
+    df["adm0"] = dot_parts[1]
+    df["adm1"] = dot_parts[2]
+    df["adm01"] = df["adm0"] + ":" + df["adm1"]
+    # Group by adm01 and time period
+    adm01_by_period = df.groupby(["adm01", "time_period"], observed=True)[case_col].sum() * scale_factor
+    targets["adm01_by_period"] = adm01_by_period.to_dict()
+
+    print(f"{targets=}")
+    return targets
+
+
+def calc_targets_regional_by_period(filename, model_config_path=None, is_actual_data=True):
+    """Load simulation results and extract target features for comparison.
+
+    Targets are:
+    - total_by_period: Total infected by time period
+    - monthly_timeseries: Monthly timeseries of total infected
+    - adm01_by_period: Adm01 cases by time period
+    - regional: Regional cases
+    - regional_by_period: Regional cases by time period
+    """
+
+    # Load the data & config
+    df = pd.read_csv(filename)
     with open(model_config_path) as f:
         model_config = yaml.safe_load(f)
 
@@ -253,7 +311,7 @@ def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual
     monthly_df = df.groupby([df["date"].dt.to_period("M")])[case_col].sum().sort_index().astype(float) * scale_factor
     targets["monthly_timeseries"] = monthly_df.values
 
-    # 3. Regional aggregation (adm01_cases split by time period)
+    # 3. Adm01 aggregation (adm01_cases split by time period)
     # Split dot_name into columns
     dot_parts = df["dot_name"].str.split(":", expand=True)
     df["adm0"] = dot_parts[1]
@@ -265,13 +323,31 @@ def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual
 
     # 4. Regional group cases
     if model_config and "summary_config" in model_config:
-        region_groups = model_config["summary_config"].get("region_groups", {})
-        regional_cases = []
-        for name in region_groups:
-            node_list = region_groups[name]
-            total = df[df["node"].isin(node_list)][case_col].sum() * scale_factor
-            regional_cases.append(total)
-        targets["regional_cases"] = np.array(regional_cases)
+        summary_config = model_config["summary_config"]
+
+        # Handle new dot_name pattern-based regional groups
+        regions = summary_config.get("region_groups", {})
+        if regions:
+            # Create a 'region' column: use matched region name or fall back to adm01
+            df["region"] = df["adm01"]  # Default to adm01 (first two components)
+
+            # Override with region group names where patterns match
+            for group_name, patterns in regions.items():
+                # Create a boolean mask for rows matching any of the patterns
+                mask = pd.Series(False, index=df.index)
+                for pattern in patterns:
+                    mask |= df["dot_name"].str.contains(pattern, case=False, na=False)
+
+                # Set region name for matching rows
+                df.loc[mask, "region"] = group_name
+
+            # Total regional cases (across all time periods)
+            regional_cases_by_dotname = df.groupby("region")[case_col].sum() * scale_factor
+            targets["regional"] = regional_cases_by_dotname.to_dict()
+
+            # Regional cases grouped by both region and time period
+            regional_by_period = df.groupby(["region", "time_period"], observed=True)[case_col].sum() * scale_factor
+            targets["regional_by_period"] = regional_by_period.to_dict()
 
     print(f"{targets=}")
     return targets
