@@ -57,7 +57,8 @@ for i in range(cfg.completions):
         Environment={
             "NUMBA_NUM_THREADS": "12",
             "PYTHONPATH": "$PYTHONPATH:$PWD/Assets",
-            "STORAGE_URL": "mysql://root:yourpassword@10.0.0.81:3306/optuna_db"
+            "STORAGE_URL": "mysql://optuna:securepassword@10.24.14.21:3306/optunaDatabase",
+            "POLIO_ROOT": "."
         }
     )
     simulations.append(sim)
