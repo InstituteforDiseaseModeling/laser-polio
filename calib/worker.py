@@ -1,12 +1,14 @@
+import sys
 import importlib
 from functools import partial
 from pathlib import Path
+#sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-import calib_db
+from calib import calib_db
 import optuna
 import sciris as sc
 import yaml
-from objective import objective
+from calib.objective import objective
 
 import laser_polio as lp
 
@@ -72,11 +74,11 @@ def run_worker_main(
         study.set_user_attr(k, v)
     metadata = calib_config_dict.get("metadata", {})
     scoring_fn = load_function(
-        module_path="scoring",
+        module_path="calib.scoring",
         function_name=metadata.get("scoring_fn", "compute_fit"),
     )
     target_fn = load_function(
-        module_path="targets",
+        module_path="calib.targets",
         function_name=metadata.get("target_fn", "calc_calib_targets"),
     )
 

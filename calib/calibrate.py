@@ -1,17 +1,19 @@
 import os
+import sys
 import shutil
 import traceback
 from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-import calib_db
+from calib import calib_db
 import click
 import optuna
 import sciris as sc
-from report import plot_likelihoods
-from report import plot_optuna
-from report import plot_targets
-from report import save_study_results
-from worker import run_worker_main
+from calib.report import plot_likelihoods
+from calib.report import plot_optuna
+from calib.report import plot_targets
+from calib.report import save_study_results
+from calib.worker import run_worker_main
 
 import laser_polio as lp
 
@@ -38,7 +40,7 @@ if os.getenv("POLIO_ROOT"):
     lp.root = Path(os.getenv("POLIO_ROOT"))
 
 
-def resolve_paths(study_name, model_config, calib_config, results_path=None, actual_data_file=None):
+def resolve_paths(study_name, model_config, calib_config, results_path, actual_data_file):
     """
     Build composite paths
     """
@@ -52,21 +54,26 @@ def resolve_paths(study_name, model_config, calib_config, results_path=None, act
     if not calib_config.is_absolute():
         calib_config = root / "calib/calib_configs" / calib_config
 
+    #print( f"1. {results_path=}" )
     results_path = Path(results_path) if results_path else root / "results" / study_name
-    if not results_path.is_absolute():
-        results_path = root / "results" / study_name
+    #print( f"2. {results_path=}" )
+    #if not results_path.is_absolute():
+    #    results_path = root / "results" / study_name
+    #print( f"3. {results_path=}" )
 
     actual_data_file = Path(actual_data_file) if actual_data_file else results_path / "actual_data.csv"
-    if not actual_data_file.is_absolute():
-        actual_data_file = results_path / actual_data_file
+    #if not actual_data_file.is_absolute():
+        #actual_data_file = results_path / actual_data_file
 
     return model_config, calib_config, results_path, actual_data_file
 
 
 def main(study_name, model_config, calib_config, fit_function, n_replicates, n_trials, results_path, actual_data_file, dry_run):
+    print( f"1. {actual_data_file=}" )
     model_config, calib_config, results_path, actual_data_file = resolve_paths(
         study_name, model_config, calib_config, results_path, actual_data_file
     )
+    print( f"2. {actual_data_file=}" )
 
     print(f"🔍 Running calibration for study '{study_name}'...")
 
@@ -112,10 +119,12 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
 @click.option("--fit-function", default=fit_function, show_default=True)
 @click.option("--n-replicates", default=n_replicates, show_default=True, type=int)
 @click.option("--n-trials", default=n_trials, show_default=True, type=int)
+@click.option("--results-path", default=".", show_default=True)
+@click.option("--actual-data-file", default=None, show_default=True)
 @click.option("--dry-run", default=False, show_default=True, type=bool)
 def cli(**kwargs):
     # 2 params have None to trigger default behavior. None is not real value.
-    main(results_path=None, actual_data_file=None, **kwargs)
+    main(**kwargs)
 
 
 if __name__ == "__main__":
