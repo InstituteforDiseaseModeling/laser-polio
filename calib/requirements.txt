@@ -1,9 +1,0 @@
-optuna==3.3.0
-mysqlclient
-wget
-screen
-tqdm
-scipy
-pymysql
-cryptography
-plotly

@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 
 import click
@@ -14,10 +13,6 @@ from laser_core.propertyset import PropertySet
 import laser_polio as lp
 
 __all__ = ["run_sim"]
-
-
-if os.getenv("POLIO_ROOT"):
-    lp.root = Path(os.getenv("POLIO_ROOT"))
 
 
 def run_sim(
@@ -58,6 +53,7 @@ def run_sim(
 
     """
     print("run_sim started")
+
     config = config or {}
     configs = sc.mergedicts(config, kwargs)
 
@@ -86,17 +82,22 @@ def run_sim(
     sia_re_scale = configs.pop("sia_re_scale", 1.0)
 
     # Geography
-    dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", verbose=verbose)
-    node_lookup = lp.get_node_lookup(lp.root / "data/node_lookup.json", dot_names)
-    # dist_matrix = lp.get_distance_matrix(lp.root / "data/distance_matrix_africa_adm2.h5", dot_names)
-    shp = gpd.read_file(filename=lp.root / "data/shp_africa_low_res.gpkg", layer="adm2")
-    shp = shp[shp["dot_name"].isin(dot_names)]
-    # Sort the GeoDataFrame by the order of dot_names
-    shp.set_index("dot_name", inplace=True)
-    shp = shp.loc[dot_names].reset_index()
+    try:
+        dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", verbose=verbose)
+        node_lookup = lp.get_node_lookup(lp.root / "data/node_lookup.json", dot_names)
+        # dist_matrix = lp.get_distance_matrix(lp.root / "data/distance_matrix_africa_adm2.h5", dot_names)
+        shp = gpd.read_file(filename=lp.root / "data/shp_africa_low_res.gpkg", layer="adm2")
+        shp = shp[shp["dot_name"].isin(dot_names)]
+        # Sort the GeoDataFrame by the order of dot_names
+        shp.set_index("dot_name", inplace=True)
+        shp = shp.loc[dot_names].reset_index()
 
-    # Immunity
-    init_immun = pd.read_hdf(lp.root / "data/init_immunity_0.5coverage_january.h5", key="immunity")
+        # Immunity
+        init_immun = pd.read_hdf(lp.root / "data/init_immunity_0.5coverage_january.h5", key="immunity")
+    except Exception as ex:
+        print( f"Exception loading geography-specific data files in run_sim: {ex}" )
+        raise ex
+
     init_immun = init_immun.set_index("dot_name").loc[dot_names]
     init_immun = init_immun[init_immun["period"] == start_year]
     # Apply scalar multiplier to immunity values, clipping to [0.0, 1.0]

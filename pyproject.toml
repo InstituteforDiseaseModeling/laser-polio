@@ -64,6 +64,7 @@ dependencies = [
 "examples" = ["**/*"]
 
 [project.optional-dependencies]
+nigeria = ["laser-polio-nigeria"]
 dev = [
     "black",
     "bump-my-version",
@@ -281,3 +282,5 @@ legacy_tox_ini = """
         setuptools
         coverage
 """
+[tool.uv]
+index-url = "https://packages.idmod.org/api/pypi/pypi-production/simple"
