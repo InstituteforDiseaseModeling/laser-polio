@@ -75,12 +75,19 @@ default_pars = PropertySet(
             "nOPV2 + fIPV": 0.7 * 0.8,
             "topv": 0.5,
         },
+        "response_sia_time_to_1st_round": lp.poisson(lam=30),  # Includes time to detect cases + time to prepare for response
+        "response_sia_2nd_round_gap": 30,
+        "response_sia_dist": 100,
+        "response_sia_vaccine_strain": "nOPV2",
+        "response_sia_vaccine_type": "nOPV2",
+        "response_sia_age_range": (0, 1825),
         # Component step sizes
         "step_size_VitalDynamics_ABM": 7,
         "step_size_DiseaseState_ABM": 1,
         "step_size_RI_ABM": 14,
         "step_size_SIA_ABM": 1,
         "step_size_Transmission_ABM": 1,
+        "step_size_ResponseSIA": 7,
         # Actual data & calibration configs
         "actual_data": None,  # Actual dataset
         "summary_config": None,  # Summary configuration for calibration plotting
@@ -93,4 +100,4 @@ default_pars = PropertySet(
 
 
 # Order in which to run model components
-default_run_order = ["VitalDynamics_ABM", "DiseaseState_ABM", "RI_ABM", "SIA_ABM", "Transmission_ABM"]
+default_run_order = ["VitalDynamics_ABM", "DiseaseState_ABM", "RI_ABM", "SIA_ABM", "Transmission_ABM", "ResponseSIA"]

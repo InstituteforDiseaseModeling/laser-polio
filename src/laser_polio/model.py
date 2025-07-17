@@ -34,7 +34,7 @@ import laser_polio as lp
 from laser_polio.utils import TimingStats
 from laser_polio.utils import pbincount
 
-__all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "Transmission_ABM", "VitalDynamics_ABM"]
+__all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "ResponseSIA", "Transmission_ABM", "VitalDynamics_ABM"]
 
 ### START WITH LOGGER SETUP
 
@@ -1666,6 +1666,10 @@ class Transmission_ABM:
                         d = epsilon
                     dist_matrix[i, j] = d
                     dist_matrix[j, i] = d  # Mirror to lower triangle
+
+        # Store the distance matrix as an instance variable for access by other components
+        self.dist_matrix = dist_matrix
+
         # Setup the network
         logger.info("END of slow network calc.")
         if self.pars.migration_method.lower() == "gravity":
@@ -2658,3 +2662,88 @@ class SIA_ABM:
             plt.savefig(results_path / "cum_sia_vx.png")
         if not save:
             plt.show()
+
+
+class ResponseSIA:
+    def __init__(self, sim):
+        self.sim = sim
+        self.people = sim.people
+        self.nodes = sim.nodes
+        self.pars = sim.pars
+        self.results = sim.results
+        self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
+        self.step_size = sim.pars.step_size_ResponseSIA
+        self.node_last_response_end = np.full(
+            len(sim.nodes), -np.inf
+        )  # Time of last response for each node. Used to prevent multiple responses within 6 months.
+
+        # Find the Transmission_ABM instance to access its dist_matrix
+        transmission_component = None
+        for component in sim.instances:
+            if isinstance(component, Transmission_ABM):
+                transmission_component = component
+                break
+
+        if transmission_component is None:
+            raise ValueError("Transmission_ABM component not found. Response SIA requires Transmission_ABM.")
+
+        self.dist_matrix = transmission_component.dist_matrix
+        self.dist_threshold = sim.pars.response_sia_dist
+
+    def step(self):
+        t = self.sim.t
+        if t % self.step_size == 0:
+            # Look for recent cases
+            last_time = max(self.sim.t - self.step_size, 1)
+            recent_cases = self.results.new_paralyzed[last_time : self.sim.t + 1, :]
+
+            if recent_cases.sum() > 0:
+                # Get the nodes that have cases
+                recent_cases_by_node = recent_cases.sum(axis=0)
+                nodes_with_cases = np.where(recent_cases_by_node > 0)[0]
+                nodes_within_dist = set()
+                for node in nodes_with_cases:
+                    # Get the nodes within the distance threshold (including the node itself)
+                    nearby = np.where(self.dist_matrix[node] <= self.dist_threshold)[0]
+                    nodes_within_dist.update(nearby)
+
+                # Check that enough time has passed since the last response to determine if the node is eligible for a response SIA
+                eligible_nodes = []
+                for node in nodes_within_dist:
+                    last_response_time = self.node_last_response_end[node]
+                    if self.sim.t >= last_response_time + 182:
+                        eligible_nodes.append(node)
+
+                # Add two response SIAs for the nodes that are within dist_threshold of the nodes with cases
+                if eligible_nodes:
+                    first_round_time = self.sim.t + self.pars.response_sia_time_to_1st_round(1)
+                    second_round_time = first_round_time + self.pars.response_sia_2nd_round_gap
+
+                    self.pars.sia_schedule.append(  # First round
+                        {
+                            "date": self.sim.datevec[first_round_time][0],
+                            "nodes": eligible_nodes,
+                            "age_range": self.pars.response_sia_age_range,
+                            "vaccinetype": self.pars.response_sia_vaccine_type,
+                            "vaccine_strain": self.pars.response_sia_vaccine_strain,
+                        }
+                    )
+                    self.pars.sia_schedule.append(  # Second round
+                        {
+                            "date": self.sim.datevec[second_round_time][0],
+                            "nodes": eligible_nodes,
+                            "age_range": self.pars.response_sia_age_range,
+                            "vaccinetype": self.pars.response_sia_vaccine_type,
+                            "vaccine_strain": self.pars.response_sia_vaccine_strain,
+                        }
+                    )
+
+                    # Update the last response time after the second round to prevent multiple responses within 6 months
+                    for node in eligible_nodes:
+                        self.node_last_response_end[node] = second_round_time
+
+    def log(self, t):
+        pass
+
+    def plot(self, save=False, results_path=None):
+        pass
