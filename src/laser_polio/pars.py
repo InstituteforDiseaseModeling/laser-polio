@@ -61,7 +61,7 @@ default_pars = PropertySet(
         "vx_prob_ri": None,  # Probability of being protected/recovered from RI. Should include coverage and efficacy from expected number of RI doses
         "vx_prob_ipv": None,  # Probability of receiving an IPV dose
         "ipv_start_year": 2015,  # Year to start IPV vaccination
-        "sia_schedule": None,
+        "sia_schedule": [],
         "vx_prob_sia": None,
         "missed_frac": 0.0,  # Fraction of population that's inaccessible to vaccination
         "vx_efficacy": {

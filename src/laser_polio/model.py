@@ -2582,7 +2582,10 @@ class SIA_ABM:
         )
 
     def _load_schedule(self):
-        self.sia_schedule = [] if "sia_schedule" not in self.pars or self.pars["sia_schedule"] is None else self.pars["sia_schedule"]
+        self.pars["sia_schedule"] = (
+            [] if "sia_schedule" not in self.pars or self.pars["sia_schedule"] is None else self.pars["sia_schedule"]
+        )
+        self.sia_schedule = self.pars["sia_schedule"]
         for event in self.sia_schedule:
             event["date"] = lp.date(event["date"])
 
@@ -2706,6 +2709,7 @@ class ResponseSIA:
     Dependencies:
     -------------
     - Requires Transmission_ABM component for distance matrix access
+    - Requires SIA_ABM component to implement the response campaigns
     - Requires shapefile data (self.pars.shp) for mapping functionality
 
     Outputs:
@@ -2774,7 +2778,7 @@ class ResponseSIA:
                         {
                             "source": "response",
                             "type": "response_sia_1st_round",
-                            "date": self.sim.datevec[first_round_time][0],
+                            "date": _normalize_date(self.sim.datevec[first_round_time]),
                             "nodes": eligible_nodes,
                             "age_range": self.pars.response_sia_age_range,
                             "vaccinetype": self.pars.response_sia_vaccine_type,
@@ -2785,7 +2789,7 @@ class ResponseSIA:
                         {
                             "source": "response",
                             "type": "response_sia_2nd_round",
-                            "date": self.sim.datevec[second_round_time][0],
+                            "date": _normalize_date(self.sim.datevec[second_round_time]),
                             "nodes": eligible_nodes,
                             "age_range": self.pars.response_sia_age_range,
                             "vaccinetype": self.pars.response_sia_vaccine_type,
@@ -2873,7 +2877,11 @@ class ResponseSIA:
                         alpha=0.7,
                         bbox={"boxstyle": "round,pad=0.2", "facecolor": "white", "edgecolor": "none", "alpha": 0.5},
                     )
-                ax.set_title(f"Response SIA: {sia['date']} (Nodes: {sia['nodes']})")
+                raw_date = sia["date"]
+                if isinstance(raw_date, (list, np.ndarray, pd.Index)):
+                    raw_date = raw_date[0]  # Unwrap single-item container
+                date_str = pd.to_datetime(raw_date).strftime("%Y-%m-%d")
+                ax.set_title(f"Response SIA: {date_str} (Nodes: {sia['nodes']})")
                 ax.set_axis_off()
 
             # Hide unused axes
@@ -2886,3 +2894,10 @@ class ResponseSIA:
                 plt.close(fig)
             else:
                 plt.show()
+
+
+def _normalize_date(date_value):
+    # Ensures it's a single scalar datetime or string
+    if isinstance(date_value, (list, np.ndarray, pd.Index)):
+        return pd.to_datetime(date_value[0]).date()
+    return pd.to_datetime(date_value).date()
