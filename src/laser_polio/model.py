@@ -2582,10 +2582,10 @@ class SIA_ABM:
         )
 
     def _load_schedule(self):
-        self.pars["sia_schedule"] = (
+        sia_schedule = (
             [] if "sia_schedule" not in self.pars or self.pars["sia_schedule"] is None else self.pars["sia_schedule"]
         )
-        self.sia_schedule = self.pars["sia_schedule"]
+        self.sia_schedule = sia_schedule
         for event in self.sia_schedule:
             event["date"] = lp.date(event["date"])
 
