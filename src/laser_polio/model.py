@@ -2762,7 +2762,7 @@ class ResponseSIA:
                     nearby = np.where(self.dist_matrix[node] <= self.dist_threshold)[0]
                     nodes_within_dist.update(nearby)
 
-                # Check that nodes aren't in a blackout period after prior response or have a response SIA already schedule.
+                # Check that nodes aren't in a blackout period after prior response or have a response SIA already scheduled.
                 eligible_nodes = []
                 for node in nodes_within_dist:
                     if self.sim.t >= self.node_response_blocked_until[node]:
