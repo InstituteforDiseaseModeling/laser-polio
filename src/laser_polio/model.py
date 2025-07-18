@@ -2582,9 +2582,7 @@ class SIA_ABM:
         )
 
     def _load_schedule(self):
-        sia_schedule = (
-            [] if "sia_schedule" not in self.pars or self.pars["sia_schedule"] is None else self.pars["sia_schedule"]
-        )
+        sia_schedule = [] if "sia_schedule" not in self.pars or self.pars["sia_schedule"] is None else self.pars["sia_schedule"]
         self.sia_schedule = sia_schedule
         for event in self.sia_schedule:
             event["date"] = lp.date(event["date"])
@@ -2770,7 +2768,7 @@ class ResponseSIA:
 
                 # Add two response SIAs for the nodes that are within dist_threshold of the nodes with cases
                 if eligible_nodes:
-                    first_round_time = self.sim.t + self.pars.response_sia_time_to_1st_round(1)
+                    first_round_time = self.sim.t + self.pars.response_sia_time_to_1st_round(1)  # Draw 1 value from the distribution
                     second_round_time = first_round_time + self.pars.response_sia_2nd_round_gap
                     blackout_end_time = second_round_time + self.pars.response_sia_blackout_duration
 
@@ -2877,8 +2875,7 @@ class ResponseSIA:
                         alpha=0.7,
                         bbox={"boxstyle": "round,pad=0.2", "facecolor": "white", "edgecolor": "none", "alpha": 0.5},
                     )
-                raw_date = sia["date"]
-                date_str = _normalize_date(raw_date, date_format="%Y-%m-%d")
+                date_str = _normalize_date(sia["date"])
                 ax.set_title(f"Response SIA: {date_str} (Nodes: {sia['nodes']})")
                 ax.set_axis_off()
 
