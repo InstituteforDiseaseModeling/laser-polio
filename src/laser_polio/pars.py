@@ -77,6 +77,7 @@ default_pars = PropertySet(
         },
         "response_sia_time_to_1st_round": lp.poisson(lam=30),  # Includes time to detect cases + time to prepare for response
         "response_sia_2nd_round_gap": 30,
+        "response_sia_blackout_duration": 182,
         "response_sia_dist": 100,
         "response_sia_vaccine_strain": "nOPV2",
         "response_sia_vaccine_type": "nOPV2",
