@@ -79,8 +79,8 @@ default_pars = PropertySet(
         "response_sia_2nd_round_gap": 30,
         "response_sia_blackout_duration": 182,
         "response_sia_dist": 100,
-        "response_sia_vaccine_strain": "nOPV2",
         "response_sia_vaccine_type": "nOPV2",
+        "response_sia_vaccine_strain": 2,
         "response_sia_age_range": (0, 1825),
         # Component step sizes
         "step_size_VitalDynamics_ABM": 7,
