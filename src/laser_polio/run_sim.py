@@ -85,6 +85,7 @@ def run_sim(
     r0_scalar_wt_center = configs.pop("r0_scalar_wt_center", 0.22)
     sia_re_center = configs.pop("sia_re_center", 0.5)
     sia_re_scale = configs.pop("sia_re_scale", 1.0)
+    response_sia = configs.pop("response_sia", False)
 
     # Geography
     dot_names = lp.find_matching_dot_names(
@@ -263,6 +264,8 @@ def run_sim(
             components.append(lp.RI_ABM)
         if pars.vx_prob_sia is not None:
             components.append(lp.SIA_ABM)
+        if response_sia:
+            components.append(lp.ResponseSIA)
         sim.components = components
         return sim
 
