@@ -2878,9 +2878,7 @@ class ResponseSIA:
                         bbox={"boxstyle": "round,pad=0.2", "facecolor": "white", "edgecolor": "none", "alpha": 0.5},
                     )
                 raw_date = sia["date"]
-                if isinstance(raw_date, (list, np.ndarray, pd.Index)):
-                    raw_date = raw_date[0]  # Unwrap single-item container
-                date_str = pd.to_datetime(raw_date).strftime("%Y-%m-%d")
+                date_str = _normalize_date(raw_date, date_format="%Y-%m-%d")
                 ax.set_title(f"Response SIA: {date_str} (Nodes: {sia['nodes']})")
                 ax.set_axis_off()
 
