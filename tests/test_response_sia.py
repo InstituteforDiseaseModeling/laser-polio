@@ -39,8 +39,8 @@ def setup_response_sia_sim(
         "response_sia_dist": response_sia_dist,
         "step_size_ResponseSIA": step_size_ResponseSIA,
         "response_sia_time_to_1st_round": lambda x: 7,  # 7 days to first round
-        "response_sia_2nd_round_gap": 14,  # 14 days between rounds
-        "response_sia_blackout_duration": 180,  # 30 days blackout after second round
+        "response_sia_2nd_round_gap": 14,  # days between rounds
+        "response_sia_blackout_duration": 180,  # blackout after second round in days
         "response_sia_age_range": [0, 5 * 365],  # 0-5 years
         "response_sia_vaccine_type": "nOPV2",
         "response_sia_vaccine_strain": 2,
@@ -192,7 +192,7 @@ def test_blackout_period():
     response_sias = [entry for entry in sim.pars.sia_schedule if entry.get("source") == "response"]
     n_response_sias = len(response_sias)
 
-    assert len(response_sias) == 4, "Should have 4 response SIAs (2 for first round, 2 for second round), got " + str(len(response_sias))
+    assert len(response_sias) == 4, f"Should have 4 response SIAs (2 for first round, 2 for second round), got {len(response_sias)}"
 
 
 def test_distance_based_targeting():

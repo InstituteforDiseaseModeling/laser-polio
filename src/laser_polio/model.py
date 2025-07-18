@@ -2801,10 +2801,10 @@ class ResponseSIA:
                     for node in eligible_nodes:
                         self.node_response_blocked_until[node] = blackout_end_time
 
-            if self.verbose >= 2:
-                print(
-                    f"[t={self.sim.t}] Scheduled response SIA for nodes {eligible_nodes} at days {first_round_time} and {second_round_time} (blackout until {blackout_end_time})"
-                )
+                    if self.verbose >= 2:
+                        print(
+                            f"[t={self.sim.t}] Scheduled response SIA for nodes {eligible_nodes} at days {first_round_time} and {second_round_time} (blackout until {blackout_end_time})"
+                        )
 
     def log(self, t):
         pass
