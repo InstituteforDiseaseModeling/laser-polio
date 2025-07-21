@@ -1,4 +1,6 @@
+import csv
 import logging
+import math
 import numbers
 import os
 import warnings
@@ -34,7 +36,7 @@ import laser_polio as lp
 from laser_polio.utils import TimingStats
 from laser_polio.utils import pbincount
 
-__all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "Transmission_ABM", "VitalDynamics_ABM"]
+__all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "ResponseSIA", "Transmission_ABM", "VitalDynamics_ABM"]
 
 ### START WITH LOGGER SETUP
 
@@ -117,6 +119,16 @@ def fmt(arr, precision=2):
         max_line_width=np.inf,
         precision=precision,
     )
+
+
+def get_component(sim, cls, caller=None):
+    for component in sim.instances:
+        if isinstance(component, cls):
+            return component
+    msg = f"{cls.__name__} component not found."
+    if caller:
+        msg += f" Required by {caller}."
+    raise ValueError(msg)
 
 
 # This utility function is called from two different places; doesn't need to be member of
@@ -1666,6 +1678,10 @@ class Transmission_ABM:
                         d = epsilon
                     dist_matrix[i, j] = d
                     dist_matrix[j, i] = d  # Mirror to lower triangle
+
+        # Store the distance matrix as an instance variable for access by other components
+        self.dist_matrix = dist_matrix
+
         # Setup the network
         logger.info("END of slow network calc.")
         if self.pars.migration_method.lower() == "gravity":
@@ -2576,7 +2592,7 @@ class SIA_ABM:
         )
 
     def _load_schedule(self):
-        self.sia_schedule = [] if "sia_schedule" not in self.pars or self.pars["sia_schedule"] is None else self.pars["sia_schedule"]
+        self.sia_schedule = [] if self.pars["sia_schedule"] is None else self.pars["sia_schedule"]
         for event in self.sia_schedule:
             event["date"] = lp.date(event["date"])
 
@@ -2658,3 +2674,230 @@ class SIA_ABM:
             plt.savefig(results_path / "cum_sia_vx.png")
         if not save:
             plt.show()
+
+
+class ResponseSIA:
+    """
+    Response Supplemental Immunization Activity (SIA) component for outbreak response.
+
+    This class implements reactive vaccination campaigns that are triggered by the detection
+    of paralytic polio cases. When cases are detected in a node, response SIAs are automatically
+    scheduled for nearby nodes within a specified distance threshold. Once a response SIA is scheduled
+    in a node, that node will enter a 'blackout' period during which no new response SIAs can be scheduled
+    for that node (either before or after a response). This prevents multiple overlapping response campaigns
+    in the same area.
+
+    Key Features:
+    ------------
+    - **Automatic Triggering**: Monitors for new paralytic cases and triggers response SIAs
+    - **Distance-Based Targeting**: Vaccinates nodes within a distance threshold of case locations
+    - **Two-Round Strategy**: Implements a two-round vaccination approach with configurable timing
+    - **Blackout Periods**: Prevents multiple overlapping response campaigns in the same area
+
+    Required Parameters:
+    -------------------
+    - response_sia_dist : float
+        Distance threshold (km) for including nodes in response SIA
+    - response_sia_time_to_1st_round : callable
+        Function returning days from case detection to first vaccination round
+    - response_sia_2nd_round_gap : int
+        Days between first and second vaccination rounds
+    - response_sia_blackout_duration : int
+        Days after second round during which no new response SIAs can be scheduled
+    - response_sia_age_range : list
+        Age range [min_age, max_age] for vaccination eligibility
+    - response_sia_vaccine_type : str
+        Type of vaccine to use (e.g., "Sabin2", "nOPV2")
+    - response_sia_vaccine_strain : int
+        Vaccine strain identifier
+    - step_size_ResponseSIA : int
+        Frequency (in days) of checking for new cases and scheduling responses
+
+    Dependencies:
+    -------------
+    - Requires Transmission_ABM component for distance matrix access
+    - Requires SIA_ABM component to implement the response campaigns
+    - Requires shapefile data (self.pars.shp) for mapping functionality
+
+    Outputs:
+    --------
+    - Schedules response SIAs in self.pars.sia_schedule
+    - Generates CSV schedule file: "response_sia_schedule.csv"
+    - Creates faceted maps: "response_sia_maps_page_{n}.png"
+
+    """
+
+    def __init__(self, sim):
+        self.sim = sim
+        self.people = sim.people
+        self.nodes = sim.nodes
+        self.pars = sim.pars
+        self.results = sim.results
+        self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
+        self.step_size = sim.pars.step_size_ResponseSIA
+        self.node_response_blocked_until = np.full(
+            len(sim.nodes), -np.inf
+        )  # Time when a node is unblocked for a response SIA. Used to prevent multiple responses when one is already scheduled or prevent nodes from getting vaccinated shortly after a response.
+
+        # Find the Transmission_ABM instance to access its dist_matrix & dist_threshold to determine which nodes to target for response SIAs
+        transmission_component = get_component(sim, Transmission_ABM, caller=self.__class__.__name__)
+        self.dist_matrix = transmission_component.dist_matrix
+        self.dist_threshold = sim.pars.response_sia_dist
+
+        # Ensure that SIA_ABM is present & that sia_schedule is a list so we can append to it below
+        get_component(sim, SIA_ABM, caller=self.__class__.__name__)
+        self.pars.sia_schedule = [] if self.pars.sia_schedule is None else self.pars.sia_schedule
+
+    def step(self):
+        t = self.sim.t
+        if t % self.step_size == 0:
+            # Look for recent cases
+            last_time = max(self.sim.t - self.step_size, 1)
+            recent_cases = self.results.new_paralyzed[last_time : self.sim.t + 1, :]
+
+            if recent_cases.sum() > 0:
+                # Get the nodes that have cases
+                recent_cases_by_node = recent_cases.sum(axis=0)
+                nodes_with_cases = np.where(recent_cases_by_node > 0)[0]
+                nodes_within_dist = set()
+                for node in nodes_with_cases:
+                    # Get the nodes within the distance threshold (including the node itself)
+                    nearby = np.where(self.dist_matrix[node] <= self.dist_threshold)[0]
+                    nodes_within_dist.update(nearby)
+
+                # Check that nodes aren't in a blackout period after prior response or have a response SIA already scheduled.
+                eligible_nodes = []
+                for node in nodes_within_dist:
+                    if self.sim.t >= self.node_response_blocked_until[node]:
+                        eligible_nodes.append(node)
+
+                # Add two response SIAs for the nodes that are within dist_threshold of the nodes with cases
+                if eligible_nodes:
+                    first_round_time = self.sim.t + self.pars.response_sia_time_to_1st_round(1)  # Draw 1 value from the distribution
+                    second_round_time = first_round_time + self.pars.response_sia_2nd_round_gap
+                    blackout_end_time = second_round_time + self.pars.response_sia_blackout_duration
+
+                    self.pars.sia_schedule.append(  # First round
+                        {
+                            "source": "response",
+                            "type": "response_sia_1st_round",
+                            "date": _normalize_date(self.sim.datevec[first_round_time]),
+                            "nodes": eligible_nodes,
+                            "age_range": self.pars.response_sia_age_range,
+                            "vaccinetype": self.pars.response_sia_vaccine_type,
+                            "vaccine_strain": self.pars.response_sia_vaccine_strain,
+                        }
+                    )
+                    self.pars.sia_schedule.append(  # Second round
+                        {
+                            "source": "response",
+                            "type": "response_sia_2nd_round",
+                            "date": _normalize_date(self.sim.datevec[second_round_time]),
+                            "nodes": eligible_nodes,
+                            "age_range": self.pars.response_sia_age_range,
+                            "vaccinetype": self.pars.response_sia_vaccine_type,
+                            "vaccine_strain": self.pars.response_sia_vaccine_strain,
+                        }
+                    )
+
+                    # Record the time when the nodes will no longer be blocked for a response SIA to prevent multiple responses being scheduled for the same node (either before or after a response)
+                    for node in eligible_nodes:
+                        self.node_response_blocked_until[node] = blackout_end_time
+
+                    if self.verbose >= 2:
+                        print(
+                            f"[t={self.sim.t}] Scheduled response SIA for nodes {eligible_nodes} at days {first_round_time} and {second_round_time} (blackout until {blackout_end_time})"
+                        )
+
+    def log(self, t):
+        pass
+
+    def plot(self, save=False, results_path=None):
+        # Log the response SIA schedule
+        with open(results_path / "response_sia_schedule.csv", "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["source", "type", "date", "nodes", "age_range", "vaccine_strain", "vaccinetype"])
+            writer.writeheader()
+            for entry in self.pars.sia_schedule:
+                if entry.get("source") == "response":
+                    writer.writerow(
+                        {
+                            "source": entry["source"],
+                            "type": entry["type"],
+                            "date": entry["date"],
+                            "nodes": ";".join(map(str, entry["nodes"])),
+                            "age_range": "-".join(map(str, entry["age_range"])),
+                            "vaccine_strain": entry["vaccine_strain"],
+                            "vaccinetype": entry["vaccinetype"],
+                        }
+                    )
+
+        # Plot map of each response SIA
+        if self.pars.shp is not None:
+            self.plot_response_sia_map(save=save, results_path=results_path)
+
+    def plot_response_sia_map(self, save=False, results_path=None, n_per_page=9):
+        """
+        Plot maps of each response SIA in faceted panels.
+        """
+
+        # Filter for response SIAs
+        response_sias = [entry for entry in self.pars.sia_schedule if entry.get("source") == "response"]
+        n_sias = len(response_sias)
+        if n_sias == 0:
+            print("No response SIAs to plot.")
+            return
+
+        # Prepare shape data
+        shp = self.pars.shp.copy()
+        n_pages = math.ceil(n_sias / n_per_page)
+
+        for page in range(n_pages):
+            start = page * n_per_page
+            end = min((page + 1) * n_per_page, n_sias)
+            n_this_page = end - start
+            nrows = math.ceil(n_this_page**0.5)
+            ncols = math.ceil(n_this_page / nrows)
+            fig, axs = plt.subplots(nrows, ncols, figsize=(ncols * 6, nrows * 6), squeeze=False)
+            axs = axs.ravel()
+
+            for i, sia in enumerate(response_sias[start:end]):
+                ax = axs[i]
+                # Mark all nodes as not targeted
+                shp["targeted"] = 0
+                shp.loc[sia["nodes"], "targeted"] = 1
+                shp.plot(ax=ax, color="lightgrey", edgecolor="white")
+                shp[shp["targeted"] == 1].plot(ax=ax, color="red", edgecolor="black")
+                # Add node number labels at centroids
+                for idx, row in shp.iterrows():
+                    ax.text(
+                        row["center_lon"],
+                        row["center_lat"],
+                        str(idx),
+                        fontsize=8,
+                        ha="center",
+                        va="center",
+                        color="black",
+                        alpha=0.7,
+                        bbox={"boxstyle": "round,pad=0.2", "facecolor": "white", "edgecolor": "none", "alpha": 0.5},
+                    )
+                date_str = _normalize_date(sia["date"])
+                ax.set_title(f"Response SIA: {date_str} (Nodes: {sia['nodes']})")
+                ax.set_axis_off()
+
+            # Hide unused axes
+            for j in range(n_this_page, len(axs)):
+                axs[j].set_visible(False)
+
+            plt.tight_layout()
+            if save and results_path is not None:
+                plt.savefig(results_path / f"response_sia_maps_page_{page + 1}.png")
+                plt.close(fig)
+            else:
+                plt.show()
+
+
+def _normalize_date(date_value):
+    # Ensures it's a single scalar datetime or string
+    if isinstance(date_value, (list, np.ndarray, pd.Index)):
+        return pd.to_datetime(date_value[0]).date()
+    return pd.to_datetime(date_value).date()
