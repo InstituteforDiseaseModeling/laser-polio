@@ -121,6 +121,16 @@ def fmt(arr, precision=2):
     )
 
 
+def get_component(sim, cls, caller=None):
+    for component in sim.instances:
+        if isinstance(component, cls):
+            return component
+    msg = f"{cls.__name__} component not found."
+    if caller:
+        msg += f" Required by {caller}."
+    raise ValueError(msg)
+
+
 # This utility function is called from two different places; doesn't need to be member of
 # a class
 def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, pars):
@@ -2582,7 +2592,7 @@ class SIA_ABM:
         )
 
     def _load_schedule(self):
-        sia_schedule = [] if "sia_schedule" not in self.pars or self.pars["sia_schedule"] is None else self.pars["sia_schedule"]
+        sia_schedule = [] if self.pars["sia_schedule"] is None else self.pars["sia_schedule"]
         self.sia_schedule = sia_schedule
         for event in self.sia_schedule:
             event["date"] = lp.date(event["date"])
@@ -2730,15 +2740,13 @@ class ResponseSIA:
             len(sim.nodes), -np.inf
         )  # Time when a node is unblocked for a response SIA. Used to prevent multiple responses when one is already scheduled or prevent nodes from getting vaccinated shortly after a response.
 
-        # Find the Transmission_ABM instance to access its dist_matrix
-        transmission_component = None
-        for component in sim.instances:
-            if isinstance(component, Transmission_ABM):
-                transmission_component = component
-                break
-
-        if transmission_component is None:
-            raise ValueError("Transmission_ABM component not found. Response SIA requires Transmission_ABM.")
+        # Check that the required components are present
+        transmission_component = get_component(
+            sim, Transmission_ABM, caller=self.__class__.__name__
+        )  # Find the Transmission_ABM instance to access its dist_matrix
+        get_component(
+            sim, SIA_ABM, caller=self.__class__.__name__
+        )  # SIA_ABM is required to implement the response campaigns, but we don't need to use it here.
 
         self.dist_matrix = transmission_component.dist_matrix
         self.dist_threshold = sim.pars.response_sia_dist
