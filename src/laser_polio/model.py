@@ -229,14 +229,29 @@ class SEIR_ABM:
             self.common_init(pars, verbose)
             pars = self.pars
 
-            pars.n_ppl = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
-            if (pars.cbr is not None) & (len(pars.cbr) == 1):
-                capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, pars.cbr[0]))
-            elif (pars.cbr is not None) & (len(pars.cbr) > 1):
-                capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, np.mean(pars.cbr)))
+            # --- Use init_younger_than to only initialize agents younger than this age to limit memory usage ---
+            if pars.init_younger_than is not None and pars.age_pyramid_path is not None:
+                init_age = pars.init_younger_than
+                pyramid = load_pyramid_csv(pars.age_pyramid_path)
+                # Filter pyramid to only bins where max_age < init_age
+                under_mask = pyramid[:, 1] < init_age
+                pyramid_under = pyramid[under_mask]
+                frac_under = (pyramid_under[:, 2] + pyramid_under[:, 3]).sum() / (pyramid[:, 2:4].sum())
+                n_init_agents = np.round(np.array(pars.n_ppl) * frac_under).astype(int)
             else:
-                capacity = int(np.sum(pars.n_ppl))
-            self.people = LaserFrame(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
+                # Initialize everyone
+                n_init_agents = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
+            pars.init_n_ppl = n_init_agents  # Store for use in other components
+            total_agents = n_init_agents.sum()
+
+            # Initialize the laser frame with capacity based on cbr & init_n_ppl
+            if (pars.cbr is not None) & (len(pars.cbr) == 1):
+                capacity = int(1.1 * calc_capacity(np.sum(pars.init_n_ppl), self.nt, pars.cbr[0]))
+            elif (pars.cbr is not None) & (len(pars.cbr) > 1):
+                capacity = int(1.1 * calc_capacity(np.sum(pars.init_n_ppl), self.nt, np.mean(pars.cbr)))
+            else:
+                capacity = int(np.sum(pars.init_n_ppl))
+            self.people = LaserFrame(capacity=capacity, initial_count=int(np.sum(pars.init_n_ppl)))
 
             # Initialize disease_state, ipv_protected, paralyzed, and potentially_paralyzed here since they're required for most other components
             self.people.add_scalar_property("disease_state", dtype=np.int8, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
@@ -255,11 +270,11 @@ class SEIR_ABM:
                 ordered_node_ids = list(pars.node_lookup.keys())
                 self.nodes = np.array(ordered_node_ids)
                 node_ids = np.concatenate([np.full(count, node_id) for node_id, count in zip(ordered_node_ids, pars.n_ppl, strict=False)])
-                self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids
+                self.people.node_id[0 : np.sum(pars.n_init_agents)] = node_ids
             else:
-                self.nodes = np.arange(len(np.atleast_1d(pars.n_ppl)))
-                node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_ppl)])
-                self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids  # Assign node IDs to initial people
+                self.nodes = np.arange(len(np.atleast_1d(pars.n_init_agents)))
+                node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_init_agents)])
+                self.people.node_id[0 : np.sum(pars.n_init_agents)] = node_ids  # Assign node IDs to initial people
 
             # Setup chronically missed population for vaccination: 0 = missed/inaccessible to vx, 1 = accessible for vaccination
             self.people.add_scalar_property("chronically_missed", dtype=np.uint8, default=0)
@@ -675,12 +690,12 @@ class DiseaseState_ABM:
             # Initialize immunity
             if isinstance(pars.init_immun, (float, list)):  # Handle float and list cases
                 init_immun_value = pars.init_immun[0] if isinstance(pars.init_immun, list) else pars.init_immun
-                num_recovered = int(sum(pars.n_ppl) * init_immun_value)
-                recovered_indices = np.random.choice(sum(pars.n_ppl), size=num_recovered, replace=False)
+                num_recovered = int(sum(pars.init_n_ppl) * init_immun_value)
+                recovered_indices = np.random.choice(sum(pars.init_n_ppl), size=num_recovered, replace=False)
                 sim.people.disease_state[recovered_indices] = 3
             elif isinstance(pars.init_immun, np.ndarray):
-                assert pars.init_immun.shape == pars.n_ppl.shape, "init_immun must match n_ppl shape"
-                for nid, (immun_frac, node_pop) in enumerate(zip(pars.init_immun, pars.n_ppl, strict=True)):
+                assert pars.init_immun.shape == pars.init_n_ppl.shape, "init_immun must match init_n_ppl shape"
+                for nid, (immun_frac, node_pop) in enumerate(zip(pars.init_immun, pars.init_n_ppl, strict=True)):
                     assert 0 <= immun_frac <= 1.0, f"Invalid immun_frac {immun_frac} for node {nid}. Must be between 0 and 1."
                     num_recovered = int(immun_frac * node_pop)
                     recovered_indices = np.random.choice(np.where(sim.people.node_id == nid)[0], size=num_recovered, replace=False)
@@ -717,12 +732,8 @@ class DiseaseState_ABM:
 
                 # viz()
 
-                # Assume everyone older than 15 years of age is immune
-                # We EULA-gize the 15+ first to speedup immunity initialization for <15s
-                # cl o15 = (sim.people.date_of_birth * -1) >= 15 * 365
-                # cl sim.people.disease_state[o15] = 3  # Set as recovered
-                threshold_dob = -15 * 365  # People with a dob before (<) this date are considered recovered
-                set_recovered_by_dob(sim.people.count, sim.people.date_of_birth, sim.people.disease_state, threshold_dob)
+                # Assume everyone older than init_younger_than is immune/Recovered. If that par is set to < 100,  we need to
+                # add their counts to the R compartment to properly account for force of infection across the total pop.
 
                 active_count_init = sim.people.count  # This gives the active population size
                 # cl valid_agents = self.people.disease_state[:active_count_init] >= 0  # Apply only to active agents
@@ -1581,7 +1592,7 @@ class Transmission_ABM:
     def __init__(self, sim):
         self.sim = sim
         self.people = sim.people
-        self.nodes = np.arange(len(sim.pars.n_ppl))
+        self.nodes = np.arange(len(sim.pars.init_n_ppl))
         self.pars = sim.pars
         self.results = sim.results
         self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
@@ -1600,7 +1611,7 @@ class Transmission_ABM:
         instance = cls.__new__(cls)
         instance.sim = sim
         instance.people = sim.people
-        instance.nodes = np.arange(len(sim.pars.n_ppl))
+        instance.nodes = np.arange(len(sim.pars.n_ppl))  # TODO: change to init_n_ppl???
         instance.pars = sim.pars
         instance.results = sim.results
         instance.r0_scalars = instance.pars.r0_scalars
@@ -1643,7 +1654,7 @@ class Transmission_ABM:
         # Compute the infection migration network
         self.sim.results.add_vector_property("network", length=len(self.sim.nodes), dtype=np.float32)
         self.network = self.sim.results.network
-        init_pops = self.sim.pars.n_ppl
+        init_pops = self.sim.pars.init_n_ppl
         # Get the distance matrix
         logger.info("This network calc is a little slow too...")
         if self.sim.pars.distances is not None:
@@ -1967,7 +1978,7 @@ class VitalDynamics_ABM:
         self._common_init(sim)
         self._initialize_birth_results_if_needed()
         self._initialize_birth_rates()
-        cumulative_deaths = lp.create_cumulative_deaths(np.sum(self.pars.n_ppl), max_age_years=100)
+        cumulative_deaths = lp.create_cumulative_deaths(np.sum(self.pars.n_ppl), max_age_years=100)  # TODO: change to init_n_ppl???
         self.death_estimator = KaplanMeierEstimator(cumulative_deaths)
         return self
 
@@ -2018,7 +2029,7 @@ class VitalDynamics_ABM:
             self.results.add_array_property("deaths", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
             self.people.add_scalar_property("date_of_death", dtype=np.int32, default=0)
 
-            cumulative_deaths = lp.create_cumulative_deaths(np.sum(pars.n_ppl), max_age_years=100)
+            cumulative_deaths = lp.create_cumulative_deaths(np.sum(pars.n_ppl), max_age_years=100)  # TODO: change to init_n_ppl???
             self.death_estimator = KaplanMeierEstimator(cumulative_deaths)
 
             # Only compute lifespans if date_of_birth was initialized
