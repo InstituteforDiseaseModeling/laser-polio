@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numba as nb
 import numpy as np
 import pandas as pd
+import psutil
 import sciris as sc
 
 __all__ = [
@@ -35,10 +36,17 @@ __all__ = [
     "inv_logit",
     "make_background_seeding_schedule",
     "pbincount",
+    "print_memory",
     "process_sia_schedule_polio",
     "save_results_to_csv",
     "truncate_colormap",
 ]
+
+
+def print_memory(tag=""):
+    process = psutil.Process(os.getpid())
+    mem = process.memory_info().rss / (1024**2)  # In MB
+    print(f"[{tag}] Memory usage: {mem:.2f} MB")
 
 
 def calc_r0_scalars_from_rand_eff(rand_eff=None, R0=14, R_min=3.41, R_max=16.7, emod_scale=2.485, emod_center=-1.050):

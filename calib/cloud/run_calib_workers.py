@@ -46,7 +46,7 @@ container = client.V1Container(
     # env=[client.V1EnvVar(name="NUMBA_NUM_THREADS", value="4")],
     env_from=[client.V1EnvFromSource(secret_ref=client.V1SecretEnvSource(name="mysql-secrets"))],
     # resources=client.V1ResourceRequirements(requests={"cpu": "6"}, limits={"cpu": "7"}),
-    resources=client.V1ResourceRequirements(requests={"memory": "25Gi"}),
+    resources=client.V1ResourceRequirements(requests={"memory": "50Gi"}),
     volume_mounts=[client.V1VolumeMount(name="shared-data", mount_path=SHARED_DIR)],
 )
 
@@ -56,8 +56,8 @@ template = client.V1PodTemplateSpec(
         containers=[container],
         restart_policy="OnFailure",
         image_pull_secrets=[client.V1LocalObjectReference(name="idmodregcred3")],
-        node_selector={"nodepool": "highcpu"},
-        tolerations=[client.V1Toleration(key="nodepool", operator="Equal", value="highcpu", effect="NoSchedule")],
+        node_selector={"nodepool": "64gb"},
+        tolerations=[client.V1Toleration(key="nodepool", operator="Equal", value="64gb", effect="NoSchedule")],
         volumes=[
             client.V1Volume(
                 name="shared-data",

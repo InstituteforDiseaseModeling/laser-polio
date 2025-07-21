@@ -47,7 +47,7 @@ seed_schedule = [
 ######### END OF USER PARS ########
 ###################################
 
-
+lp.print_memory("Before run_sim")
 sim = lp.run_sim(
     regions=regions,
     admin_level=admin_level,
@@ -72,5 +72,6 @@ sim = lp.run_sim(
     save_init_pop=False,
     plot_pars=True,
 )
+lp.print_memory("After run_sim")
 
 sc.printcyan("Done.")
