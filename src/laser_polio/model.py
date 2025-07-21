@@ -2739,16 +2739,14 @@ class ResponseSIA:
             len(sim.nodes), -np.inf
         )  # Time when a node is unblocked for a response SIA. Used to prevent multiple responses when one is already scheduled or prevent nodes from getting vaccinated shortly after a response.
 
-        # Check that the required components are present
-        transmission_component = get_component(
-            sim, Transmission_ABM, caller=self.__class__.__name__
-        )  # Find the Transmission_ABM instance to access its dist_matrix
-        get_component(
-            sim, SIA_ABM, caller=self.__class__.__name__
-        )  # SIA_ABM is required to implement the response campaigns, but we don't need to use it here.
-
+        # Find the Transmission_ABM instance to access its dist_matrix & dist_threshold to determine which nodes to target for response SIAs
+        transmission_component = get_component(sim, Transmission_ABM, caller=self.__class__.__name__)
         self.dist_matrix = transmission_component.dist_matrix
         self.dist_threshold = sim.pars.response_sia_dist
+
+        # Ensure that SIA_ABM is present & that sia_schedule is a list so we can append to it below
+        get_component(sim, SIA_ABM, caller=self.__class__.__name__)
+        self.pars.sia_schedule = [] if self.pars.sia_schedule is None else self.pars.sia_schedule
 
     def step(self):
         t = self.sim.t
