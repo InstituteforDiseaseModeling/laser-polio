@@ -28,6 +28,7 @@ from laser_core.migration import row_normalizer
 from laser_core.propertyset import PropertySet
 from laser_core.random import seed as set_seed
 from laser_core.utils import calc_capacity
+from scipy.interpolate import interp1d
 from tqdm import tqdm
 
 import laser_polio as lp
@@ -233,16 +234,28 @@ class SEIR_ABM:
             if pars.init_younger_than is not None and pars.age_pyramid_path is not None:
                 init_age = pars.init_younger_than
                 pyramid = load_pyramid_csv(pars.age_pyramid_path)
+
+                # Parse age ranges to get maximum age of each bin
+                age_ranges = pyramid[:, 0]  # e.g., ["0-4", "5-9", "10-14", ...]
+                max_ages = []
+                for age_range in age_ranges:
+                    if age_range == "100+":
+                        max_ages.append(100)  # Use 100 as max for 100+
+                    else:
+                        max_age = int(age_range.split("-")[1])  # Extract max age from "0-4" -> 4
+                        max_ages.append(max_age)
+
                 # Filter pyramid to only bins where max_age < init_age
-                under_mask = pyramid[:, 1] < init_age
+                under_mask = np.array(max_ages) < init_age
                 pyramid_under = pyramid[under_mask]
-                frac_under = (pyramid_under[:, 2] + pyramid_under[:, 3]).sum() / (pyramid[:, 2:4].sum())
+                frac_under = (pyramid_under[:, 1] + pyramid_under[:, 2]).sum() / (pyramid[:, 1:3].sum())
                 n_init_agents = np.round(np.array(pars.n_ppl) * frac_under).astype(int)
             else:
                 # Initialize everyone
                 n_init_agents = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
             pars.init_n_ppl = n_init_agents  # Store for use in other components
-            total_agents = n_init_agents.sum()
+            n_older_than_init_age = np.array(pars.n_ppl) - n_init_agents
+            pars.unint_older_pop = n_older_than_init_age  # Count of people older than init_younger_than that are not being initialized, but will be added to the R compartment
 
             # Initialize the laser frame with capacity based on cbr & init_n_ppl
             if (pars.cbr is not None) & (len(pars.cbr) == 1):
@@ -736,8 +749,6 @@ class DiseaseState_ABM:
                 # add their counts to the R compartment to properly account for force of infection across the total pop.
 
                 active_count_init = sim.people.count  # This gives the active population size
-                # cl valid_agents = self.people.disease_state[:active_count_init] >= 0  # Apply only to active agents
-                # cl filter_mask = (self.people.disease_state[:active_count_init] < 3) & valid_agents  # Now matches active count
                 filter_mask = np.empty(sim.people.count, dtype=bool)  # Create a boolean mask for the filter
                 set_filter_mask(sim.people.count, self.people.disease_state, filter_mask)
 
@@ -916,16 +927,16 @@ class DiseaseState_ABM:
         infected_indices = []
         if isinstance(pars.init_prev, float):
             # Interpret as fraction of total population
-            num_infected = int(sum(pars.n_ppl) * pars.init_prev)
-            infected_indices = np.random.choice(sum(pars.n_ppl), size=num_infected, replace=False)
+            num_infected = int(sum(pars.init_n_ppl) * pars.init_prev)
+            infected_indices = np.random.choice(sum(pars.init_n_ppl), size=num_infected, replace=False)
         elif isinstance(pars.init_prev, int):
             # Interpret as absolute number
-            num_infected = min(pars.init_prev, sum(pars.n_ppl))  # Don't exceed population
-            infected_indices = np.random.choice(sum(pars.n_ppl), size=num_infected, replace=False)
+            num_infected = min(pars.init_prev, sum(pars.init_n_ppl))  # Don't exceed population
+            infected_indices = np.random.choice(sum(pars.init_n_ppl), size=num_infected, replace=False)
         elif isinstance(pars.init_prev, (list, np.ndarray)):
             # Ensure that the length of init_prev matches the number of nodes
-            if len(pars.init_prev) != len(pars.n_ppl):
-                raise ValueError(f"Length mismatch: init_prev has {len(pars.init_prev)} entries, expected {len(pars.n_ppl)} nodes.")
+            if len(pars.init_prev) != len(pars.init_n_ppl):
+                raise ValueError(f"Length mismatch: init_prev has {len(pars.init_prev)} entries, expected {len(pars.init_n_ppl)} nodes.")
             # Interpret as per-node infection seeding
             node_ids = self.people.node_id[: self.people.count]
             disease_states = self.people.disease_state[: self.people.count]
@@ -935,10 +946,10 @@ class DiseaseState_ABM:
                 if isinstance(prev, numbers.Real):
                     if 0 < prev < 1:
                         # interpret as a fraction
-                        num_infected = int(pars.n_ppl[node] * prev)
+                        num_infected = int(pars.init_n_ppl[node] * prev)
                     else:
                         # interpret as an integer count
-                        num_infected = min(int(prev), pars.n_ppl[node])
+                        num_infected = min(int(prev), pars.init_n_ppl[node])
                 else:
                     raise ValueError(f"Unsupported value in init_prev list at node {node}: {prev}")
 
@@ -2039,29 +2050,6 @@ class VitalDynamics_ABM:
                 dods = lifespans - ages
                 self.people.date_of_death[: self.people.count] = dods
 
-                # sim.death_estimator = KaplanMeierEstimator(cumulative_deaths)
-                # lifespans = sim.death_estimator.predict_age_at_death(-dobs, max_year=100)
-
-                # # Set pars.life_expectancies to mean lifespans by node.
-                # # This is just to support placeholder mortality premodeling for EULAs.
-                # # Would move this code block to EULA section but we've got lifespans here.
-
-                # num_nodes = len(self.nodes)
-                # node_ids = sim.people.node_id[: sim.people.count]
-                # counts, weighted_sums = pbincounts(node_ids, num_nodes, lifespans)
-                # weighted_sums /= 365  # Convert to years
-
-                # # Map unique_nodes to their computed life expectancies (safely handle divide-by-zero)
-                # life_expectancies = np.zeros_like(weighted_sums)
-                # where = counts > 0
-                # with np.errstate(divide="ignore", invalid="ignore"):
-                #     np.divide(weighted_sums, counts, out=life_expectancies, where=where)
-                # pars.life_expectancies = life_expectancies
-
-                # dods = sim.people.date_of_death[: sim.people.count]
-                # dods[:] = dobs
-                # dods += lifespans
-
                 # Compute life expectancies per node
                 node_ids = self.people.node_id[: self.people.count]
                 _, indices = np.unique(node_ids, return_inverse=True)
@@ -2074,6 +2062,41 @@ class VitalDynamics_ABM:
                     mean_lifespans = np.divide(weighted, counts, out=np.zeros_like(weighted), where=counts > 0)
                 life_expectancies[: len(mean_lifespans)] = mean_lifespans
                 pars.life_expectancies = life_expectancies
+
+            # --- (Optional) Account for deaths for older ages (≥15s) who were not instantiated ---
+            if hasattr(self.pars, "unint_older_pop") and self.pars.unint_older_pop is not None:
+                uninit_older_pop = np.array(self.pars.unint_older_pop)
+                T = self.sim.nt
+                max_age_years = 100
+                n_nodes = len(self.nodes)
+
+                # Get cumulative deaths shape
+                cumulative_deaths_global = lp.create_cumulative_deaths(
+                    1_000_000, max_age_years
+                )  # Use a large population size to get a smooth curve
+                cdf = cumulative_deaths_global / cumulative_deaths_global[-1]
+                survival_prob = 1 - cdf  # shape: (max_age_years + 1,)
+
+                # Interpolate to simulation days
+                years = np.arange(max_age_years + 1) * 365
+                days = np.arange(T)
+                survival_curve = interp1d(years, survival_prob, kind="linear", bounds_error=False, fill_value=(1.0, 0.0))
+                survivors_fraction = survival_curve(days)  # (T,)
+
+                # Expand to nodes
+                survivors = uninit_older_pop[None, :] * survivors_fraction[:, None]  # (T, n_nodes)
+                deaths = np.zeros_like(survivors)
+                deaths[0, :] = uninit_older_pop - survivors[0, :]
+                deaths[1:, :] = survivors[:-1, :] - survivors[1:, :]
+
+                self.results.deaths += deaths.astype(np.int32)
+
+                if self.verbose >= 1:
+                    total_deaths = int(deaths.sum())
+                    print(
+                        f"[VitalDynamics_ABM] Added {total_deaths:,} virtual deaths for uninitialized ≥{self.pars.init_younger_than} agents."
+                    )
+            # TODO: put these deaths into the R compartment
 
     def _initialize_birth_rates(self):
         pars = self.pars
