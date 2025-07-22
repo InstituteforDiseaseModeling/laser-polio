@@ -1,7 +1,6 @@
 import logging
 import numbers
 import os
-import warnings
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
@@ -143,7 +142,6 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
             - dur_inf
             - corr_risk_inf
     """
-    n = end - start
 
     mean_ln = 1
     var_ln = pars.risk_mult_var
@@ -168,12 +166,11 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
 
         if pars.individual_heterogeneity:
             acq_risk_out[batch_start:batch_end] = np.exp(mu_ln + sigma_ln * z_corr[:, 0])
-            infectivity_out[batch_start:batch_end] = stats.gamma.ppf(
-                stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma
-            )
+            infectivity_out[batch_start:batch_end] = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)
         else:
             acq_risk_out[batch_start:batch_end] = 1.0
             infectivity_out[batch_start:batch_end] = mean_gamma
+
 
 # SEIR Model
 class SEIR_ABM:
@@ -2239,6 +2236,7 @@ def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, 
     num_dying[:] = tl_dying.sum(axis=0)  # Merge per-thread results
 
     return
+
 
 @nb.njit(
     (
