@@ -10,15 +10,21 @@ import yaml
 # model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_nwecnga_3periods.yaml"
 # calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts_narrower_regionaltimeseries.yaml"
 
-job_name = "laser-polio-sk2"
-study_name = "calib_west_africa_7y_2017_underwt_20250716"
+# job_name = "laser-polio-sk2"
+# study_name = "calib_west_africa_7y_2017_underwt_20250716"
+# model_config = "config_west_africa_7y_2017_underwt.yaml"
+# calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts_narrower_regionaltimeseries.yaml"
+
+job_name = "laser-polio-sk3"
+study_name = "calib_west_africa_7y_2017_underwt_20250723"
 model_config = "config_west_africa_7y_2017_underwt.yaml"
 calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts_narrower_regionaltimeseries.yaml"
+
 
 fit_function = "log_likelihood"
 n_trials = 1  # Number of trials to run per pod
 n_replicates = 1  # Number of replicates to run for each trial
-parallelism = 50  # The number of pods (i.e., jobs) to run in parallel
+parallelism = 100  # The number of pods (i.e., jobs) to run in parallel
 completions = 20000  # The total number of pods (i.e., jobs) that need to successfully complete before the job is considered "done"
 
 # ---------------------------------------------------

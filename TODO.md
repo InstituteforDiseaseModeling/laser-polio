@@ -2,6 +2,7 @@
 - Check the scenarios that KF/HL put together. Make sure they're feasible with our setup. 
 - Add ability to initialize sim from a finished sim (e.g., post-calibration)
 - Add age pyramid by country (cuz we're getting close to running beyond Nigeria!)
+- Add check after calibration to estimate amount of exportation occuring from each node. 
 - Make synthetic calibration with JB - try just KANO? Or a small geography? SK will noodle on it, write up script for making synthetic data, and send to JB. 
 - Try adding --no-cache to the docker image
 - Try using PIM scalars again

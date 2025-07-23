@@ -2,7 +2,6 @@ import logging
 import numbers
 import os
 import time
-import warnings
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
@@ -146,7 +145,6 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
             - dur_inf
             - corr_risk_inf
     """
-    n = end - start
 
     mean_ln = 1
     var_ln = pars.risk_mult_var
@@ -161,20 +159,20 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
     L = np.linalg.cholesky(cov_matrix)
 
     logger.info("FIXME: This chunk of code to initialize acq_risk_out and infectivity_out is know to be slow right now.")
-    z = np.random.normal(size=(n, 2))
+    BATCH_SIZE = 1_000_000
+    for batch_start in range(start, end, BATCH_SIZE):
+        batch_end = min(batch_start + BATCH_SIZE, end)
+        b_n = batch_end - batch_start
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("default")  # or "ignore", or "once", etc.
+        z = np.random.normal(size=(b_n, 2))
         z_corr = z @ L.T
 
-    if pars.individual_heterogeneity:
-        acq_risk_out[start:end] = np.exp(mu_ln + sigma_ln * z_corr[:, 0])
-        infectivity_out[start:end] = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)
-    else:
-        sc.printyellow("Warning: manually resetting acq_risk_multiplier and daily_infectivity to 1.0 for testing")
-        acq_risk_out[start:end] = 1.0
-        infectivity_out[start:end] = mean_gamma
-    logger.info("END of known slowness.")
+        if pars.individual_heterogeneity:
+            acq_risk_out[batch_start:batch_end] = np.exp(mu_ln + sigma_ln * z_corr[:, 0])
+            infectivity_out[batch_start:batch_end] = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)
+        else:
+            acq_risk_out[batch_start:batch_end] = 1.0
+            infectivity_out[batch_start:batch_end] = mean_gamma
 
 
 # SEIR Model
@@ -286,7 +284,7 @@ class SEIR_ABM:
             self.people.add_scalar_property("strain", dtype=np.int8, default=0)  # 0 = VDPV, 1 = Sabin, 2 = nOPV2
 
             # Setup spatial component with node IDs
-            self.people.add_scalar_property("node_id", dtype=np.int32, default=0)
+            self.people.add_scalar_property("node_id", dtype=np.int16, default=0)
             if hasattr(pars, "node_lookup") and pars.node_lookup is not None:
                 ordered_node_ids = list(pars.node_lookup.keys())
                 self.nodes = np.array(ordered_node_ids)
@@ -711,11 +709,11 @@ class DiseaseState_ABM:
         self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Initialize all agents with an exposure_timer, infection_timer, and paralysis_timer
-        sim.people.add_scalar_property("exposure_timer", dtype=np.int32, default=0)
+        sim.people.add_scalar_property("exposure_timer", dtype=np.uint8, default=0)
         sim.people.exposure_timer[:] = self.pars.dur_exp(self.people.capacity)
-        sim.people.add_scalar_property("infection_timer", dtype=np.int32, default=0)
+        sim.people.add_scalar_property("infection_timer", dtype=np.uint8, default=0)
         sim.people.infection_timer[:] = self.pars.dur_inf(self.people.capacity)
-        sim.people.add_scalar_property("paralysis_timer", dtype=np.int32, default=0)
+        sim.people.add_scalar_property("paralysis_timer", dtype=np.uint8, default=0)
         sim.people.paralysis_timer[:] = self.pars.t_to_paralysis(self.people.capacity)
 
         pars = self.pars
@@ -1654,7 +1652,7 @@ class DiseaseState_ABM:
             plt.show()
 
 
-@nb.njit((nb.int32[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32, nb.int32), parallel=True, nogil=True)
+@nb.njit((nb.int16[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32, nb.int32), parallel=True, nogil=True)
 def count_SEIRP(node_id, disease_state, strain, potentially_paralyzed, paralyzed, n_nodes, n_strains, n_people):
     """
     Go through each person exactly once and increment counters for their node and strain.
@@ -2532,7 +2530,7 @@ class VitalDynamics_ABM:
 
 
 @nb.njit(
-    (nb.int32, nb.int32, nb.int8[:], nb.int32[:], nb.int32[:], nb.int32, nb.int32[:, :], nb.int32[:]),
+    (nb.int32, nb.int32, nb.int8[:], nb.int16[:], nb.int32[:], nb.int32, nb.int32[:, :], nb.int32[:]),
     parallel=True,
     cache=False,
 )
@@ -2551,11 +2549,11 @@ def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, 
 @nb.njit(
     (
         nb.int64,
-        nb.int32[:],
+        nb.int16[:],
         nb.int8[:],
         nb.int8[:],
         nb.int8[:],
-        nb.int32[:],
+        nb.int16[:],
         nb.int64,
         nb.float64[:],
         nb.float64[:],
@@ -2660,7 +2658,7 @@ class RI_ABM:
         """Set RI timers and other properties from scratch."""
 
         # Calc date of RI (assume single point in time between 1st and 3rd dose)
-        self.people.add_scalar_property("ri_timer", dtype=np.int32, default=-1)
+        self.people.add_scalar_property("ri_timer", dtype=np.int16, default=-1)
         dob = self.people.date_of_birth[: self.people.count]
         days_from_birth_to_ri = np.random.uniform(42, 98, self.people.count)
         self.people.ri_timer[: self.people.count] = (dob + days_from_birth_to_ri).astype(np.int32)
