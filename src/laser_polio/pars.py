@@ -17,6 +17,7 @@ default_pars = PropertySet(
         # Population
         "n_ppl": [15000, 10000],  # Number of initial agents for each node
         "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",
+        "mortality_path": "data/mortality_Nigeria_2021.csv",
         "init_younger_than": 15,  # Initialize only agents younger than this age to save on memory
         "cbr": [37, 41],  # Crude birth rate per 1000 per year
         # Disease

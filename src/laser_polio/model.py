@@ -28,7 +28,6 @@ from laser_core.migration import row_normalizer
 from laser_core.propertyset import PropertySet
 from laser_core.random import seed as set_seed
 from laser_core.utils import calc_capacity
-from scipy.interpolate import interp1d
 from tqdm import tqdm
 
 import laser_polio as lp
@@ -234,37 +233,34 @@ class SEIR_ABM:
             if pars.init_younger_than is not None and pars.age_pyramid_path is not None:
                 init_age = pars.init_younger_than
                 pyramid = load_pyramid_csv(pars.age_pyramid_path)
-
-                # Parse age ranges to get maximum age of each bin
-                age_ranges = pyramid[:, 0]  # e.g., ["0-4", "5-9", "10-14", ...]
-                max_ages = []
-                for age_range in age_ranges:
-                    if age_range == "100+":
-                        max_ages.append(100)  # Use 100 as max for 100+
-                    else:
-                        max_age = int(age_range.split("-")[1])  # Extract max age from "0-4" -> 4
-                        max_ages.append(max_age)
-
+                pars.age_pyramid = pyramid
                 # Filter pyramid to only bins where max_age < init_age
-                under_mask = np.array(max_ages) < init_age
+                MAXCOL = 1
+                MCOL = 2
+                FCOL = 3
+                bin_max_age_yrs = pyramid[:, MAXCOL] + 1  # maximum age for bin (exclude this value)
+                under_mask = np.array(bin_max_age_yrs) <= init_age
                 pyramid_under = pyramid[under_mask]
-                frac_under = (pyramid_under[:, 1] + pyramid_under[:, 2]).sum() / (pyramid[:, 1:3].sum())
-                n_init_agents = np.round(np.array(pars.n_ppl) * frac_under).astype(int)
+                # Calculate the fraction of the population that is under the init_age threshold
+                frac_under = (pyramid_under[:, MCOL] + pyramid_under[:, FCOL]).sum() / (pyramid[:, MCOL : FCOL + 1].sum())
+                n_ppl_init = np.round(np.array(pars.n_ppl) * frac_under).astype(int)
             else:
                 # Initialize everyone
-                n_init_agents = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
-            pars.init_n_ppl = n_init_agents  # Store for use in other components
-            n_older_than_init_age = np.array(pars.n_ppl) - n_init_agents
+                n_ppl_init = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
+            pars.n_ppl_init = n_ppl_init  # Store for use in other components
+            n_older_than_init_age = np.array(pars.n_ppl) - n_ppl_init
             pars.unint_older_pop = n_older_than_init_age  # Count of people older than init_younger_than that are not being initialized, but will be added to the R compartment
 
-            # Initialize the laser frame with capacity based on cbr & init_n_ppl
+            # Initialize the laser frame with capacity based on cbr & n_ppl_init
+            pars.n_ppl = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
+            pars.n_ppl_init = np.atleast_1d(pars.n_ppl_init).astype(int)  # Ensure pars.n_ppl_init is an array
             if (pars.cbr is not None) & (len(pars.cbr) == 1):
-                capacity = int(1.1 * calc_capacity(np.sum(pars.init_n_ppl), self.nt, pars.cbr[0]))
+                capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl_init), self.nt, pars.cbr[0]))
             elif (pars.cbr is not None) & (len(pars.cbr) > 1):
-                capacity = int(1.1 * calc_capacity(np.sum(pars.init_n_ppl), self.nt, np.mean(pars.cbr)))
+                capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl_init), self.nt, np.mean(pars.cbr)))
             else:
-                capacity = int(np.sum(pars.init_n_ppl))
-            self.people = LaserFrame(capacity=capacity, initial_count=int(np.sum(pars.init_n_ppl)))
+                capacity = int(np.sum(pars.n_ppl_init))
+            self.people = LaserFrame(capacity=capacity, initial_count=int(np.sum(pars.n_ppl_init)))
 
             # Initialize disease_state, ipv_protected, paralyzed, and potentially_paralyzed here since they're required for most other components
             self.people.add_scalar_property("disease_state", dtype=np.int8, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
@@ -282,12 +278,14 @@ class SEIR_ABM:
             if hasattr(pars, "node_lookup") and pars.node_lookup is not None:
                 ordered_node_ids = list(pars.node_lookup.keys())
                 self.nodes = np.array(ordered_node_ids)
-                node_ids = np.concatenate([np.full(count, node_id) for node_id, count in zip(ordered_node_ids, pars.n_ppl, strict=False)])
-                self.people.node_id[0 : np.sum(pars.n_init_agents)] = node_ids
+                node_ids = np.concatenate(
+                    [np.full(count, node_id) for node_id, count in zip(ordered_node_ids, pars.n_ppl_init, strict=False)]
+                )
+                self.people.node_id[0 : np.sum(pars.n_ppl_init)] = node_ids
             else:
-                self.nodes = np.arange(len(np.atleast_1d(pars.n_init_agents)))
-                node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_init_agents)])
-                self.people.node_id[0 : np.sum(pars.n_init_agents)] = node_ids  # Assign node IDs to initial people
+                self.nodes = np.arange(len(np.atleast_1d(pars.n_ppl_init)))
+                node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_ppl_init)])
+                self.people.node_id[0 : np.sum(pars.n_ppl_init)] = node_ids  # Assign node IDs to initial people
 
             # Setup chronically missed population for vaccination: 0 = missed/inaccessible to vx, 1 = accessible for vaccination
             self.people.add_scalar_property("chronically_missed", dtype=np.uint8, default=0)
@@ -703,12 +701,12 @@ class DiseaseState_ABM:
             # Initialize immunity
             if isinstance(pars.init_immun, (float, list)):  # Handle float and list cases
                 init_immun_value = pars.init_immun[0] if isinstance(pars.init_immun, list) else pars.init_immun
-                num_recovered = int(sum(pars.init_n_ppl) * init_immun_value)
-                recovered_indices = np.random.choice(sum(pars.init_n_ppl), size=num_recovered, replace=False)
+                num_recovered = int(sum(pars.n_ppl_init) * init_immun_value)
+                recovered_indices = np.random.choice(sum(pars.n_ppl_init), size=num_recovered, replace=False)
                 sim.people.disease_state[recovered_indices] = 3
             elif isinstance(pars.init_immun, np.ndarray):
-                assert pars.init_immun.shape == pars.init_n_ppl.shape, "init_immun must match init_n_ppl shape"
-                for nid, (immun_frac, node_pop) in enumerate(zip(pars.init_immun, pars.init_n_ppl, strict=True)):
+                assert pars.init_immun.shape == pars.n_ppl_init.shape, "init_immun must match n_ppl_init shape"
+                for nid, (immun_frac, node_pop) in enumerate(zip(pars.init_immun, pars.n_ppl_init, strict=True)):
                     assert 0 <= immun_frac <= 1.0, f"Invalid immun_frac {immun_frac} for node {nid}. Must be between 0 and 1."
                     num_recovered = int(immun_frac * node_pop)
                     recovered_indices = np.random.choice(np.where(sim.people.node_id == nid)[0], size=num_recovered, replace=False)
@@ -927,16 +925,16 @@ class DiseaseState_ABM:
         infected_indices = []
         if isinstance(pars.init_prev, float):
             # Interpret as fraction of total population
-            num_infected = int(sum(pars.init_n_ppl) * pars.init_prev)
-            infected_indices = np.random.choice(sum(pars.init_n_ppl), size=num_infected, replace=False)
+            num_infected = int(sum(pars.n_ppl_init) * pars.init_prev)
+            infected_indices = np.random.choice(sum(pars.n_ppl_init), size=num_infected, replace=False)
         elif isinstance(pars.init_prev, int):
             # Interpret as absolute number
-            num_infected = min(pars.init_prev, sum(pars.init_n_ppl))  # Don't exceed population
-            infected_indices = np.random.choice(sum(pars.init_n_ppl), size=num_infected, replace=False)
+            num_infected = min(pars.init_prev, sum(pars.n_ppl_init))  # Don't exceed population
+            infected_indices = np.random.choice(sum(pars.n_ppl_init), size=num_infected, replace=False)
         elif isinstance(pars.init_prev, (list, np.ndarray)):
             # Ensure that the length of init_prev matches the number of nodes
-            if len(pars.init_prev) != len(pars.init_n_ppl):
-                raise ValueError(f"Length mismatch: init_prev has {len(pars.init_prev)} entries, expected {len(pars.init_n_ppl)} nodes.")
+            if len(pars.init_prev) != len(pars.n_ppl_init):
+                raise ValueError(f"Length mismatch: init_prev has {len(pars.init_prev)} entries, expected {len(pars.n_ppl_init)} nodes.")
             # Interpret as per-node infection seeding
             node_ids = self.people.node_id[: self.people.count]
             disease_states = self.people.disease_state[: self.people.count]
@@ -946,10 +944,10 @@ class DiseaseState_ABM:
                 if isinstance(prev, numbers.Real):
                     if 0 < prev < 1:
                         # interpret as a fraction
-                        num_infected = int(pars.init_n_ppl[node] * prev)
+                        num_infected = int(pars.n_ppl_init[node] * prev)
                     else:
                         # interpret as an integer count
-                        num_infected = min(int(prev), pars.init_n_ppl[node])
+                        num_infected = min(int(prev), pars.n_ppl_init[node])
                 else:
                     raise ValueError(f"Unsupported value in init_prev list at node {node}: {prev}")
 
@@ -1603,7 +1601,7 @@ class Transmission_ABM:
     def __init__(self, sim):
         self.sim = sim
         self.people = sim.people
-        self.nodes = np.arange(len(sim.pars.init_n_ppl))
+        self.nodes = np.arange(len(sim.pars.n_ppl_init))
         self.pars = sim.pars
         self.results = sim.results
         self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
@@ -1622,7 +1620,7 @@ class Transmission_ABM:
         instance = cls.__new__(cls)
         instance.sim = sim
         instance.people = sim.people
-        instance.nodes = np.arange(len(sim.pars.n_ppl))  # TODO: change to init_n_ppl???
+        instance.nodes = np.arange(len(sim.pars.n_ppl))  # TODO: change to n_ppl_init???
         instance.pars = sim.pars
         instance.results = sim.results
         instance.r0_scalars = instance.pars.r0_scalars
@@ -1665,7 +1663,7 @@ class Transmission_ABM:
         # Compute the infection migration network
         self.sim.results.add_vector_property("network", length=len(self.sim.nodes), dtype=np.float32)
         self.network = self.sim.results.network
-        init_pops = self.sim.pars.init_n_ppl
+        init_pops = self.sim.pars.n_ppl_init
         # Get the distance matrix
         logger.info("This network calc is a little slow too...")
         if self.sim.pars.distances is not None:
@@ -1989,7 +1987,7 @@ class VitalDynamics_ABM:
         self._common_init(sim)
         self._initialize_birth_results_if_needed()
         self._initialize_birth_rates()
-        cumulative_deaths = lp.create_cumulative_deaths(np.sum(self.pars.n_ppl), max_age_years=100)  # TODO: change to init_n_ppl???
+        cumulative_deaths = lp.create_cumulative_deaths(np.sum(self.pars.n_ppl), max_age_years=100)  # TODO: change to n_ppl_init???
         self.death_estimator = KaplanMeierEstimator(cumulative_deaths)
         return self
 
@@ -2040,7 +2038,7 @@ class VitalDynamics_ABM:
             self.results.add_array_property("deaths", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
             self.people.add_scalar_property("date_of_death", dtype=np.int32, default=0)
 
-            cumulative_deaths = lp.create_cumulative_deaths(np.sum(pars.n_ppl), max_age_years=100)  # TODO: change to init_n_ppl???
+            cumulative_deaths = lp.create_cumulative_deaths(np.sum(pars.n_ppl), max_age_years=100)  # TODO: change to n_ppl_init???
             self.death_estimator = KaplanMeierEstimator(cumulative_deaths)
 
             # Only compute lifespans if date_of_birth was initialized
@@ -2063,31 +2061,16 @@ class VitalDynamics_ABM:
                 life_expectancies[: len(mean_lifespans)] = mean_lifespans
                 pars.life_expectancies = life_expectancies
 
-            # --- (Optional) Account for deaths for older ages (≥15s) who were not instantiated ---
+            # --- Account for deaths for older ages (e.g., ≥15s) who were not instantiated ---
             if hasattr(self.pars, "unint_older_pop") and self.pars.unint_older_pop is not None:
                 uninit_older_pop = np.array(self.pars.unint_older_pop)
-                T = self.sim.nt
-                max_age_years = 100
-                n_nodes = len(self.nodes)
-
-                # Get cumulative deaths shape
-                cumulative_deaths_global = lp.create_cumulative_deaths(
-                    1_000_000, max_age_years
-                )  # Use a large population size to get a smooth curve
-                cdf = cumulative_deaths_global / cumulative_deaths_global[-1]
-                survival_prob = 1 - cdf  # shape: (max_age_years + 1,)
-
-                # Interpolate to simulation days
-                years = np.arange(max_age_years + 1) * 365
-                days = np.arange(T)
-                survival_curve = interp1d(years, survival_prob, kind="linear", bounds_error=False, fill_value=(1.0, 0.0))
-                survivors_fraction = survival_curve(days)  # (T,)
-
-                # Expand to nodes
-                survivors = uninit_older_pop[None, :] * survivors_fraction[:, None]  # (T, n_nodes)
-                deaths = np.zeros_like(survivors)
-                deaths[0, :] = uninit_older_pop - survivors[0, :]
-                deaths[1:, :] = survivors[:-1, :] - survivors[1:, :]
+                mortality_data = pd.read_csv(pars.mortality_path)
+                death_estimates = self._initialize_deaths_for_uninit_older_pop(
+                    mortality_data=mortality_data,
+                    age_population_data=self.pars.age_pyramid,
+                    simulation_days=self.sim.nt,
+                    min_age_filter=self.pars.init_younger_than,
+                )
 
                 self.results.deaths += deaths.astype(np.int32)
 
@@ -2115,6 +2098,219 @@ class VitalDynamics_ABM:
             self.results.add_array_property("deaths", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
 
         return
+
+    def _initialize_deaths_for_uninit_older_pop(
+        self,
+        mortality_data: pd.DataFrame,
+        age_population_data: pd.DataFrame,
+        simulation_days: int,
+        min_age_filter: int = 0,
+        include_aging: bool = True,
+    ) -> dict:
+        """
+        Estimate deaths by age group over simulation duration for agent-based model.
+
+        Parameters:
+        -----------
+        mortality_data : pd.DataFrame
+            DataFrame with columns: age_min, age_max, year, deaths_per_100k, daily_death_prob, age
+        age_population_data : pd.DataFrame
+            DataFrame with columns: Age, M, F (population counts by age group)
+        simulation_days : int
+            Total number of days to simulate
+        min_age_filter : int, default=0
+            Minimum age to include (0 = all ages, 15 = only 15+)
+        include_aging : bool, default=True
+            Whether to account for people aging between cohorts
+
+        Returns:
+        --------
+        dict : Dictionary containing:
+            - metadata: simulation parameters and summary info
+            - daily_deaths: deaths by day and age group
+            - cumulative_deaths: total deaths by age group
+            - summary: summary statistics by age group
+            - aging_transitions: (if include_aging=True) people moving between age groups
+        """
+
+        # Filter mortality data by minimum age
+        mortality_filtered = mortality_data[mortality_data["age_min"] >= min_age_filter].copy()
+
+        # Create lookup dictionaries
+        mortality_lookup = {}
+        for _, row in mortality_filtered.iterrows():
+            mortality_lookup[row["age"]] = {
+                "age_min": row["age_min"],
+                "age_max": row["age_max"],
+                "daily_prob": row["daily_death_prob"],
+                "annual_rate": row["deaths_per_100k"],
+            }
+
+        population_lookup = {}
+        columns = ["age_min", "age_max", "M", "F"]
+        age_population_df = pd.DataFrame(age_population_data, columns=columns)
+        age_population_df["age"] = age_population_df["age_min"].astype(str) + "-" + age_population_df["age_max"].astype(str)
+        age_filtered = age_population_df[age_population_df["age_min"] >= min_age_filter].copy()
+
+        for _, row in age_filtered.iterrows():
+            population_lookup[row["age"]] = {
+                "age_min": row["age_min"],
+                "age_max": row["age_max"],
+                "total": row.get("M", 0) + row.get("F", 0),
+            }
+
+        # Get common age groups and sort them
+        common_age_groups = list(set(mortality_lookup.keys()) & set(population_lookup.keys()))
+        common_age_groups.sort(key=lambda x: population_lookup[x]["age_min"])
+
+        if not common_age_groups:
+            raise ValueError("No matching age groups found between mortality and population data")
+
+        # Initialize results structure
+        results = {
+            "metadata": {
+                "simulation_days": simulation_days,
+                "age_groups": common_age_groups,
+                "total_initial_population": 0,
+                "min_age_filter": min_age_filter,
+                "include_aging": include_aging,
+            },
+            "daily_deaths": {},  # daily_deaths[day][age_group] = count
+            "cumulative_deaths": {},  # cumulative_deaths[age_group] = total_count
+            "summary": {},
+        }
+
+        # Add aging transitions tracking if aging is enabled
+        if include_aging:
+            results["aging_transitions"] = {}  # aging_transitions[day][from_age][to_age] = count
+
+        # Initialize daily deaths structure
+        for day in range(simulation_days):
+            results["daily_deaths"][day] = {}
+            if include_aging:
+                results["aging_transitions"][day] = {}
+
+        # Initialize cumulative deaths and current population tracking
+        current_population = {}  # Track current population in each age group
+        for age_group in common_age_groups:
+            results["cumulative_deaths"][age_group] = 0
+            current_population[age_group] = population_lookup[age_group]["total"]
+            results["metadata"]["total_initial_population"] += population_lookup[age_group]["total"]
+
+        # Create age group transition mapping for aging
+        age_transitions = {}
+        if include_aging:
+            for i, age_group in enumerate(common_age_groups[:-1]):  # Exclude last group (no aging out)
+                current_max = population_lookup[age_group]["age_max"]
+                next_group = common_age_groups[i + 1]
+                next_min = population_lookup[next_group]["age_min"]
+
+                # Check if this age group can transition to the next one
+                if current_max + 1 == next_min:
+                    age_transitions[age_group] = next_group
+
+        # Simulate each day
+        for day in range(simulation_days):
+            daily_aging_transitions = {}
+
+            # Step 1: Handle aging transitions (once per year on day anniversary)
+            if include_aging and day > 0 and day % 365 == 0:  # Annual aging
+                for from_age, to_age in age_transitions.items():
+                    if current_population[from_age] > 0:
+                        # Calculate age span to determine transition probability
+                        age_span = population_lookup[from_age]["age_max"] - population_lookup[from_age]["age_min"] + 1
+
+                        # Probability that someone ages out of this group in a given year
+                        # Assuming uniform distribution within age group
+                        aging_prob = 1.0 / age_span
+
+                        # Calculate number of people aging out
+                        aging_out = np.random.binomial(n=max(0, int(current_population[from_age])), p=min(1.0, aging_prob))
+
+                        if aging_out > 0:
+                            # Move people between age groups
+                            current_population[from_age] = max(0, current_population[from_age] - aging_out)
+                            current_population[to_age] += aging_out
+
+                            # Track the transition
+                            if from_age not in daily_aging_transitions:
+                                daily_aging_transitions[from_age] = {}
+                            daily_aging_transitions[from_age][to_age] = aging_out
+
+            # Step 2: Calculate deaths for each age group based on current population
+            for age_group in common_age_groups:
+                if current_population[age_group] > 0:
+                    mortality = mortality_lookup[age_group]
+
+                    # Binomial sampling for stochastic variation
+                    daily_deaths = np.random.binomial(n=max(0, int(current_population[age_group])), p=min(1.0, mortality["daily_prob"]))
+
+                    # Update population and deaths
+                    current_population[age_group] = max(0, current_population[age_group] - daily_deaths)
+                    results["daily_deaths"][day][age_group] = daily_deaths
+                    results["cumulative_deaths"][age_group] += daily_deaths
+                else:
+                    results["daily_deaths"][day][age_group] = 0
+
+            # Store aging transitions for this day
+            if include_aging:
+                results["aging_transitions"][day] = daily_aging_transitions
+
+        # Calculate summary statistics for each age group
+        for age_group in common_age_groups:
+            initial_pop = population_lookup[age_group]["total"]
+            deaths = results["cumulative_deaths"][age_group]
+
+            # Calculate net population changes due to aging
+            net_aging_in = 0
+            net_aging_out = 0
+
+            if include_aging:
+                for day_transitions in results["aging_transitions"].values():
+                    # People aging into this group
+                    for from_age, transitions in day_transitions.items():
+                        if age_group in transitions:
+                            net_aging_in += transitions[age_group]
+
+                    # People aging out of this group
+                    if age_group in day_transitions:
+                        for to_age, count in day_transitions[age_group].items():
+                            net_aging_out += count
+
+            results["summary"][age_group] = {
+                "initial_population": initial_pop,
+                "final_population": int(current_population[age_group]),
+                "deaths": deaths,
+                "mortality_rate_pct": round((deaths / initial_pop * 100), 4) if initial_pop > 0 else 0,
+                "daily_average": round(deaths / simulation_days, 2),
+                "expected_annual_deaths_per_100k": mortality_lookup[age_group]["annual_rate"],
+                "observed_annual_deaths_per_100k": (deaths / (initial_pop / 100000) / (simulation_days / 365.25)) if initial_pop > 0 else 0,
+            }
+
+            if include_aging:
+                results["summary"][age_group].update(
+                    {
+                        "net_aging_in": net_aging_in,
+                        "net_aging_out": net_aging_out,
+                        "net_population_change": initial_pop + net_aging_in - net_aging_out - deaths,
+                    }
+                )
+
+        # Calculate overall summary
+        total_initial_pop = results["metadata"]["total_initial_population"]
+        total_deaths = sum(results["cumulative_deaths"].values())
+        total_final_pop = sum(current_population.values())
+
+        results["summary"]["overall"] = {
+            "total_initial_population": total_initial_pop,
+            "total_final_population": int(total_final_pop),
+            "total_deaths": total_deaths,
+            "overall_mortality_rate_pct": round((total_deaths / total_initial_pop * 100), 4),
+            "deaths_per_day_average": round(total_deaths / simulation_days, 2),
+            "simulation_years": round(simulation_days / 365.25, 2),
+        }
+
+        return results
 
     def step(self):
         t = self.sim.t

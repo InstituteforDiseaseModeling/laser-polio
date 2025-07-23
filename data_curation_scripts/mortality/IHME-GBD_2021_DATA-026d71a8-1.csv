@@ -1,0 +1,21 @@
+measure,location,sex,age,cause,metric,year,val,upper,lower
+Deaths,Federal Republic of Nigeria,Both,<5 years,All causes,Rate,2021,2118.84440723971,2529.1791607002674,1789.6208654746456
+Deaths,Federal Republic of Nigeria,Both,5-9 years,All causes,Rate,2021,132.36643817624434,150.1543875086786,117.07235406626843
+Deaths,Federal Republic of Nigeria,Both,10-14 years,All causes,Rate,2021,77.90967242146205,94.30728185407403,67.8107675303025
+Deaths,Federal Republic of Nigeria,Both,15-19 years,All causes,Rate,2021,121.3232977637505,150.49831158959867,100.50440561729988
+Deaths,Federal Republic of Nigeria,Both,20-24 years,All causes,Rate,2021,155.13784433800728,200.16911559708439,122.79914617451736
+Deaths,Federal Republic of Nigeria,Both,25-29 years,All causes,Rate,2021,204.12981984808724,252.0473136765386,165.97050933767514
+Deaths,Federal Republic of Nigeria,Both,30-34 years,All causes,Rate,2021,283.94013017525066,333.97047728359007,241.35536277777163
+Deaths,Federal Republic of Nigeria,Both,35-39 years,All causes,Rate,2021,391.5114266529365,455.1300089708896,334.9557774523172
+Deaths,Federal Republic of Nigeria,Both,40-44 years,All causes,Rate,2021,540.8946821885663,634.0412488655041,468.5819893185467
+Deaths,Federal Republic of Nigeria,Both,45-49 years,All causes,Rate,2021,730.3571317948589,861.2076765784583,630.3635627193277
+Deaths,Federal Republic of Nigeria,Both,50-54 years,All causes,Rate,2021,1020.450433089379,1221.5253059471588,877.845418815823
+Deaths,Federal Republic of Nigeria,Both,55-59 years,All causes,Rate,2021,1471.9676433670459,1760.542752658955,1252.9684640487055
+Deaths,Federal Republic of Nigeria,Both,60-64 years,All causes,Rate,2021,2286.4240178784885,2706.122428958447,1964.8449832096821
+Deaths,Federal Republic of Nigeria,Both,65-69 years,All causes,Rate,2021,3529.5432322338743,4143.405425957912,3077.077252457781
+Deaths,Federal Republic of Nigeria,Both,70-74 years,All causes,Rate,2021,5485.055427315563,6338.457959833714,4904.586947293995
+Deaths,Federal Republic of Nigeria,Both,75-79 years,All causes,Rate,2021,8430.789423309716,9493.825175918446,7673.073209541981
+Deaths,Federal Republic of Nigeria,Both,80-84 years,All causes,Rate,2021,12915.577597129124,14217.000561025776,11970.745132128877
+Deaths,Federal Republic of Nigeria,Both,85-89 years,All causes,Rate,2021,20105.51675789568,21325.627511130362,18902.559423096973
+Deaths,Federal Republic of Nigeria,Both,90-94 years,All causes,Rate,2021,31154.813583386065,33049.06096051628,29240.05028595219
+Deaths,Federal Republic of Nigeria,Both,95+ years,All causes,Rate,2021,41259.58238692162,43334.06799750422,39304.78543065669
