@@ -2063,22 +2063,29 @@ class VitalDynamics_ABM:
 
             # --- Account for deaths for older ages (e.g., ≥15s) who were not instantiated ---
             if hasattr(self.pars, "unint_older_pop") and self.pars.unint_older_pop is not None:
-                uninit_older_pop = np.array(self.pars.unint_older_pop)
                 mortality_data = pd.read_csv(pars.mortality_path)
-                death_estimates = self._initialize_deaths_for_uninit_older_pop(
+                older_age_deaths, death_summary = self._initialize_deaths_for_uninit_older_pop(
                     mortality_data=mortality_data,
                     age_population_data=self.pars.age_pyramid,
                     simulation_days=self.sim.nt,
+                    node_populations=self.pars.unint_older_pop,
                     min_age_filter=self.pars.init_younger_than,
+                    include_aging=True,
                 )
 
-                self.results.deaths += deaths.astype(np.int32)
+                self.results.deaths += older_age_deaths.astype(np.int32)
 
                 if self.verbose >= 1:
-                    total_deaths = int(deaths.sum())
-                    print(
-                        f"[VitalDynamics_ABM] Added {total_deaths:,} virtual deaths for uninitialized ≥{self.pars.init_younger_than} agents."
-                    )
+                    # Access summary data
+                    print(f"Total deaths: {death_summary['summary']['overall']['total_deaths']}")
+                    print(f"Overall mortality rate: {death_summary['summary']['overall']['overall_mortality_rate_pct']}%")
+
+                    # Check specific age groups
+                    for age_group in death_summary["summary"]:
+                        if age_group != "overall":
+                            stats = death_summary["summary"][age_group]
+                            print(f"{age_group}: {stats['deaths']} deaths, {stats['mortality_rate_pct']}% mortality")
+
             # TODO: put these deaths into the R compartment
 
     def _initialize_birth_rates(self):
@@ -2104,33 +2111,34 @@ class VitalDynamics_ABM:
         mortality_data: pd.DataFrame,
         age_population_data: pd.DataFrame,
         simulation_days: int,
-        min_age_filter: int = 0,
+        node_populations: np.ndarray,
+        min_age_filter: int = 15,
         include_aging: bool = True,
-    ) -> dict:
+    ) -> tuple[np.ndarray, dict]:
         """
-        Estimate deaths by age group over simulation duration for agent-based model.
+        Estimate deaths by node and day for agent-based model using age-distributed populations.
 
         Parameters:
         -----------
         mortality_data : pd.DataFrame
             DataFrame with columns: age_min, age_max, year, deaths_per_100k, daily_death_prob, age
         age_population_data : pd.DataFrame
-            DataFrame with columns: Age, M, F (population counts by age group)
+            DataFrame with columns: age_min, age_max, M, F (population counts by age group)
         simulation_days : int
             Total number of days to simulate
-        min_age_filter : int, default=0
-            Minimum age to include (0 = all ages, 15 = only 15+)
+        node_populations : np.ndarray
+            Array of total >15 population for each node (e.g., self.pars.unint_older_pop)
+        min_age_filter : int, default=15
+            Minimum age to include (typically 15 for uninitialized older population)
         include_aging : bool, default=True
             Whether to account for people aging between cohorts
 
         Returns:
         --------
-        dict : Dictionary containing:
-            - metadata: simulation parameters and summary info
-            - daily_deaths: deaths by day and age group
-            - cumulative_deaths: total deaths by age group
-            - summary: summary statistics by age group
-            - aging_transitions: (if include_aging=True) people moving between age groups
+        Tuple[np.ndarray, dict] :
+            Tuple containing:
+            - deaths array of shape (simulation_days, len(node_populations)) with daily deaths for each node
+            - summary dictionary with detailed statistics by age group and overall
         """
 
         # Filter mortality data by minimum age
@@ -2146,171 +2154,203 @@ class VitalDynamics_ABM:
                 "annual_rate": row["deaths_per_100k"],
             }
 
-        population_lookup = {}
+        # Process age population data to get age distribution proportions
         columns = ["age_min", "age_max", "M", "F"]
         age_population_df = pd.DataFrame(age_population_data, columns=columns)
         age_population_df["age"] = age_population_df["age_min"].astype(str) + "-" + age_population_df["age_max"].astype(str)
         age_filtered = age_population_df[age_population_df["age_min"] >= min_age_filter].copy()
 
+        # Calculate age distribution proportions from pyramid data
+        age_proportions = {}
+        total_pyramid_pop = 0
+
         for _, row in age_filtered.iterrows():
-            population_lookup[row["age"]] = {
+            age_group = row["age"]
+            pop_count = row.get("M", 0) + row.get("F", 0)
+            age_proportions[age_group] = {
                 "age_min": row["age_min"],
                 "age_max": row["age_max"],
-                "total": row.get("M", 0) + row.get("F", 0),
+                "count": pop_count,
             }
+            total_pyramid_pop += pop_count
 
-        # Get common age groups and sort them
-        common_age_groups = list(set(mortality_lookup.keys()) & set(population_lookup.keys()))
-        common_age_groups.sort(key=lambda x: population_lookup[x]["age_min"])
+        # Normalize to get proportions
+        for age_group in age_proportions:
+            age_proportions[age_group]["proportion"] = age_proportions[age_group]["count"] / total_pyramid_pop
+
+        # Get common age groups (intersection of mortality and age pyramid data)
+        common_age_groups = list(set(mortality_lookup.keys()) & set(age_proportions.keys()))
+        common_age_groups.sort(key=lambda x: age_proportions[x]["age_min"])
 
         if not common_age_groups:
             raise ValueError("No matching age groups found between mortality and population data")
-
-        # Initialize results structure
-        results = {
-            "metadata": {
-                "simulation_days": simulation_days,
-                "age_groups": common_age_groups,
-                "total_initial_population": 0,
-                "min_age_filter": min_age_filter,
-                "include_aging": include_aging,
-            },
-            "daily_deaths": {},  # daily_deaths[day][age_group] = count
-            "cumulative_deaths": {},  # cumulative_deaths[age_group] = total_count
-            "summary": {},
-        }
-
-        # Add aging transitions tracking if aging is enabled
-        if include_aging:
-            results["aging_transitions"] = {}  # aging_transitions[day][from_age][to_age] = count
-
-        # Initialize daily deaths structure
-        for day in range(simulation_days):
-            results["daily_deaths"][day] = {}
-            if include_aging:
-                results["aging_transitions"][day] = {}
-
-        # Initialize cumulative deaths and current population tracking
-        current_population = {}  # Track current population in each age group
-        for age_group in common_age_groups:
-            results["cumulative_deaths"][age_group] = 0
-            current_population[age_group] = population_lookup[age_group]["total"]
-            results["metadata"]["total_initial_population"] += population_lookup[age_group]["total"]
 
         # Create age group transition mapping for aging
         age_transitions = {}
         if include_aging:
             for i, age_group in enumerate(common_age_groups[:-1]):  # Exclude last group (no aging out)
-                current_max = population_lookup[age_group]["age_max"]
+                current_max = age_proportions[age_group]["age_max"]
                 next_group = common_age_groups[i + 1]
-                next_min = population_lookup[next_group]["age_min"]
+                next_min = age_proportions[next_group]["age_min"]
 
                 # Check if this age group can transition to the next one
                 if current_max + 1 == next_min:
                     age_transitions[age_group] = next_group
 
-        # Simulate each day
-        for day in range(simulation_days):
-            daily_aging_transitions = {}
+        # Initialize output array and summary tracking
+        num_nodes = len(node_populations)
+        daily_deaths_by_node = np.zeros((simulation_days, num_nodes), dtype=int)
 
-            # Step 1: Handle aging transitions (once per year on day anniversary)
-            if include_aging and day > 0 and day % 365 == 0:  # Annual aging
-                for from_age, to_age in age_transitions.items():
-                    if current_population[from_age] > 0:
-                        # Calculate age span to determine transition probability
-                        age_span = population_lookup[from_age]["age_max"] - population_lookup[from_age]["age_min"] + 1
+        # Track cumulative stats across all nodes
+        total_initial_population = {}
+        total_final_population = {}
+        total_cumulative_deaths = {}
+        total_aging_in = {}
+        total_aging_out = {}
 
-                        # Probability that someone ages out of this group in a given year
-                        # Assuming uniform distribution within age group
-                        aging_prob = 1.0 / age_span
+        for age_group in common_age_groups:
+            total_initial_population[age_group] = 0
+            total_final_population[age_group] = 0
+            total_cumulative_deaths[age_group] = 0
+            total_aging_in[age_group] = 0
+            total_aging_out[age_group] = 0
 
-                        # Calculate number of people aging out
-                        aging_out = np.random.binomial(n=max(0, int(current_population[from_age])), p=min(1.0, aging_prob))
+        # Process each node
+        for node_idx, total_node_pop in enumerate(node_populations):
+            # Distribute node population across age groups using pyramid proportions
+            current_population = {}
+            initial_population = {}  # Track initial for summary
 
-                        if aging_out > 0:
-                            # Move people between age groups
-                            current_population[from_age] = max(0, current_population[from_age] - aging_out)
-                            current_population[to_age] += aging_out
-
-                            # Track the transition
-                            if from_age not in daily_aging_transitions:
-                                daily_aging_transitions[from_age] = {}
-                            daily_aging_transitions[from_age][to_age] = aging_out
-
-            # Step 2: Calculate deaths for each age group based on current population
             for age_group in common_age_groups:
-                if current_population[age_group] > 0:
-                    mortality = mortality_lookup[age_group]
+                age_pop = int(total_node_pop * age_proportions[age_group]["proportion"])
+                current_population[age_group] = age_pop
+                initial_population[age_group] = age_pop
 
-                    # Binomial sampling for stochastic variation
-                    daily_deaths = np.random.binomial(n=max(0, int(current_population[age_group])), p=min(1.0, mortality["daily_prob"]))
+                # Update summary totals
+                total_initial_population[age_group] += age_pop
 
-                    # Update population and deaths
-                    current_population[age_group] = max(0, current_population[age_group] - daily_deaths)
-                    results["daily_deaths"][day][age_group] = daily_deaths
-                    results["cumulative_deaths"][age_group] += daily_deaths
-                else:
-                    results["daily_deaths"][day][age_group] = 0
+            # Track aging transitions for this node if needed for summary
+            node_aging_in = dict.fromkeys(common_age_groups, 0)
+            node_aging_out = dict.fromkeys(common_age_groups, 0)
+            node_cumulative_deaths = dict.fromkeys(common_age_groups, 0)
 
-            # Store aging transitions for this day
-            if include_aging:
-                results["aging_transitions"][day] = daily_aging_transitions
+            # Simulate each day for this node
+            for day in range(simulation_days):
+                # Step 1: Handle aging transitions (once per year on day anniversary)
+                if include_aging and day > 0 and day % 365 == 0:  # Annual aging
+                    for from_age, to_age in age_transitions.items():
+                        if current_population[from_age] > 0:
+                            # Calculate age span to determine transition probability
+                            age_span = age_proportions[from_age]["age_max"] - age_proportions[from_age]["age_min"] + 1
+
+                            # Probability that someone ages out of this group in a given year
+                            # Assuming uniform distribution within age group
+                            aging_prob = 1.0 / age_span
+
+                            # Calculate number of people aging out
+                            aging_out = np.random.binomial(n=max(0, int(current_population[from_age])), p=min(1.0, aging_prob))
+
+                            if aging_out > 0:
+                                # Move people between age groups
+                                current_population[from_age] = max(0, current_population[from_age] - aging_out)
+                                current_population[to_age] += aging_out
+
+                                # Track aging transitions for summary
+                                node_aging_out[from_age] += aging_out
+                                node_aging_in[to_age] += aging_out
+
+                # Step 2: Calculate deaths for each age group based on current population
+                total_node_deaths = 0
+                for age_group in common_age_groups:
+                    if current_population[age_group] > 0:
+                        mortality = mortality_lookup[age_group]
+
+                        # Binomial sampling for stochastic variation
+                        daily_deaths = np.random.binomial(n=max(0, int(current_population[age_group])), p=min(1.0, mortality["daily_prob"]))
+
+                        # Update population and accumulate deaths
+                        current_population[age_group] = max(0, current_population[age_group] - daily_deaths)
+                        total_node_deaths += daily_deaths
+
+                        # Track cumulative deaths for summary
+                        node_cumulative_deaths[age_group] += daily_deaths
+
+                # Store total deaths for this node and day
+                daily_deaths_by_node[day, node_idx] = total_node_deaths
+
+            # Update summary totals for this node
+            for age_group in common_age_groups:
+                total_final_population[age_group] += current_population[age_group]
+                total_cumulative_deaths[age_group] += node_cumulative_deaths[age_group]
+                total_aging_in[age_group] += node_aging_in[age_group]
+                total_aging_out[age_group] += node_aging_out[age_group]
+
+        # Generate summary
+        summary = {
+            "metadata": {
+                "simulation_days": simulation_days,
+                "age_groups": common_age_groups,
+                "total_initial_population": sum(total_initial_population.values()),
+                "min_age_filter": min_age_filter,
+                "include_aging": include_aging,
+                "num_nodes": num_nodes,
+            },
+            "summary": {},
+        }
 
         # Calculate summary statistics for each age group
         for age_group in common_age_groups:
-            initial_pop = population_lookup[age_group]["total"]
-            deaths = results["cumulative_deaths"][age_group]
+            initial_pop = total_initial_population[age_group]
+            final_pop = total_final_population[age_group]
+            deaths = total_cumulative_deaths[age_group]
+            aging_in = total_aging_in[age_group]
+            aging_out = total_aging_out[age_group]
 
-            # Calculate net population changes due to aging
-            net_aging_in = 0
-            net_aging_out = 0
-
-            if include_aging:
-                for day_transitions in results["aging_transitions"].values():
-                    # People aging into this group
-                    for from_age, transitions in day_transitions.items():
-                        if age_group in transitions:
-                            net_aging_in += transitions[age_group]
-
-                    # People aging out of this group
-                    if age_group in day_transitions:
-                        for to_age, count in day_transitions[age_group].items():
-                            net_aging_out += count
-
-            results["summary"][age_group] = {
+            summary["summary"][age_group] = {
                 "initial_population": initial_pop,
-                "final_population": int(current_population[age_group]),
+                "final_population": int(final_pop),
                 "deaths": deaths,
                 "mortality_rate_pct": round((deaths / initial_pop * 100), 4) if initial_pop > 0 else 0,
-                "daily_average": round(deaths / simulation_days, 2),
+                "daily_average_deaths": round(deaths / simulation_days, 2),
                 "expected_annual_deaths_per_100k": mortality_lookup[age_group]["annual_rate"],
                 "observed_annual_deaths_per_100k": (deaths / (initial_pop / 100000) / (simulation_days / 365.25)) if initial_pop > 0 else 0,
             }
 
             if include_aging:
-                results["summary"][age_group].update(
+                summary["summary"][age_group].update(
                     {
-                        "net_aging_in": net_aging_in,
-                        "net_aging_out": net_aging_out,
-                        "net_population_change": initial_pop + net_aging_in - net_aging_out - deaths,
+                        "net_aging_in": aging_in,
+                        "net_aging_out": aging_out,
+                        "net_population_change": initial_pop + aging_in - aging_out - deaths,
                     }
                 )
 
         # Calculate overall summary
-        total_initial_pop = results["metadata"]["total_initial_population"]
-        total_deaths = sum(results["cumulative_deaths"].values())
-        total_final_pop = sum(current_population.values())
+        total_initial_pop = summary["metadata"]["total_initial_population"]
+        total_final_pop = sum(total_final_population.values())
+        total_deaths = sum(total_cumulative_deaths.values())
 
-        results["summary"]["overall"] = {
+        summary["summary"]["overall"] = {
             "total_initial_population": total_initial_pop,
             "total_final_population": int(total_final_pop),
             "total_deaths": total_deaths,
             "overall_mortality_rate_pct": round((total_deaths / total_initial_pop * 100), 4),
-            "deaths_per_day_average": round(total_deaths / simulation_days, 2),
+            "daily_average_deaths": round(total_deaths / simulation_days, 2),
             "simulation_years": round(simulation_days / 365.25, 2),
         }
 
-        return results
+        if include_aging:
+            total_aging_in_all = sum(total_aging_in.values())
+            total_aging_out_all = sum(total_aging_out.values())
+            summary["summary"]["overall"].update(
+                {
+                    "total_net_aging_in": total_aging_in_all,
+                    "total_net_aging_out": total_aging_out_all,
+                    "total_net_population_change": total_initial_pop + total_aging_in_all - total_aging_out_all - total_deaths,
+                }
+            )
+
+        return daily_deaths_by_node, summary
 
     def step(self):
         t = self.sim.t
