@@ -90,6 +90,9 @@ default_pars = PropertySet(
         "verbose": 1,  # 0 = silent, 1 = info, 2 = debug, 3 = validate with special logging features
         # Stopping rules
         "stop_if_no_cases": True,  # Stop if no E, I, or seed_schedules remain
+        # Memory monitoring
+        "monitor_memory": False,  # Whether to monitor memory usage
+        "memory_monitor_interval": 0.5,  # Interval in seconds for memory monitoring
     }
 )
 

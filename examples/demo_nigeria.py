@@ -23,6 +23,7 @@ seed_schedule = [
     {"date": "2018-02-06", "dot_name": "AFRO:NIGERIA:JIGAWA:BIRINIWA", "prevalence": 200},  # day 1
     {"date": "2020-11-24", "dot_name": "AFRO:NIGERIA:ZAMFARA:SHINKAFI", "prevalence": 200},  # day 2
 ]
+monitor_memory = False
 
 
 ######### END OF USER PARS ########

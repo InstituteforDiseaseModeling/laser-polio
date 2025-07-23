@@ -1,11 +1,13 @@
 import logging
 import numbers
 import os
+import time
 import warnings
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
+from threading import Thread
 from typing import ClassVar
 
 import matplotlib.colors as mcolors
@@ -13,6 +15,7 @@ import matplotlib.pyplot as plt
 import numba as nb
 import numpy as np
 import pandas as pd
+import psutil
 import pytz
 import scipy.stats as stats
 import sciris as sc
@@ -183,6 +186,8 @@ class SEIR_ABM:
     """
 
     def common_init(self, pars, verbose):
+        # Initialize memory & timing monitors
+        self.memory_monitor = MemoryMonitor()
         self.perf_stats = TimingStats()
         with self.perf_stats.start(self.__class__.__name__ + ".__init__()"):
             # Load default parameters and optionally override with user-specified ones
@@ -192,6 +197,13 @@ class SEIR_ABM:
             pars = self.pars
 
             self.verbose = pars["verbose"] if "verbose" in pars else 1
+
+            # Start memory monitoring if requested
+            if pars.monitor_memory:
+                monitor_interval = getattr(pars, "memory_monitor_interval", 0.5)
+                self.memory_monitor.start_monitoring(interval=monitor_interval)
+                if self.verbose >= 1:
+                    sc.printgreen(f"Started memory monitoring with {monitor_interval}s interval")
 
             # Set the random seed
             if pars.seed is None:
@@ -403,7 +415,18 @@ class SEIR_ABM:
 
                 bar()  # Update the progress bar
 
-        # logger.info("Simulation complete.") # cyan
+        # Stop memory monitoring
+        if hasattr(self, "memory_monitor"):
+            self.memory_monitor.stop_monitoring()
+        if self.pars.monitor_memory:
+            stats = self.memory_monitor.get_memory_stats()
+            if stats:
+                sc.printcyan("=== Memory Usage Summary ===")
+                print(f"Peak memory usage: {stats['peak_mb']:.1f} MB")
+                print(f"Average memory usage: {stats['avg_mb']:.1f} MB")
+                print(f"Current memory usage: {stats['current_mb']:.1f} MB")
+                print(f"Total samples collected: {stats['total_samples']}")  # logger.info("Simulation complete.") # cyan
+
         if self.verbose >= 1:
             sc.printcyan("Simulation complete.")
 
@@ -431,6 +454,10 @@ class SEIR_ABM:
             # logger.info("Saving plots in " + str(results_path)) # cyan?
             if self.verbose >= 1:
                 sc.printcyan("Saving plots in " + str(results_path))
+
+        # Plot memory usage if monitoring was enabled
+        if hasattr(self, "memory_monitor") and self.memory_monitor.memory_usage:
+            self.memory_monitor.plot_memory_usage(save=save, results_path=results_path)
 
         for component in self.instances:
             component.plot(save=save, results_path=results_path)
@@ -744,7 +771,7 @@ class DiseaseState_ABM:
                 # viz()
 
                 # --- Initialize immunity for older agents ---
-                if hasattr(self.pars, "unint_older_pop") and self.pars.unint_older_pop is not None:
+                if self.pars.init_younger_than < 100 and self.pars.unint_older_pop is not None:
                     # Initialize the recovered population for uninitialized older agents
                     # This is done by estimate the older population per nodethat wasn't initialized (e.g., ≥15s) in SEIR_ABM.
                     # That number should get added to all the R compartments.
@@ -1069,8 +1096,8 @@ class DiseaseState_ABM:
             total_pyramid_pop += pop_count
 
         # Normalize to get proportions
-        for age_group in age_proportions:
-            age_proportions[age_group]["proportion"] = age_proportions[age_group]["count"] / total_pyramid_pop
+        for age_group, props in age_proportions.items():
+            props["proportion"] = props["count"] / total_pyramid_pop
 
         # Get common age groups (intersection of mortality and age pyramid data)
         common_age_groups = list(set(mortality_lookup.keys()) & set(age_proportions.keys()))
@@ -2938,4 +2965,102 @@ class SIA_ABM:
         if save:
             plt.savefig(results_path / "cum_sia_vx.png")
         if not save:
+            plt.show()
+
+
+class MemoryMonitor:
+    def __init__(self):
+        self.memory_usage = []
+        self.timestamps = []
+        self.monitoring = False
+        self.process = psutil.Process()
+
+    def start_monitoring(self, interval=1.0):
+        """Start monitoring memory usage every `interval` seconds"""
+        self.monitoring = True
+        self.monitor_thread = Thread(target=self._monitor_loop, args=(interval,))
+        self.monitor_thread.daemon = True
+        self.monitor_thread.start()
+
+    def _monitor_loop(self, interval):
+        start_time = time.time()
+
+        while self.monitoring:
+            try:
+                memory_mb = self.process.memory_info().rss / 1024 / 1024
+                self.memory_usage.append(memory_mb)
+                self.timestamps.append(time.time() - start_time)
+                time.sleep(interval)
+            except psutil.NoSuchProcess:
+                break
+
+    def stop_monitoring(self):
+        self.monitoring = False
+        if hasattr(self, "monitor_thread"):
+            self.monitor_thread.join(timeout=1.0)
+
+    def get_current_memory(self):
+        """Get current memory usage in MB"""
+        try:
+            return self.process.memory_info().rss / 1024 / 1024
+        except psutil.NoSuchProcess:
+            return 0
+
+    def get_peak_memory(self):
+        return max(self.memory_usage) if self.memory_usage else 0
+
+    def get_memory_stats(self):
+        if not self.memory_usage:
+            return {}
+        return {
+            "current_mb": self.get_current_memory(),
+            "peak_mb": max(self.memory_usage),
+            "min_mb": min(self.memory_usage),
+            "avg_mb": sum(self.memory_usage) / len(self.memory_usage),
+            "total_samples": len(self.memory_usage),
+        }
+
+    def plot_memory_usage(self, save=False, results_path=None):
+        if not self.memory_usage:
+            print("No memory data to plot")
+            return
+
+        plt.figure(figsize=(12, 6))
+        plt.plot(self.timestamps, self.memory_usage, "b-", linewidth=1.5, alpha=0.8)
+        plt.xlabel("Time (seconds)")
+        plt.ylabel("Memory Usage (MB)")
+        plt.title("Memory Usage During Simulation")
+        plt.grid(True, alpha=0.3)
+
+        # Add peak memory annotation
+        if self.memory_usage:
+            peak_idx = self.memory_usage.index(max(self.memory_usage))
+            plt.annotate(
+                f"Peak: {max(self.memory_usage):.1f} MB",
+                xy=(self.timestamps[peak_idx], self.memory_usage[peak_idx]),
+                xytext=(10, 10),
+                textcoords="offset points",
+                bbox=dict(boxstyle="round,pad=0.5", fc="yellow", alpha=0.7),
+                arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0"),
+            )
+
+        # Add memory statistics text box
+        stats = self.get_memory_stats()
+        if stats:
+            stats_text = f"Peak: {stats['peak_mb']:.1f} MB\nAvg: {stats['avg_mb']:.1f} MB\nMin: {stats['min_mb']:.1f} MB"
+            plt.text(
+                0.02,
+                0.98,
+                stats_text,
+                transform=plt.gca().transAxes,
+                verticalalignment="top",
+                bbox=dict(boxstyle="round", facecolor="lightblue", alpha=0.8),
+            )
+
+        plt.tight_layout()
+
+        if save and results_path:
+            plt.savefig(results_path / "memory_usage.png", dpi=300, bbox_inches="tight")
+            plt.close()
+        else:
             plt.show()

@@ -22,6 +22,7 @@ seed_schedule = [
     {"date": "2018-01-02", "dot_name": "AFRO:NIGERIA:ZAMFARA:BAKURA", "prevalence": 200},  # day 1
     {"date": "2018-11-07", "dot_name": "AFRO:NIGERIA:ZAMFARA:GUMMI", "prevalence": 200},  # day 2
 ]
+init_younger_than = 15
 save_plots = True
 save_data = True
 plot_pars = True
@@ -30,6 +31,7 @@ seed = 1
 results_path = "results/demo_zamfara"
 save_init_pop = False
 init_pop_file = None
+monitor_memory = True
 
 
 ######### END OF USER PARS ########
@@ -59,6 +61,8 @@ sim = lp.run_sim(
     seed_schedule=seed_schedule,
     missed_frac=missed_frac,
     use_pim_scalars=True,
+    init_younger_than=init_younger_than,
+    monitor_memory=monitor_memory,
 )
 
 sc.printcyan("Done.")
