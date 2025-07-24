@@ -17,6 +17,8 @@ default_pars = PropertySet(
         # Population
         "n_ppl": [15000, 10000],  # Number of initial agents for each node
         "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",
+        "mortality_path": "data/mortality_Nigeria_2021.csv",
+        "init_younger_than": 15,  # Initialize only agents younger than this age to save on memory
         "cbr": [37, 41],  # Crude birth rate per 1000 per year
         # Disease
         "strain_ids": {"VDPV2": 0, "Sabin2": 1, "nOPV2": 2},
@@ -88,6 +90,9 @@ default_pars = PropertySet(
         "verbose": 1,  # 0 = silent, 1 = info, 2 = debug, 3 = validate with special logging features
         # Stopping rules
         "stop_if_no_cases": True,  # Stop if no E, I, or seed_schedules remain
+        # Memory monitoring
+        "monitor_memory": False,  # Whether to monitor memory usage
+        "memory_monitor_interval": 0.5,  # Interval in seconds for memory monitoring
     }
 )
 
