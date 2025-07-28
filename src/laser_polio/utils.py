@@ -6,6 +6,7 @@ import json
 import os
 from collections import defaultdict
 from datetime import timedelta
+from sys import stdout
 from time import perf_counter_ns
 from zoneinfo import ZoneInfo  # Python 3.9+
 
@@ -626,6 +627,8 @@ class TimingStats:
     - .log(logger) formats and prints out timing data nicely.
     """
 
+    ROOT = "overall"
+
     def __init__(self):
         """
         Initializes an instance of the class.
@@ -635,7 +638,9 @@ class TimingStats:
         """
 
         self.stats = defaultdict(int)
-        self.depth = 0
+        self.stats[(self.ROOT, None)] += 0
+        self.stack = [self.ROOT]
+        self.t_init = perf_counter_ns()
 
         return
 
@@ -701,10 +706,9 @@ class TimingStats:
             given label and timing session.
         """
 
-        key = (" " * (4 * self.depth)) + label
-        self.depth += 1
-        sw = TimingStats.Stopwatch(key, self)
-        self.stats[key] += 0
+        self.stats[(label, self.stack[-1])] += 0
+        self.stack.append(label)
+        sw = self.Stopwatch(label, self)
 
         return sw
 
@@ -719,8 +723,55 @@ class TimingStats:
             None
         """
 
-        self.stats[key] += elapsed
-        self.depth -= 1
+        self.stack.pop()
+        self.stats[(key, self.stack[-1])] += elapsed
+
+        return
+
+    def freeze(self):
+        self.t_freeze = perf_counter_ns()
+        self.stats[(self.ROOT, None)] = self.t_freeze - self.t_init
+        return
+
+    def _output(self, fn):
+        maximum = 0
+
+        def measure(node, prefix, stats):
+            name, _ = node
+            for (n, p), _ in stats.items():
+                if p == name:
+                    measure((n, p), prefix + "/" + name, stats)
+            nonlocal maximum
+            maximum = max(maximum, len(prefix + "/" + name))
+
+        measure((self.ROOT, None), "", self.stats)
+        fmt = f"{{label:<{maximum}}} : {{value:11,}} µsecs"
+
+        def visit(node, prefix, stats):
+            name, _ = node
+            for (n, p), _ in stats.items():
+                if p == name:
+                    visit((n, p), prefix + "/" + name, stats)
+            duration = stats[node]
+            fn(fmt.format(label=prefix + "/" + name, value=round(duration / 1000)))
+
+        visit((self.ROOT, None), "", self.stats)
+
+        return
+
+    def print(self, dst=stdout):
+        """
+        Prints the elapsed time statistics stored in the `self.stats` dictionary.
+        Each entry in `self.stats` is formatted and printed to the console.
+        The elapsed time is converted from nanoseconds to microseconds and rounded
+        before being printed.
+        Args:
+            None
+        Returns:
+            None
+        """
+
+        self._output(lambda msg: print(msg, file=dst))
 
         return
 
@@ -737,11 +788,7 @@ class TimingStats:
             None
         """
 
-        width = max(map(len, self.stats.keys()))
-        fmt = f"{{label:<{width}}} : {{value:11,}} µsecs"
-
-        for label, elapsed in self.stats.items():
-            logger.info(fmt.format(label=label, value=round(elapsed / 1000)))
+        self._output(logger.info)
 
         return
 
