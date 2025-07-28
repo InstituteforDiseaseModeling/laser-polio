@@ -237,9 +237,9 @@ class SEIR_ABM:
                 total_pop = np.sum(pars.init_pop)
             # Calculate capacity aka the total number of people expected over the course of the simulation
             if (pars.cbr is not None) & (len(pars.cbr) == 1):
-                capacity = int(1.1 * calc_capacity(total_pop, self.nt, pars.cbr[0]))
+                capacity = int(1.1 * calc_capacity(pars.init_pop.sum(), self.nt, pars.cbr[0]))
             elif (pars.cbr is not None) & (len(pars.cbr) > 1):
-                capacity = int(1.1 * calc_capacity(total_pop, self.nt, np.mean(pars.cbr)))
+                capacity = int(1.1 * calc_capacity(pars.init_pop.sum(), self.nt, np.mean(pars.cbr)))
             else:
                 capacity = int(total_pop)
             # Initialize the LaserFrame
