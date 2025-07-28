@@ -364,7 +364,6 @@ def load_age_pyramid(pyramid_path=None, verbose=False) -> pd.DataFrame:
         - age_min (int): lower age bound in years
         - age_max (int): upper age bound in years
         - pop (int): total people in that age group (M + F)
-        - pop_frac (float): proportion of population in this age group
     """
     if verbose:
         print(f"Reading population pyramid data from '{pyramid_path}' ...")
@@ -384,7 +383,7 @@ def load_age_pyramid(pyramid_path=None, verbose=False) -> pd.DataFrame:
 
     # Tokenize and convert
     parsed = []
-    for i, line in enumerate(text):
+    for _i, line in enumerate(text):
         age_part, male, female = line.split(",")
         if "+" in age_part:
             age_min = int(age_part.replace("+", ""))
