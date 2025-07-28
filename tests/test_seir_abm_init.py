@@ -36,8 +36,8 @@ def test_capacity():
 def test_nodes():
     """Check that each individual has a valid node_id."""
     sim, pars = setup_sim()
-    unique_nodes = np.unique(sim.people.node_id)
     node_ids = sim.people.node_id[: sim.people.count]
+    unique_nodes = np.unique(node_ids)
 
     assert set(unique_nodes).issubset(set(range(len(sim.pars.init_pop)))), "Node IDs are not valid."
     assert len(unique_nodes) == len(sim.pars.init_pop), "Length of nodes not equal to number of entries in init_pop."
