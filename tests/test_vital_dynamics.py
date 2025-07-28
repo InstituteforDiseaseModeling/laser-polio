@@ -11,7 +11,7 @@ def setup_sim(step_size=1):
         {
             "start_date": lp.date("2020-01-01"),  # Start date of the simulation
             "dur": 30,  # Number of dur to run the simulation
-            "n_ppl": np.array([10000, 5000]),  # Two nodes with populations
+            "init_pop": np.array([10000, 5000]),  # Two nodes with populations
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
             "step_size_VitalDynamics_ABM": step_size,
@@ -79,7 +79,7 @@ def test_deaths_occur_step_size_1():
     observed_deaths = observed_deaths[1:]  # Remove day 0 since it's combined with day 1
     assert np.array_equal(expected_deaths, observed_deaths), "Deaths did not occur on the expected days"
 
-    unique_values, counts = np.unique(sim.people.disease_state[: np.sum(sim.pars.n_ppl)], return_counts=True)
+    unique_values, counts = np.unique(sim.people.disease_state[: np.sum(sim.pars.init_pop)], return_counts=True)
     assert counts[0] == np.sum(sim.results.deaths), "Total number of dead agents does not match deaths logged"
 
 
@@ -108,7 +108,7 @@ def test_deaths_occur_step_size_7():
     observed_deaths_binned = np.bincount(death_bins, weights=observed_deaths)[: len(bin_edges) - 1]  # Aggregate deaths per bin
     assert np.array_equal(expected_deaths_binned, observed_deaths_binned), "Deaths did not occur on the expected days"
 
-    unique_values, counts = np.unique(sim.people.disease_state[: np.sum(sim.pars.n_ppl)], return_counts=True)
+    unique_values, counts = np.unique(sim.people.disease_state[: np.sum(sim.pars.init_pop)], return_counts=True)
     assert counts[0] == np.sum(sim.results.deaths), "Total number of dead agents does not match deaths logged"
 
 
@@ -117,10 +117,10 @@ def test_age_progression():
     """Ensure age increases over time correctly."""
     sim = setup_sim()
     initial_ages = (
-        sim.t - sim.people.date_of_birth[: np.sum(sim.pars.n_ppl)]
+        sim.t - sim.people.date_of_birth[: np.sum(sim.pars.init_pop)]
     )  # Only focus on active individuals. Unborn agents don't age until born
     sim.run()
-    end_ages = sim.t - sim.people.date_of_birth[: np.sum(sim.pars.n_ppl)]
+    end_ages = sim.t - sim.people.date_of_birth[: np.sum(sim.pars.init_pop)]
     assert np.all(end_ages == initial_ages + sim.pars.dur + 1)
 
 
@@ -131,7 +131,7 @@ def test_zero_birth_rate():
         {
             "start_date": lp.date("2020-01-01"),  # Start date of the simulation
             "dur": 30,  # Number of dur to run the simulation
-            "n_ppl": np.array([1000, 500]),  # Two nodes with populations
+            "init_pop": np.array([1000, 500]),  # Two nodes with populations
             "cbr": np.array([0, 0]),  # Birth rate per 1000/year
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
             "step_size_VitalDynamics_ABM": 1,

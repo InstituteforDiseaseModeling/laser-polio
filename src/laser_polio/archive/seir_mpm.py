@@ -15,7 +15,7 @@ class CompartmentalSEIR:
 
     def __init__(self, pars):
         self.pars = pars
-        self.nodes = np.arange(len(pars.n_ppl))
+        self.nodes = np.arange(len(pars.init_pop))
         self.t = 0
         self.dates = sc.daterange(self.pars["start_date"], days=self.pars.dur)
 
@@ -27,14 +27,14 @@ class CompartmentalSEIR:
         self.results.add_array_property("R", shape=(pars.dur, len(self.nodes)), dtype=np.float32)
 
         # Initialize populations
-        self.results.S[0, :] = pars.n_ppl
+        self.results.S[0, :] = pars.init_pop
         self.results.E[0, :] = 0
         self.results.I[0, :] = 0
         self.results.R[0, :] = 0
 
         # Seed initial infections
         for node, prev in enumerate(pars.init_prev):
-            self.results.I[0, node] = pars.n_ppl[node] * prev
+            self.results.I[0, node] = pars.init_pop[node] * prev
             self.results.S[0, node] -= self.results.I[0, node]
 
         # Components
@@ -184,7 +184,7 @@ if __name__ == "__main__":
             "start_date": sc.date("2025-01-01"),  # Start date of the simulation
             "dur": 180,  # Number of timesteps
             # Population
-            "n_ppl": np.array([30000, 10000, 15000, 20000, 25000]),
+            "init_pop": np.array([30000, 10000, 15000, 20000, 25000]),
             # Disease
             "init_prev": np.array([0, 0.01, 0, 0, 0]),  # Initial prevalence per node (1% infected)
             "beta_global": 0.3,  # Global infection rate

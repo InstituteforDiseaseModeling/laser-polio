@@ -10,8 +10,8 @@ from laser_core.propertyset import PropertySet
 import laser_polio as lp
 
 
-def make_sim(n_ppl=100e3, n_nodes=1, dur=365):
-    pop = n_ppl / n_nodes * np.ones(n_nodes)
+def make_sim(init_pop=100e3, n_nodes=1, dur=365):
+    pop = init_pop / n_nodes * np.ones(n_nodes)
     dist_matrix = np.ones((n_nodes, n_nodes))
     init_prev = np.zeros(n_nodes) + 0.01
     r0_scalars = np.ones(n_nodes)
@@ -25,7 +25,7 @@ def make_sim(n_ppl=100e3, n_nodes=1, dur=365):
             "start_date": sc.date("2025-01-01"),  # Start date of the simulation
             "dur": dur,  # Number of timesteps
             # Population
-            "n_ppl": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
+            "init_pop": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
             "distances": dist_matrix,  # Distance in km
             # Disease
             "init_prev": init_prev,  # Initial prevalence per node (1% infected)
@@ -65,33 +65,33 @@ if __name__ == "__main__":
     # T = sc.timer()
     # cpr = sc.cprofile()
     # cpr.start()
-    # n_ppl = 1e3
+    # init_pop = 1e3
     # n_nodes = 5
     # dur = 365
-    # make_sim(n_ppl=n_ppl, n_nodes=n_nodes, dur=dur)
+    # make_sim(init_pop=init_pop, n_nodes=n_nodes, dur=dur)
     # cpr.stop()
     # df=cpr.to_df()
-    # filename = f'scripts/profiling/Profile for SEIR with pop{int(n_ppl/1000)}k {n_nodes} nodes and dur of {dur} with speedups.csv'
+    # filename = f'scripts/profiling/Profile for SEIR with pop{int(init_pop/1000)}k {n_nodes} nodes and dur of {dur} with speedups.csv'
     # df.to_csv(filename, index=False)
 
     # Track sim run times
     n_ppl_values = [1e5, 1e6, 1e7]
     n_nodes_values = [1, 10, 100]
     results = []
-    for n_ppl in n_ppl_values:
+    for init_pop in n_ppl_values:
         for n_nodes in n_nodes_values:
             start_time = time.time()
-            make_sim(n_ppl=n_ppl, n_nodes=n_nodes)
+            make_sim(init_pop=init_pop, n_nodes=n_nodes)
             end_time = time.time()
             elapsed_time = end_time - start_time
-            results.append({"n_ppl": n_ppl, "n_nodes": n_nodes, "time": elapsed_time})
-            print(f"n_ppl: {n_ppl}, n_nodes: {n_nodes}, time: {elapsed_time}")
+            results.append({"init_pop": init_pop, "n_nodes": n_nodes, "time": elapsed_time})
+            print(f"init_pop: {init_pop}, n_nodes: {n_nodes}, time: {elapsed_time}")
     results_df = pd.DataFrame(results)
     print(results_df)
     results_df.to_csv("data/simulation_times.csv", index=False)
 
     # # Version from 2025-02-04
-    # results = dict(n_ppl=[1e5, 1e5, 1e5, 1e6, 1e6, 1e6, 1e7, 1e7,],
+    # results = dict(init_pop=[1e5, 1e5, 1e5, 1e6, 1e6, 1e6, 1e7, 1e7,],
     #                n_nodes=[1, 10, 100, 1, 10, 100, 1, 10, ],
     #                time=[18.6, 142.3, 1105, 107, 1185, 13395, 928, 9916, ])
     # results['time'] = [t / 60 for t in results['time']]  # Convert time to minutes
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     # results_df.to_csv("data/simulation_times_20250204.csv", index=False)
 
     # # Version from 2025-02-06
-    # results = dict(n_ppl=[1e5, 1e5, 1e5, 1e6, 1e6, 1e6, 1e7, 1e7, 1e7],
+    # results = dict(init_pop=[1e5, 1e5, 1e5, 1e6, 1e6, 1e6, 1e7, 1e7, 1e7],
     #                n_nodes=[1, 10, 100, 1, 10, 100, 1, 10, 100],
     #                time=[2.4, 3.8, 12.3, 16.8, 37.9, 233.0, 142.7, 363.0, 2935.0])
     # results['time'] = [t / 60 for t in results['time']]  # Convert time to minutes
@@ -110,9 +110,9 @@ if __name__ == "__main__":
 
     # Plot the results
     plt.figure(figsize=(10, 6))
-    sns.lineplot(data=results_df, x="n_ppl", y="time", hue="n_nodes", marker="o", palette="bright")
+    sns.lineplot(data=results_df, x="init_pop", y="time", hue="n_nodes", marker="o", palette="bright")
     plt.xscale("log")
-    plt.xlabel("Number of people (n_ppl)")
+    plt.xlabel("Number of people (init_pop)")
     plt.ylabel("Time (minutes)")
     plt.title("Model run times as of 2024-02-06")
     plt.legend(title="n_nodes")

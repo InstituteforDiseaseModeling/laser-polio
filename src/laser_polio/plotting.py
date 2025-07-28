@@ -28,8 +28,8 @@ def plot_pars(pars, shp, results_path):
     plot_path = results_path / "pars_plots"
     Path(plot_path).mkdir(parents=True, exist_ok=True)
 
-    # Maps: n_ppl, cbr, init_prev, r0_scalars
-    pars_to_map = ["n_ppl", "cbr", "init_prev", "r0_scalars", "vx_prob_sia", "vx_prob_ri", "vx_prob_ipv"]
+    # Maps: init_pop, cbr, init_prev, r0_scalars
+    pars_to_map = ["init_pop", "cbr", "init_prev", "r0_scalars", "vx_prob_sia", "vx_prob_ri", "vx_prob_ipv"]
     for par in pars_to_map:
         if par is not None:
             try:

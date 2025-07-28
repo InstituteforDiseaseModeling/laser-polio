@@ -4,6 +4,7 @@ import datetime
 import datetime as dt
 import json
 import os
+import re
 from collections import defaultdict
 from datetime import timedelta
 from time import perf_counter_ns
@@ -34,6 +35,7 @@ __all__ = [
     "get_seasonality",
     "get_tot_pop_and_cbr",
     "inv_logit",
+    "load_age_pyramid",
     "make_background_seeding_schedule",
     "pbincount",
     "print_memory",
@@ -352,6 +354,50 @@ def get_tot_pop_and_cbr(file_path, regions=None, isos=None, year=None):
 
 def inv_logit(x):
     return 1 / (1 + np.exp(-x))
+
+
+def load_age_pyramid(pyramid_path=None, verbose=False) -> pd.DataFrame:
+    """
+    Load pyramid CSV and return a DataFrame suitable for merging with immunity and node pop data.
+
+    Output Columns:
+        - age_min (int): lower age bound in years
+        - age_max (int): upper age bound in years
+        - pop (int): total people in that age group (M + F)
+        - pop_frac (float): proportion of population in this age group
+    """
+    if verbose:
+        print(f"Reading population pyramid data from '{pyramid_path}' ...")
+    with open(pyramid_path) as f:
+        lines = [line.strip() for line in f.readlines()]
+
+    # Validate header
+    if lines[0] != "Age,M,F":
+        raise ValueError("Expected header line 'Age,M,F'")
+
+    # Parse lines
+    text = lines[1:]  # Skip header
+    if not all(re.match(r"\d+-\d+,\d+,\d+", line) for line in text[:-1]):
+        raise ValueError("Non-final lines must be in 'low-high,m,f' format")
+    if not re.match(r"\d+\+,\d+,\d+", text[-1]):
+        raise ValueError("Final line must be in 'max+,m,f' format")
+
+    # Tokenize and convert
+    parsed = []
+    for i, line in enumerate(text):
+        age_part, male, female = line.split(",")
+        if "+" in age_part:
+            age_min = int(age_part.replace("+", ""))
+            age_max = age_min  # one-year bin
+        else:
+            age_min, age_max = map(int, age_part.split("-"))
+        age_max += 1  # Make age_max inclusive
+        pop = int(male) + int(female)
+        parsed.append([age_min, age_max, pop])
+
+    df = pd.DataFrame(parsed, columns=["age_min", "age_max", "pop"])
+    df["pop_frac"] = df["pop"] / df["pop"].sum()
+    return df
 
 
 def make_background_seeding_schedule(

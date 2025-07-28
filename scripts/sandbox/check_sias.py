@@ -50,7 +50,7 @@ sim = lp.run_sim(
 
 # Check the SIA schedule
 sia_schedule = sim.pars["sia_schedule"]
-pop = sim.pars["n_ppl"]
+pop = sim.pars["init_pop"]
 for _i, instance in enumerate(sia_schedule):
     date = instance["date"]
     vx = instance["vaccinetype"]

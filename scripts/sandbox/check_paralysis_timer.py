@@ -7,7 +7,7 @@ pars = PropertySet(
     {
         "start_date": lp.date("2020-01-01"),
         "dur": 1,
-        "n_ppl": np.array([1000, 500]),  # Two nodes with populations
+        "init_pop": np.array([1000, 500]),  # Two nodes with populations
         "cbr": np.array([30, 25]),  # Birth rate per 1000/year
         "r0_scalars": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
         "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/

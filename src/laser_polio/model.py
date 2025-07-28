@@ -227,14 +227,22 @@ class SEIR_ABM:
             self.common_init(pars, verbose)
             pars = self.pars
 
-            pars.n_ppl = np.atleast_1d(pars.n_ppl).astype(int)  # Ensure pars.n_ppl is an array
-            if (pars.cbr is not None) & (len(pars.cbr) == 1):
-                capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, pars.cbr[0]))
-            elif (pars.cbr is not None) & (len(pars.cbr) > 1):
-                capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), self.nt, np.mean(pars.cbr)))
+            # Initialize the LaserFrame based on the initial population & capacity
+            pars.init_pop = np.atleast_1d(pars.init_pop).astype(int)  # Ensure pars.init_pop is an array
+            if pars.init_sus_by_age is not None:
+                # If init_sus_by_age is provided, we'll only allocate the laserframe for the susceptible population (saves on memory)
+                total_sus = pars.init_sus_by_age["n_susceptible"].sum().astype(int)
+                capacity = int(1.1 * calc_capacity(total_sus, self.nt, np.mean(pars.cbr)))
             else:
-                capacity = int(np.sum(pars.n_ppl))
-            self.people = LaserFrame(capacity=capacity, initial_count=int(np.sum(pars.n_ppl)))
+                capacity = int(np.sum(pars.init_pop))
+
+            if (pars.cbr is not None) & (len(pars.cbr) == 1):
+                capacity = int(1.1 * calc_capacity(np.sum(pars.init_pop), self.nt, pars.cbr[0]))
+            elif (pars.cbr is not None) & (len(pars.cbr) > 1):
+                capacity = int(1.1 * calc_capacity(np.sum(pars.init_pop), self.nt, np.mean(pars.cbr)))
+            else:
+                capacity = int(np.sum(pars.init_pop))
+            self.people = LaserFrame(capacity=capacity, initial_count=int(np.sum(pars.init_pop)))
 
             # Initialize disease_state, ipv_protected, paralyzed, and potentially_paralyzed here since they're required for most other components
             self.people.add_scalar_property("disease_state", dtype=np.int8, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
@@ -252,12 +260,14 @@ class SEIR_ABM:
             if hasattr(pars, "node_lookup") and pars.node_lookup is not None:
                 ordered_node_ids = list(pars.node_lookup.keys())
                 self.nodes = np.array(ordered_node_ids)
-                node_ids = np.concatenate([np.full(count, node_id) for node_id, count in zip(ordered_node_ids, pars.n_ppl, strict=False)])
-                self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids
+                node_ids = np.concatenate(
+                    [np.full(count, node_id) for node_id, count in zip(ordered_node_ids, pars.init_pop, strict=False)]
+                )
+                self.people.node_id[0 : np.sum(pars.init_pop)] = node_ids
             else:
-                self.nodes = np.arange(len(np.atleast_1d(pars.n_ppl)))
-                node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.n_ppl)])
-                self.people.node_id[0 : np.sum(pars.n_ppl)] = node_ids  # Assign node IDs to initial people
+                self.nodes = np.arange(len(np.atleast_1d(pars.init_pop)))
+                node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pars.init_pop)])
+                self.people.node_id[0 : np.sum(pars.init_pop)] = node_ids  # Assign node IDs to initial people
 
             # Setup chronically missed population for vaccination: 0 = missed/inaccessible to vx, 1 = accessible for vaccination
             self.people.add_scalar_property("chronically_missed", dtype=np.uint8, default=0)
@@ -280,9 +290,9 @@ class SEIR_ABM:
         num_timesteps = pars.dur + 1
         # 1.1 below is 'fudge factor' to give a bit of breathing room for stochasticity
         if (pars.cbr is not None) & (len(pars.cbr) == 1):
-            capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), num_timesteps, pars.cbr[0]))
+            capacity = int(1.1 * calc_capacity(np.sum(pars.init_pop), num_timesteps, pars.cbr[0]))
         elif (pars.cbr is not None) & (len(pars.cbr) > 1):
-            capacity = int(1.1 * calc_capacity(np.sum(pars.n_ppl), num_timesteps, np.mean(pars.cbr)))
+            capacity = int(1.1 * calc_capacity(np.sum(pars.init_pop), num_timesteps, np.mean(pars.cbr)))
         model.people = people
         model._capacity = capacity
 
@@ -648,7 +658,7 @@ class DiseaseState_ABM:
         self.results.add_array_property("new_potentially_paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("new_paralyzed", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
         self.results.add_array_property("pop", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
-        self.results.pop[0] = self.sim.pars.n_ppl
+        self.results.pop[0] = self.sim.pars.init_pop
 
     def __init__(self, sim):
         self._common_init(sim)
@@ -673,12 +683,12 @@ class DiseaseState_ABM:
             # Initialize immunity
             if isinstance(pars.init_immun, (float, list)):  # Handle float and list cases
                 init_immun_value = pars.init_immun[0] if isinstance(pars.init_immun, list) else pars.init_immun
-                num_recovered = int(sum(pars.n_ppl) * init_immun_value)
-                recovered_indices = np.random.choice(sum(pars.n_ppl), size=num_recovered, replace=False)
+                num_recovered = int(sum(pars.init_pop) * init_immun_value)
+                recovered_indices = np.random.choice(sum(pars.init_pop), size=num_recovered, replace=False)
                 sim.people.disease_state[recovered_indices] = 3
             elif isinstance(pars.init_immun, np.ndarray):
-                assert pars.init_immun.shape == pars.n_ppl.shape, "init_immun must match n_ppl shape"
-                for nid, (immun_frac, node_pop) in enumerate(zip(pars.init_immun, pars.n_ppl, strict=True)):
+                assert pars.init_immun.shape == pars.init_pop.shape, "init_immun must match init_pop shape"
+                for nid, (immun_frac, node_pop) in enumerate(zip(pars.init_immun, pars.init_pop, strict=True)):
                     assert 0 <= immun_frac <= 1.0, f"Invalid immun_frac {immun_frac} for node {nid}. Must be between 0 and 1."
                     num_recovered = int(immun_frac * node_pop)
                     recovered_indices = np.random.choice(np.where(sim.people.node_id == nid)[0], size=num_recovered, replace=False)
@@ -903,16 +913,16 @@ class DiseaseState_ABM:
         infected_indices = []
         if isinstance(pars.init_prev, float):
             # Interpret as fraction of total population
-            num_infected = int(sum(pars.n_ppl) * pars.init_prev)
-            infected_indices = np.random.choice(sum(pars.n_ppl), size=num_infected, replace=False)
+            num_infected = int(sum(pars.init_pop) * pars.init_prev)
+            infected_indices = np.random.choice(sum(pars.init_pop), size=num_infected, replace=False)
         elif isinstance(pars.init_prev, int):
             # Interpret as absolute number
-            num_infected = min(pars.init_prev, sum(pars.n_ppl))  # Don't exceed population
-            infected_indices = np.random.choice(sum(pars.n_ppl), size=num_infected, replace=False)
+            num_infected = min(pars.init_prev, sum(pars.init_pop))  # Don't exceed population
+            infected_indices = np.random.choice(sum(pars.init_pop), size=num_infected, replace=False)
         elif isinstance(pars.init_prev, (list, np.ndarray)):
             # Ensure that the length of init_prev matches the number of nodes
-            if len(pars.init_prev) != len(pars.n_ppl):
-                raise ValueError(f"Length mismatch: init_prev has {len(pars.init_prev)} entries, expected {len(pars.n_ppl)} nodes.")
+            if len(pars.init_prev) != len(pars.init_pop):
+                raise ValueError(f"Length mismatch: init_prev has {len(pars.init_prev)} entries, expected {len(pars.init_pop)} nodes.")
             # Interpret as per-node infection seeding
             node_ids = self.people.node_id[: self.people.count]
             disease_states = self.people.disease_state[: self.people.count]
@@ -922,10 +932,10 @@ class DiseaseState_ABM:
                 if isinstance(prev, numbers.Real):
                     if 0 < prev < 1:
                         # interpret as a fraction
-                        num_infected = int(pars.n_ppl[node] * prev)
+                        num_infected = int(pars.init_pop[node] * prev)
                     else:
                         # interpret as an integer count
-                        num_infected = min(int(prev), pars.n_ppl[node])
+                        num_infected = min(int(prev), pars.init_pop[node])
                 else:
                     raise ValueError(f"Unsupported value in init_prev list at node {node}: {prev}")
 
@@ -1238,7 +1248,7 @@ class DiseaseState_ABM:
         lons = [self.pars.node_lookup[i]["lon"] for i in self.nodes]
         # Scale population for plotting (adjust scale_factor as needed)
         scale_factor = 5  # tweak this number to look good visually
-        sizes = np.array(self.pars.n_ppl)
+        sizes = np.array(self.pars.init_pop)
         sizes = np.log1p(sizes) * scale_factor
         # Get global min and max for consistent color scale
         infection_min = np.min(self.results.I)
@@ -1579,7 +1589,7 @@ class Transmission_ABM:
     def __init__(self, sim):
         self.sim = sim
         self.people = sim.people
-        self.nodes = np.arange(len(sim.pars.n_ppl))
+        self.nodes = np.arange(len(sim.pars.init_pop))
         self.pars = sim.pars
         self.results = sim.results
         self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
@@ -1598,7 +1608,7 @@ class Transmission_ABM:
         instance = cls.__new__(cls)
         instance.sim = sim
         instance.people = sim.people
-        instance.nodes = np.arange(len(sim.pars.n_ppl))
+        instance.nodes = np.arange(len(sim.pars.init_pop))
         instance.pars = sim.pars
         instance.results = sim.results
         instance.r0_scalars = instance.pars.r0_scalars
@@ -1641,7 +1651,7 @@ class Transmission_ABM:
         # Compute the infection migration network
         self.sim.results.add_vector_property("network", length=len(self.sim.nodes), dtype=np.float32)
         self.network = self.sim.results.network
-        init_pops = self.sim.pars.n_ppl
+        init_pops = self.sim.pars.init_pop
         # Get the distance matrix
         logger.info("This network calc is a little slow too...")
         if self.sim.pars.distances is not None:
@@ -1965,7 +1975,7 @@ class VitalDynamics_ABM:
         self._common_init(sim)
         self._initialize_birth_results_if_needed()
         self._initialize_birth_rates()
-        cumulative_deaths = lp.create_cumulative_deaths(np.sum(self.pars.n_ppl), max_age_years=100)
+        cumulative_deaths = lp.create_cumulative_deaths(np.sum(self.pars.init_pop), max_age_years=100)
         self.death_estimator = KaplanMeierEstimator(cumulative_deaths)
         return self
 
@@ -2016,7 +2026,7 @@ class VitalDynamics_ABM:
             self.results.add_array_property("deaths", shape=(self.sim.nt, len(self.nodes)), dtype=np.int32)
             self.people.add_scalar_property("date_of_death", dtype=np.int32, default=0)
 
-            cumulative_deaths = lp.create_cumulative_deaths(np.sum(pars.n_ppl), max_age_years=100)
+            cumulative_deaths = lp.create_cumulative_deaths(np.sum(pars.init_pop), max_age_years=100)
             self.death_estimator = KaplanMeierEstimator(cumulative_deaths)
 
             # Only compute lifespans if date_of_birth was initialized

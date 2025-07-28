@@ -5,9 +5,9 @@ import laser_polio as lp
 
 
 # Fixture to set up the simulation environment
-def setup_sim(dur=30, n_ppl=None, vx_prob_ri=0.5, vx_prob_ipv=0.75, cbr=None, r0=14, new_pars=None, seed=123):
-    if n_ppl is None:
-        n_ppl = np.array([50000, 50000])
+def setup_sim(dur=30, init_pop=None, vx_prob_ri=0.5, vx_prob_ipv=0.75, cbr=None, r0=14, new_pars=None, seed=123):
+    if init_pop is None:
+        init_pop = np.array([50000, 50000])
     if cbr is None:
         cbr = np.array([30, 25])
     strain_r0_scalars_zero = {0: 1.0, 1: 0.0, 2: 0.0}
@@ -15,7 +15,7 @@ def setup_sim(dur=30, n_ppl=None, vx_prob_ri=0.5, vx_prob_ipv=0.75, cbr=None, r0
     pars = PropertySet(
         {
             "dur": dur,
-            "n_ppl": n_ppl,
+            "init_pop": init_pop,
             "cbr": cbr,  # Birth rate per 1000/year
             "init_immun": 0.0,  # initially immune
             "init_prev": 0.0,  # initially infected from any age
@@ -92,8 +92,8 @@ def test_ri_zero():
 
 def test_ri_vx_prob(n_reps=10):
     """Ensure that the RI vaccination probability is respected in the absence of births."""
-    n_ppl = np.array([50, 50])
-    total_agents = np.sum(n_ppl)
+    init_pop = np.array([50, 50])
+    total_agents = np.sum(init_pop)
     dur = 28
     vx_prob_ri = 0.65
     vx_prob_ipv = 0.85
@@ -101,7 +101,7 @@ def test_ri_vx_prob(n_reps=10):
     vx_ipv_counts = []
     e_counts = []
     for _ in range(n_reps):
-        sim = setup_sim(n_ppl=n_ppl, dur=dur, vx_prob_ri=vx_prob_ri, vx_prob_ipv=vx_prob_ipv, cbr=np.array([0, 0]), seed=_)
+        sim = setup_sim(init_pop=init_pop, dur=dur, vx_prob_ri=vx_prob_ri, vx_prob_ipv=vx_prob_ipv, cbr=np.array([0, 0]), seed=_)
         sim.people.ri_timer[:total_agents] = np.random.randint(0, dur, total_agents)
         sim.run()
         vx_counts.append(np.sum(sim.results.ri_vaccinated))
@@ -137,10 +137,10 @@ def test_ri_vx_prob(n_reps=10):
 
 def test_ri_no_effect_on_non_susceptibles():
     """Ensure RI does not affect infected or recovered individuals."""
-    n_ppl = np.array([10, 10])
+    init_pop = np.array([10, 10])
     r0 = 0
     vx_prob_ri = 1.0
-    sim = setup_sim(n_ppl=n_ppl, r0=r0, vx_prob_ri=vx_prob_ri)
+    sim = setup_sim(init_pop=init_pop, r0=r0, vx_prob_ri=vx_prob_ri)
     sim.people.ri_timer[:20] = 0
     sim.people.disease_state[:5] = 1  # Exposed
     sim.people.disease_state[5:10] = 2  # Infected
@@ -209,7 +209,7 @@ def test_chronically_missed():
     # Check missed group
     missed = sim.people.chronically_missed[: sim.people.count]
     n_missed = np.sum(missed)
-    assert np.isclose(n_missed, sim.pars.n_ppl.sum() * 0.2, atol=100), "No missed individuals were created."
+    assert np.isclose(n_missed, sim.pars.init_pop.sum() * 0.2, atol=100), "No missed individuals were created."
 
     # Assert none of the missed were exposed
     eir = np.isin(sim.people.disease_state[: sim.people.count], [1, 2, 3])

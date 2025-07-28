@@ -7,21 +7,21 @@ from laser_core.propertyset import PropertySet
 import laser_polio as lp
 
 
-def setup_strain_sim(dur=30, n_ppl=None, init_prev=None, vx_prob_sia=None, sia_schedule=None, r0=14, seed=123):
+def setup_strain_sim(dur=30, init_pop=None, init_prev=None, vx_prob_sia=None, sia_schedule=None, r0=14, seed=123):
     """
     Setup simulation for strain transmission testing.
 
     Args:
         dur: Duration in days
-        n_ppl: Population per node
+        init_pop: Population per node
         init_prev: Initial prevalence per node (if None, defaults to zero)
         vx_prob_sia: SIA vaccination probability per node (if None, no SIA)
         sia_schedule: SIA schedule (if None, no SIA)
         r0: Basic reproduction number
         seed: Random seed
     """
-    if n_ppl is None:
-        n_ppl = np.array([10000, 10000])
+    if init_pop is None:
+        init_pop = np.array([10000, 10000])
     if init_prev is None:
         init_prev = np.array([0.0, 0.0])
 
@@ -30,7 +30,7 @@ def setup_strain_sim(dur=30, n_ppl=None, init_prev=None, vx_prob_sia=None, sia_s
             "seed": seed,
             "start_date": lp.date("2019-01-01"),
             "dur": dur,
-            "n_ppl": n_ppl,
+            "init_pop": init_pop,
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",
             "init_immun": np.array([0.0, 0.0]),  # No initial immunity to see transmission clearly
@@ -69,7 +69,7 @@ def test_strain_arrays_exist():
     expected_strains = len(sim.pars.strain_ids)  # Should be 3: VDPV2, Sabin2, nOPV2
 
     assert n_time == sim.pars.dur + 1, f"Time dimension should be {sim.pars.dur + 1}, got {n_time}"
-    assert n_nodes == len(sim.pars.n_ppl), f"Node dimension should be {len(sim.pars.n_ppl)}, got {n_nodes}"
+    assert n_nodes == len(sim.pars.init_pop), f"Node dimension should be {len(sim.pars.init_pop)}, got {n_nodes}"
     assert n_strains == expected_strains, f"Strain dimension should be {expected_strains}, got {n_strains}"
 
     # Check that E_by_strain and I_by_strain have same shape
@@ -326,7 +326,7 @@ def test_realistic_strain_transmission_sokoto():
 
     # Verify simulation setup
     assert sim.results.E.shape[0] == 365 * 2 + 1, f"Duration should be {365 * 2 + 1} days, got {sim.pars.dur}"
-    assert len(sim.pars.n_ppl) > 20, f"SOKOTO should have many nodes, got {len(sim.pars.n_ppl)}"
+    assert len(sim.pars.init_pop) > 20, f"SOKOTO should have many nodes, got {len(sim.pars.init_pop)}"
 
     # Get strain indices
     vdpv2_idx = sim.pars.strain_ids["VDPV2"]  # Should be 0

@@ -18,7 +18,7 @@ def setup_sim():
         {
             "start_date": lp.date("2020-01-01"),
             "dur": 30,
-            "n_ppl": np.array([1000, 500]),  # Two nodes with populations
+            "init_pop": np.array([1000, 500]),  # Two nodes with populations
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
             "r0_scalars": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
@@ -49,7 +49,7 @@ def test_disease_state_initialization():
 def test_initial_population_counts():
     """Ensure the correct fraction of individuals start in each state."""
     sim = setup_sim()
-    total_pop = np.sum(sim.pars.n_ppl)
+    total_pop = np.sum(sim.pars.init_pop)
     exp_rec = int(sim.pars.init_immun * total_pop)  # Note that some of the recovered can become infected during intitialization
     exp_inf = int(sim.pars.init_prev * total_pop)
     exp_exp = 0
@@ -69,7 +69,7 @@ def test_progression_without_transmission():
     pars = {
         "start_date": lp.date("2020-01-01"),
         "dur": 1,
-        "n_ppl": np.array([1000, 500]),  # Two nodes with populations
+        "init_pop": np.array([1000, 500]),  # Two nodes with populations
         "cbr": np.array([30, 25]),  # Birth rate per 1000/year
         "r0_scalars": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
         "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
@@ -89,26 +89,26 @@ def test_progression_without_transmission():
     sim_2days.components = [lp.DiseaseState_ABM]
 
     # Test the initalized counts
-    n_ppl = pars["n_ppl"].sum()
-    assert np.all(sim_1day.people.exposure_timer[:n_ppl] == dur_exp), "The exposure timers should equal dur_exp after initialization"
-    assert np.all(sim_1day.people.infection_timer[:n_ppl] == dur_inf), "The infection timers should equal dur_inf after initialization"
+    init_pop = pars["init_pop"].sum()
+    assert np.all(sim_1day.people.exposure_timer[:init_pop] == dur_exp), "The exposure timers should equal dur_exp after initialization"
+    assert np.all(sim_1day.people.infection_timer[:init_pop] == dur_inf), "The infection timers should equal dur_inf after initialization"
 
     # Test a sim with one day
-    sim_1day.people.disease_state[:n_ppl] = 1  # Set all to Exposed
+    sim_1day.people.disease_state[:init_pop] = 1  # Set all to Exposed
     sim_1day.run()  # Run for one day
     # Remember that results are not tallied in the DiseaseState_ABM component (results are tallied in Transmission_ABM) so we have to sum them up manually
     assert np.sum(sim_1day.people.disease_state == 0) == 0  # No one should be Susceptible
     assert np.sum(sim_1day.people.disease_state == 1) == 0  # No one should be Exposed
-    assert np.sum(sim_1day.people.disease_state == 2) == n_ppl  # Everyone should be Infected
+    assert np.sum(sim_1day.people.disease_state == 2) == init_pop  # Everyone should be Infected
     assert np.sum(sim_1day.people.disease_state == 3) == 0  # No one should be Recovered
 
     # Test a sim with two days
-    sim_2days.people.disease_state[:n_ppl] = 1  # Set all to Exposed
+    sim_2days.people.disease_state[:init_pop] = 1  # Set all to Exposed
     sim_2days.run()  # Run for two days
     assert np.sum(sim_2days.people.disease_state == 0) == 0  # No one should be Susceptible
     assert np.sum(sim_2days.people.disease_state == 1) == 0  # No one should be Exposed
     assert np.sum(sim_2days.people.disease_state == 2) == 0  # No one should be Infected
-    assert np.sum(sim_2days.people.disease_state == 3) == n_ppl  # Everyone should be Recovered
+    assert np.sum(sim_2days.people.disease_state == 3) == init_pop  # Everyone should be Recovered
 
 
 # Test Disease Progression with transmission
@@ -118,7 +118,7 @@ def test_progression_with_transmission():
         {
             "start_date": lp.date("2020-01-01"),
             "dur": 6,
-            "n_ppl": np.array([100, 50]),  # Two nodes with populations
+            "init_pop": np.array([100, 50]),  # Two nodes with populations
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
             "r0_scalars": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
@@ -150,12 +150,12 @@ def test_progression_with_transmission():
     n_e_init = np.sum(disease_state == 1)
     n_i_init = np.sum(disease_state == 2)
     n_r_init = np.sum(disease_state == 3)
-    assert np.isclose(n_s_init, sim.pars.n_ppl.sum() * (1 - sim.pars.init_immun) * (1 - sim.pars.init_prev), atol=10), (
+    assert np.isclose(n_s_init, sim.pars.init_pop.sum() * (1 - sim.pars.init_immun) * (1 - sim.pars.init_prev), atol=10), (
         "Roughly 18% of the pop should be S"
     )
     assert n_e_init == 0, "There should be no E during initialization"
-    assert np.isclose(n_i_init, sim.pars.n_ppl.sum() * (sim.pars.init_prev), atol=5), "Roughly 10% of the population should be infected"
-    assert np.isclose(n_r_init, sim.pars.n_ppl.sum() * (sim.pars.init_immun) * (1 - sim.pars.init_prev), atol=5), (
+    assert np.isclose(n_i_init, sim.pars.init_pop.sum() * (sim.pars.init_prev), atol=5), "Roughly 10% of the population should be infected"
+    assert np.isclose(n_r_init, sim.pars.init_pop.sum() * (sim.pars.init_immun) * (1 - sim.pars.init_prev), atol=5), (
         "Roughly 72% of the pop should be R (since infections can override immunity in initialization)"
     )
 
@@ -252,7 +252,7 @@ def test_disease_timers_with_trans_explicit():
         {
             "start_date": lp.date("2018-01-01"),
             "dur": 30,
-            "n_ppl": np.array([1, 1]),  # Two nodes with populations
+            "init_pop": np.array([1, 1]),  # Two nodes with populations
             "cbr": np.array([0, 0]),  # Birth rate per 1000/year
             "r0_scalars": np.array([1.0, 1.0]),  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
@@ -341,7 +341,7 @@ def test_paralysis_probability():
         {
             "start_date": lp.date("2020-01-01"),
             "dur": 100,
-            "n_ppl": np.array([50000, 50000]),  # Two nodes
+            "init_pop": np.array([50000, 50000]),  # Two nodes
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
             "r0_scalars": np.array([0.5, 2.0]),  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
@@ -355,9 +355,9 @@ def test_paralysis_probability():
     )
     sim = lp.SEIR_ABM(pars)
     sim.components = [lp.DiseaseState_ABM]
-    sim.people.disease_state[: sim.pars.n_ppl.sum()] = 1  # Set all to Exposed
+    sim.people.disease_state[: sim.pars.init_pop.sum()] = 1  # Set all to Exposed
     sim.run()
-    exp_paralysis = int(pars.p_paralysis * pars.n_ppl.sum())
+    exp_paralysis = int(pars.p_paralysis * pars.init_pop.sum())
     assert 0 < np.sum(sim.people.paralyzed == 1) <= exp_paralysis * 2  # Added some leeway for randomness
 
 
@@ -372,7 +372,7 @@ def test_run_sim():
     assert hasattr(sim, "run"), "The simulation should have a run method"
     assert hasattr(sim, "plot"), "The simulation should have a plot method"
     assert sim.results.S.shape[0] == sim.pars.dur + 1, "The results should have the same number of timesteps as the duration"
-    assert sim.results.S.shape[1] == len(sim.pars.n_ppl), "The results should have the same number of nodes as the population"
+    assert sim.results.S.shape[1] == len(sim.pars.init_pop), "The results should have the same number of nodes as the population"
     assert sim.results.I[0, 0] > 0  # Check that the initial infected count is greater than 0
 
 
@@ -484,7 +484,7 @@ def test_paralysis_progression_manual():
         {
             "start_date": lp.date("2020-01-01"),
             "dur": 3,
-            "n_ppl": np.array([4, 4]),
+            "init_pop": np.array([4, 4]),
             "cbr": np.array([0]),  # Birth rate per 1000/year
             "r0_scalars": np.array([0.0]),  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
@@ -528,7 +528,7 @@ def test_paralysis_fraction_sans_ipv():
         {
             "start_date": lp.date("2020-01-01"),
             "dur": 60,
-            "n_ppl": np.array([500000, 500000]),
+            "init_pop": np.array([500000, 500000]),
             "cbr": np.array([0]),  # Birth rate per 1000/year
             "r0_scalars": np.array([1.0]),  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
@@ -552,8 +552,8 @@ def test_paralysis_fraction_sans_ipv():
     sum_new_paralyzed = np.sum(sim.results.new_paralyzed)
     assert sum_new_potential == potential_paralyzed, "Potential paralyzed should be the sum of new potentially paralyzed"
     assert sum_new_paralyzed == paralyzed, "Paralyzed should be the sum of new paralyzed"
-    assert np.isclose(potential_paralyzed / sim.pars.n_ppl.sum(), 1.0, atol=0.05), "Should have 100% potentially paralyzed"
-    assert np.isclose(paralyzed / sim.pars.n_ppl.sum(), 0.0005, atol=0.001), "Should have 1/2000 paralyzed"
+    assert np.isclose(potential_paralyzed / sim.pars.init_pop.sum(), 1.0, atol=0.05), "Should have 100% potentially paralyzed"
+    assert np.isclose(paralyzed / sim.pars.init_pop.sum(), 0.0005, atol=0.001), "Should have 1/2000 paralyzed"
 
 
 def test_paralysis_fraction_with_manual_ipv():
@@ -561,7 +561,7 @@ def test_paralysis_fraction_with_manual_ipv():
         {
             "start_date": lp.date("2020-01-01"),
             "dur": 60,
-            "n_ppl": np.array([500000, 500000]),
+            "init_pop": np.array([500000, 500000]),
             "cbr": np.array([0]),  # Birth rate per 1000/year
             "r0_scalars": np.array([1.0]),  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/

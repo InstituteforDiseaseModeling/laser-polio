@@ -24,8 +24,8 @@ results_path = "results/check_outbreak_size"
 n_reps = 1
 # r0_values = np.linspace(1, 2, 2)
 r0_values = np.linspace(0, 10, 15)
-n_ppl = 1e6
-init_prev = 20 / n_ppl
+init_pop = 1e6
+init_prev = 20 / init_pop
 S0 = 1.0
 
 ######### END OF USER PARS ########
@@ -43,7 +43,7 @@ def KM_limit(z, R0, S0, I0):
 
 
 # Expected
-population = n_ppl
+population = init_pop
 inf_mean = 24
 init_inf = 20
 # R0s = np.concatenate((np.linspace(0.2, 1.0, 5), np.linspace(1.5, 10.0, 25)))
@@ -77,7 +77,7 @@ for r0 in r0_values:
                 results_path=results_path,
                 save_plots=False,
                 save_data=False,
-                n_ppl=n_ppl,
+                init_pop=init_pop,
                 r0=r0,
                 init_immun=[0.0],
                 seasonal_amplitude=0.0,
@@ -109,7 +109,7 @@ for r0 in r0_values:
 
 # Convert records to DataFrame
 df_results = pd.DataFrame.from_records(records)
-df_results["prop_infected"] = df_results["final_recovered"] / n_ppl
+df_results["prop_infected"] = df_results["final_recovered"] / init_pop
 df_results.to_csv(results_path + "/prop_infected.csv", index=False)
 grouped = df_results.groupby(["r0", "heterogeneity", "infect_method"])["prop_infected"].mean().reset_index()
 merged = grouped.merge(output[["R0", "I_inf_exp"]], left_on="r0", right_on="R0", how="inner")

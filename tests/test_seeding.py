@@ -48,7 +48,7 @@ def test_background_seeding():
         if t is not None and sim.results.I[t, node] > 0:
             n_matches += 1
 
-    n_nodes = len(sim.pars.n_ppl)
+    n_nodes = len(sim.pars.init_pop)
     exp_n_seeds = (n_nodes * n_days) // seeding_freq  # There should be seeding event for every node every 15 days
     assert np.isclose(exp_n_seeds, len(seed_schedule), atol=5), "The length of the seed schedule did not meet expectations"
 

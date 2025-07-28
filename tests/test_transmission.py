@@ -10,9 +10,9 @@ import laser_polio as lp
 # Test impact of differnt dur_inf
 
 
-def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=None, init_immun=0.8, init_prev=0.01, seed=None):
-    if n_ppl is None:
-        n_ppl = np.array([10000, 10000])
+def setup_sim(dur=1, init_pop=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=None, init_immun=0.8, init_prev=0.01, seed=None):
+    if init_pop is None:
+        init_pop = np.array([10000, 10000])
     if r0_scalars is None:
         r0_scalars = np.array([0.5, 2.0], dtype=np.float32)
     # if dur_exp is None:
@@ -24,7 +24,7 @@ def setup_sim(dur=1, n_ppl=None, r0_scalars=None, r0=14, dur_exp=None, dur_inf=N
             "seed": seed,
             "start_date": lp.date("2020-01-01"),
             "dur": dur,
-            "n_ppl": n_ppl,  # Two nodes with populations
+            "init_pop": init_pop,  # Two nodes with populations
             "cbr": np.array([30, 25]),  # Birth rate per 1000/year
             "r0_scalars": r0_scalars,  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
@@ -150,7 +150,7 @@ def setup_NxN_sim(N=4, duration=365, r0=14, init_immun=None, init_prev=None):
         {
             "start_date": lp.date("2020-01-01"),
             "dur": duration,
-            "n_ppl": np.array([10000] * N),
+            "init_pop": np.array([10000] * N),
             "cbr": np.array([36.5] * N, dtype=np.float32),  # Birth rate per 1000/year
             "r0_scalars": np.ones(N, dtype=np.float32),  # Spatial transmission scalar (multiplied by global rate)
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
@@ -256,7 +256,7 @@ def test_zero_inflation():
                 "seed": seed,
                 "start_date": lp.date("2020-01-01"),
                 "dur": duration,
-                "n_ppl": np.array([5000] * n_nodes),
+                "init_pop": np.array([5000] * n_nodes),
                 "cbr": np.array([36.5] * n_nodes, dtype=np.float32),
                 "r0_scalars": np.ones(n_nodes, dtype=np.float32),
                 "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",

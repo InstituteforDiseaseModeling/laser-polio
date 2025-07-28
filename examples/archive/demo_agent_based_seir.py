@@ -31,7 +31,7 @@ pars = PropertySet(
         "start_date": start_date,  # Start date of the simulation
         "dur": 180,  # Number of timesteps
         # Population
-        "n_ppl": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
+        "init_pop": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
         "distances": dist_matrix,  # Distance in km
         # Disease
         "init_prev": np.array([0, 0.01, 0, 0, 0]),  # Initial prevalence per node (1% infected)

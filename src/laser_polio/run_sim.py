@@ -102,41 +102,6 @@ def run_sim(
     shp_dot_names = shp["dot_name"].tolist()
     assert np.all(shp_dot_names == dot_names), "shp dot names do not match dot names"
 
-    # Immunity
-    init_immun = pd.read_hdf(lp.root / "data/init_immunity_0.5coverage_january.h5", key="immunity")
-    init_immun = init_immun.set_index("dot_name").loc[dot_names]
-    init_immun = init_immun[init_immun["period"] == start_year]
-    # Apply scalar multiplier to immunity values, clipping to [0.0, 1.0]
-    immunity_cols = [col for col in init_immun.columns if col.startswith("immunity_")]
-    init_immun[immunity_cols] = init_immun[immunity_cols].clip(lower=0.0, upper=1.0) * init_immun_scalar
-    # Apply geographic scalars if specified in configs
-    if "immun_scalar_borno" in configs:
-        borno_scalar = configs.pop("immun_scalar_borno")
-        borno_mask = init_immun.index.str.contains("NIGERIA:BORNO")
-        init_immun.loc[borno_mask, immunity_cols] *= borno_scalar
-    if "immun_scalar_jigawa" in configs:
-        jigawa_scalar = configs.pop("immun_scalar_jigawa")
-        jigawa_mask = init_immun.index.str.contains("NIGERIA:JIGAWA")
-        init_immun.loc[jigawa_mask, immunity_cols] *= jigawa_scalar
-    if "immun_scalar_kano" in configs:
-        kano_scalar = configs.pop("immun_scalar_kano")
-        kano_mask = init_immun.index.str.contains("NIGERIA:KANO")
-        init_immun.loc[kano_mask, immunity_cols] *= kano_scalar
-    if "immun_scalar_katsina" in configs:
-        katsina_scalar = configs.pop("immun_scalar_katsina")
-        katsina_mask = init_immun.index.str.contains("NIGERIA:KATSINA")
-        init_immun.loc[katsina_mask, immunity_cols] *= katsina_scalar
-    if "immun_scalar_kebbi" in configs:
-        kebbi_scalar = configs.pop("immun_scalar_kebbi")
-        kebbi_mask = init_immun.index.str.contains("NIGERIA:KEBBI")
-        init_immun.loc[kebbi_mask, immunity_cols] *= kebbi_scalar
-    if "immun_scalar_kwara" in configs:
-        kwasu_scalar = configs.pop("immun_scalar_kwara")
-        kwasu_mask = init_immun.index.str.contains("NIGERIA:KWARA")
-        init_immun.loc[kwasu_mask, immunity_cols] *= kwasu_scalar
-
-    init_immun[immunity_cols] = init_immun[immunity_cols].clip(upper=1.0, lower=0.0)
-
     # Initial infection seeding
     init_prevs = np.zeros(len(dot_names))
     prev_indices = [i for i, dot_name in enumerate(dot_names) if init_region in dot_name]
@@ -202,8 +167,99 @@ def run_sim(
     else:
         r0_scalars = r0_scalars_wt
 
+    # --- Calculate the number of initial susceptible people ---
+
+    # Immunity
+    init_immun = pd.read_hdf(lp.root / "data/init_immunity_0.5coverage_january.h5", key="immunity")
+    init_immun = init_immun.set_index("dot_name").loc[dot_names]
+    init_immun = init_immun[init_immun["period"] == start_year]
+    # Apply scalar multiplier to immunity values, clipping to [0.0, 1.0]
+    immunity_cols = [col for col in init_immun.columns if col.startswith("immunity_")]
+    init_immun[immunity_cols] = init_immun[immunity_cols].clip(lower=0.0, upper=1.0) * init_immun_scalar
+    # Set immunity for 15+ to 1.0
+    init_immun.loc[:, "immunity_180_1200"] = 1.0
+    # Wide → Long
+    init_immun_long = init_immun.reset_index().melt(
+        id_vars="dot_name",
+        value_vars=[col for col in init_immun.columns if col.startswith("immunity_")],
+        var_name="age_bin",
+        value_name="immune_frac",
+    )
+    # Parse age bins into min/max months
+    init_immun_long[["age_min_months_immun", "age_max_months_immun"]] = init_immun_long["age_bin"].str.extract(r"immunity_(\d+)_(\d+)")
+    init_immun_long[["age_min_months_immun", "age_max_months_immun"]] = init_immun_long[
+        ["age_min_months_immun", "age_max_months_immun"]
+    ].astype(int)
+    init_immun_long["age_max_months_immun"] += 1  # Make age_max inclusive
+    init_immun_long = init_immun_long.drop(columns=["age_bin"])
+
+    # Load the age pyramid
+    age_pyramid = lp.load_age_pyramid(lp.root / "data/Nigeria_age_pyramid_2024.csv")
+    age_pyramid["age_min_months_pyramid"] = age_pyramid["age_min"] * 12  # Convert to months
+    age_pyramid["age_max_months_pyramid"] = age_pyramid["age_max"] * 12  # Convert to months
+    age_pyramid = age_pyramid.drop(columns=["age_min", "age_max"])
+    age_pyramid = age_pyramid.rename(columns={"pop_frac": "pop_frac_pyramid"})
+
+    # Perform a cross join and filter down to rows where the bins overlap
+    # Add temporary join key for cross-join
+    init_immun_long["key"] = 1
+    age_pyramid["key"] = 1
+    # Cross join: all age bins for all pyramid bins
+    age_merged = pd.merge(init_immun_long, age_pyramid, on="key").drop("key", axis=1)
+    # Filter to overlapping age bins (i.e., where any overlap exists)
+    # This logic matches: (start1 < end2) & (start2 < end1)
+    age_merged = age_merged[
+        (age_merged["age_min_months_immun"] < age_merged["age_max_months_pyramid"])
+        & (age_merged["age_max_months_immun"] > age_merged["age_min_months_pyramid"])
+    ]
+    # Compute the overlap width (in months)
+    age_merged["overlap_months"] = (
+        np.minimum(age_merged["age_max_months_immun"], age_merged["age_max_months_pyramid"])
+        - np.maximum(age_merged["age_min_months_immun"], age_merged["age_min_months_pyramid"])
+    ).clip(lower=0)
+    # Calculate overlap weight as fraction of the pyramid bin
+    age_merged["weight"] = age_merged["overlap_months"] / (age_merged["age_max_months_pyramid"] - age_merged["age_min_months_pyramid"])
+    age_merged.drop(
+        columns=["pop"], inplace=True
+    )  # Drop the pop column since this is for all of Nigeria. We'll replace with node-level total pop below
+    # Attach pop data and node id
+    node_info = pd.DataFrame(
+        {
+            "node_id": sorted(node_lookup.keys()),
+            "dot_name": dot_names,
+            "pop_total": pop,
+        }
+    )
+    age_merged = age_merged.merge(node_info, on="dot_name", how="left")
+    # Adjust population count in that bin accordingly
+    age_merged["pop_in_age_bin"] = age_merged["pop_total"] * age_merged["pop_frac_pyramid"] * age_merged["weight"]
+    # Compute immune/susceptible counts
+    age_merged["n_immune"] = age_merged["pop_in_age_bin"] * age_merged["immune_frac"]
+    age_merged["n_susceptible"] = age_merged["pop_in_age_bin"] * (1 - age_merged["immune_frac"])
+    # Sum by dot_name
+    immun_summary = age_merged.groupby("dot_name")[["n_immune", "n_susceptible"]].sum().astype(int)
+    # Group and summarize
+    sus_by_age = (
+        age_merged.groupby(["dot_name", "node_id", "age_min_months_immun", "age_max_months_immun"])["n_susceptible"]
+        .sum()
+        .round()
+        .astype(int)
+        .reset_index()
+    )
+    # Convert age_min_months_immun to years
+    sus_by_age["age_min_yr"] = sus_by_age["age_min_months_immun"] / 12
+    # Convert age_max_months_immun to years
+    sus_by_age["age_max_yr"] = sus_by_age["age_max_months_immun"] / 12
+    # Drop age_min_months_immun and age_max_months_immun
+    sus_by_age = sus_by_age.drop(columns=["age_min_months_immun", "age_max_months_immun"])
+    sus_summary = sus_by_age.groupby("dot_name")["n_susceptible"].sum().astype(int)
+    assert np.all(immun_summary["n_immune"] + immun_summary["n_susceptible"] <= pop), (
+        "Immune + susceptible counts are greater than population counts"
+    )
+    assert np.all(sus_summary <= pop), "Susceptible counts are greater than population counts"
+
     # Validate all arrays match
-    assert all(len(arr) == len(dot_names) for arr in [shp, init_immun, node_lookup, init_prevs, pop, cbr, ri, ri_ipv, sia_prob, r0_scalars])
+    assert all(len(arr) == len(dot_names) for arr in [shp, node_lookup, init_prevs, pop, cbr, ri, ri_ipv, sia_prob, r0_scalars])
 
     # Setup results path
     if results_path is None:
@@ -216,10 +272,9 @@ def run_sim(
     base_pars = {
         "start_date": start_date,
         "dur": n_days,
-        "n_ppl": pop,
-        "age_pyramid_path": lp.root / "data/Nigeria_age_pyramid_2024.csv",
+        "init_pop": pop,
+        "init_sus_by_age": sus_by_age,
         "cbr": cbr,
-        "init_immun": init_immun,
         "init_prev": init_prevs,
         "r0_scalars": r0_scalars,
         "distances": None,
@@ -241,7 +296,7 @@ def run_sim(
 
     def from_file(init_pop_file):
         # logger.info(f"Initializing SEIR_ABM from file: {init_pop_file}")
-        people, results_R, pars_loaded = LaserFrame.load_snapshot(init_pop_file, n_ppl=pars["n_ppl"], cbr=pars["cbr"], nt=pars["dur"])
+        people, results_R, pars_loaded = LaserFrame.load_snapshot(init_pop_file, init_pop=pars["init_pop"], cbr=pars["cbr"], nt=pars["dur"])
 
         sim = lp.SEIR_ABM.init_from_file(people, pars)
         if pars_loaded and "r0" in pars_loaded:

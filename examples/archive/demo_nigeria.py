@@ -103,7 +103,7 @@ pars = PropertySet(
         "start_date": start_date,  # Start date of the simulation
         "dur": n_days,  # Number of timesteps
         # Population
-        "n_ppl": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
+        "init_pop": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
         "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
         "cbr": cbr,  # np.array([37, 41, 30, 25, 33]),  # Crude birth rate per 1000 per year
         # Disease

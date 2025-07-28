@@ -15,7 +15,9 @@ default_pars = PropertySet(
         "start_date": datetime.date(2019, 1, 1),  # Start date of the simulation
         "dur": 30,  # Number of timesteps
         # Population
-        "n_ppl": [15000, 10000],  # Number of initial agents for each node
+        "init_pop": [15000, 10000],  # Starting population for all nodes. Includes susceptible and recovered
+        "init_immun": [0.0, 0.0],  # Proportion of init_pop that is immune per node. 0.0 = no immunity, 1.0 = full immunity
+        "init_sus_by_age": None,  # Dataframe containing susceptible counts by age and node. Expected columns: dot_name, node_id, age_min_yr, age_max_yr, n_susceptible
         "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",
         "cbr": [37, 41],  # Crude birth rate per 1000 per year
         # Disease
@@ -25,7 +27,6 @@ default_pars = PropertySet(
             1: 0.25,  # Sabin2
             2: 0.125,  # nOPV2
         },
-        "init_immun": [0.0, 0.0],  # Initial immunity per node
         "init_prev": [0.0, 0.0],  # Initial prevalence per node
         "seed_schedule": None,  # Schedule for seeding cases (list of dicts with either: 1)'date', 'dot_name', 'prevalence' or 2)'timestep', 'node_id', 'prevalence')
         "r0": 14,  # Basic reproduction number

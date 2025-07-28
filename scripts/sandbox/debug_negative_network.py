@@ -27,7 +27,7 @@ value = k * (pops[i] ** a * pops[j] ** b) / dist[i, j] ** c  # Check one entry
 
 pars = PropertySet(
     {
-        "n_ppl": np.array([99510, 595855, 263884]),  # Population of each node
+        "init_pop": np.array([99510, 595855, 263884]),  # Population of each node
         "distances": np.array([[0, 4, 66], [4, 0, 827], [66, 827, 0]]),  # Distance in km between nodes
         "gravity_k": 3000,  # Gravity scaling constant
         "gravity_a": 1,  # Origin population exponent

@@ -89,7 +89,7 @@ def setup_sim():
             "start_date": start_date,  # Start date of the simulation
             "dur": n_days,  # Number of timesteps
             # Population
-            "n_ppl": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
+            "init_pop": pop,  # np.array([30000, 10000, 15000, 20000, 25000]),
             "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",  # From https://www.populationpyramid.net/nigeria/2024/
             "cbr": cbr,  # Crude birth rate per 1000 per year
             # Disease
@@ -135,7 +135,7 @@ def test_squash():
     disease_state = sim.people.disease_state[: sim.people.count]
     assert np.all(disease_state < 3), "No one should be in the recovered state since they should be squashed out."
 
-    exp_pop = np.sum(sim.pars.n_ppl)
+    exp_pop = np.sum(sim.pars.init_pop)
     obs_pop = sim.people.count + sim.results.R[0].sum()
     assert np.isclose(exp_pop, obs_pop, atol=100), f"Expected population size {exp_pop}, but got {obs_pop}."
 
