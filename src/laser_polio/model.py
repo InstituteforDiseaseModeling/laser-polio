@@ -684,6 +684,12 @@ class DiseaseState_ABM:
             init_recovered = pars.init_pop - pars.init_sus
             sim.results.R[:, :] += init_recovered  # Tally here since they don't have a disease_state and won't get counted during logging
 
+            # Account for mortality in the immune/recovered population which is pre-calculated in the VitalDynamics_ABM component
+            if hasattr(self.results, "deaths"):
+                deaths = self.results.deaths
+                cum_deaths = np.cumsum(deaths, axis=0)
+                self.results.R[:, :] -= cum_deaths
+
             # TODO: Implement this
             # # ---- Backcalculate RI IPV Protection ----
             # # IPV prevents paralysis but does not block transmission.
@@ -1894,6 +1900,24 @@ class VitalDynamics_ABM:
                     mean_lifespans = np.divide(weighted, counts, out=np.zeros_like(weighted), where=counts > 0)
                 life_expectancies[: len(mean_lifespans)] = mean_lifespans
                 pars.life_expectancies = life_expectancies
+
+            if pars.init_sus_by_age is not None:
+                # If we're only initializing susceptible population, we need to account for mortality in the immune/recovered population
+                df = pars.init_sus_by_age
+                # Step 1: Compute average age per bin (in years)
+                df["avg_age_yr"] = (df["age_min_yr"] + df["age_max_yr"]) / 2  # Compute average age in years
+                # Step 2: Use node-level life expectancy to compute expected remaining life
+                df["life_expectancy_yr"] = df["node_id"].map(lambda nid: pars.life_expectancies[nid])
+                df["remaining_life_yr"] = np.maximum(df["life_expectancy_yr"] - df["avg_age_yr"], 1.0)  # Prevent div by 0
+                # Step 3: Estimate daily mortality rate per bin (1 / expected remaining lifespan in days)
+                df["daily_mortality_rate"] = 1 / (df["remaining_life_yr"] * 365)
+                # Step 4: Estimate deaths per timestep per bin
+                df["expected_deaths_per_day"] = df["n_immune"] * df["daily_mortality_rate"]
+                # Step 5: Compute deaths by node
+                deaths_by_node = df.groupby("node_id")["expected_deaths_per_day"].sum().to_numpy()
+                T = self.results.deaths.shape[0]
+                expected_deaths = np.outer(np.ones(T), deaths_by_node)  # shape = [T, num_nodes]
+                self.results.deaths += np.random.poisson(expected_deaths)
 
     def _initialize_birth_rates(self):
         pars = self.pars

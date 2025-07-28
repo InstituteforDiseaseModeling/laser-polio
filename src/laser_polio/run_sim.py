@@ -240,7 +240,7 @@ def run_sim(
     immun_summary = age_merged.groupby("dot_name")[["n_immune", "n_susceptible"]].sum().astype(int)
     # Group and summarize
     sus_by_age = (
-        age_merged.groupby(["dot_name", "node_id", "age_min_months_immun", "age_max_months_immun"])["n_susceptible"]
+        age_merged.groupby(["dot_name", "node_id", "age_min_months_immun", "age_max_months_immun"])[["n_susceptible", "n_immune"]]
         .sum()
         .round()
         .astype(int)
