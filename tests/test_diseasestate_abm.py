@@ -650,10 +650,10 @@ def test_potential_paralysis():
 
 
 if __name__ == "__main__":
-    # test_disease_state_initialization()
-    # test_initial_population_counts()
-    # test_progression_without_transmission()
-    # test_progression_with_transmission()
+    test_disease_state_initialization()
+    test_initial_population_counts()
+    test_progression_without_transmission()
+    test_progression_with_transmission()
     test_disease_timers_with_trans_explicit()
     test_paralysis_probability()
     test_run_sim()
