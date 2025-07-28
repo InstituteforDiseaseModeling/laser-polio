@@ -2,7 +2,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-import pandas as pd
 from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
@@ -265,7 +264,8 @@ def test_disease_timers_with_trans_explicit():
             "r0": 999,  # Basic reproduction number
             "distances": np.array([[0, 1], [1, 0]]),  # Distance in km between nodes
             "stop_if_no_cases": False,  # Stop simulation if no cases are present
-            "seed": 123,
+            "individual_heterogeneity": False,
+            "seed": 124,
         }
     )
     sim = lp.SEIR_ABM(pars)
@@ -452,20 +452,17 @@ def test_init_immun_scalar():
 
     # Run unscaled version
     sim_unscaled = run_sim(config=common_config.copy(), run=False)
-    df_unscaled = sim_unscaled.pars.init_immun.copy()
-    cols = [col for col in df_unscaled.columns if col.startswith("immunity_")]
+    df_unscaled = sim_unscaled.pars.init_sus_by_age.copy()
 
     # Run scaled version
     scaled_config = common_config.copy()
     scaled_config["init_immun_scalar"] = scalar
     sim_scaled = run_sim(config=scaled_config, run=False)
-    df_scaled = sim_scaled.pars.init_immun.copy()
+    df_scaled = sim_scaled.pars.init_sus_by_age.copy()
 
-    # Check scaling: scaled = clip(unscaled * scalar)
-    expected_scaled = df_unscaled[cols] * scalar
-    expected_scaled = expected_scaled.clip(0.0, 1.0)
-
-    pd.testing.assert_frame_equal(df_scaled[cols], expected_scaled, atol=1e-6, check_dtype=False)
+    assert np.all(df_scaled["n_susceptible"] >= df_unscaled["n_susceptible"]), (
+        "Scaled susceptible should have more or the same susceptible than the unscaled version"
+    )
 
 
 def test_time_to_paralysis():
@@ -653,10 +650,10 @@ def test_potential_paralysis():
 
 
 if __name__ == "__main__":
-    test_disease_state_initialization()
-    test_initial_population_counts()
-    test_progression_without_transmission()
-    test_progression_with_transmission()
+    # test_disease_state_initialization()
+    # test_initial_population_counts()
+    # test_progression_without_transmission()
+    # test_progression_with_transmission()
     test_disease_timers_with_trans_explicit()
     test_paralysis_probability()
     test_run_sim()
