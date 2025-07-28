@@ -16,7 +16,10 @@ default_pars = PropertySet(
         "dur": 30,  # Number of timesteps
         # Population
         "init_pop": [15000, 10000],  # Starting population for all nodes. Includes susceptible and recovered
-        "init_immun": [0.0, 0.0],  # Proportion of init_pop that is immune per node. 0.0 = no immunity, 1.0 = full immunity
+        "init_immun": [
+            0.0,
+            0.0,
+        ],  # Proportion of init_pop that is immune per node. 0.0 = no immunity, 1.0 = full immunity. Expected to be a list of length len(init_pop)
         "init_sus_by_age": None,  # Dataframe containing susceptible counts by age and node. Expected columns: dot_name, node_id, age_min_yr, age_max_yr, n_susceptible
         "age_pyramid_path": "data/Nigeria_age_pyramid_2024.csv",
         "cbr": [37, 41],  # Crude birth rate per 1000 per year
