@@ -390,7 +390,7 @@ def load_age_pyramid(pyramid_path=None, verbose=False) -> pd.DataFrame:
             age_max = age_min  # one-year bin
         else:
             age_min, age_max = map(int, age_part.split("-"))
-        age_max += 1  # Make age_max inclusive
+        age_max += 1  # Make age_max exclusive (upper bound)
         pop = int(male) + int(female)
         parsed.append([age_min, age_max, pop])
 
