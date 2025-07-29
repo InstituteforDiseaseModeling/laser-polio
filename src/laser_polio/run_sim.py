@@ -190,7 +190,7 @@ def run_sim(
     init_immun_long[["age_min_months_immun", "age_max_months_immun"]] = init_immun_long[
         ["age_min_months_immun", "age_max_months_immun"]
     ].astype(int)
-    init_immun_long["age_max_months_immun"] += 1  # Make age_max inclusive
+    init_immun_long["age_max_months_immun"] += 1  # Make age_max exclusive
     init_immun_long = init_immun_long.drop(columns=["age_bin"])
 
     # Load the age pyramid
