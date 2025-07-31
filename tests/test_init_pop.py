@@ -34,7 +34,6 @@ def plot(loaded, fresh):
 
 
 @patch("laser_polio.root", Path("tests/"))
-@pytest.mark.skip(reason="Temporarily disabled for debugging") 
 def test_init_pop_loading(tmp_path):
     init_dir = Path("tests/data/initpop_testcase")
     init_file = init_dir / "init_pop.h5"

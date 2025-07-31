@@ -296,7 +296,7 @@ def run_sim(
 
     def from_file(init_pop_file):
         # logger.info(f"Initializing SEIR_ABM from file: {init_pop_file}")
-        people, results_R, pars_loaded = LaserFrame.load_snapshot(init_pop_file, init_pop=pars["init_pop"], cbr=pars["cbr"], nt=pars["dur"])
+        people, results_R, pars_loaded = LaserFrame.load_snapshot(init_pop_file, n_ppl=pars["init_pop"], cbr=pars["cbr"], nt=pars["dur"])
 
         sim = lp.SEIR_ABM.init_from_file(people, pars)
         if pars_loaded and "r0" in pars_loaded:
