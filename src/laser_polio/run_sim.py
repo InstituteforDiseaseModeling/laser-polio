@@ -262,6 +262,66 @@ def run_sim(
     )
     assert np.all(sus_summary <= pop), "Susceptible counts are greater than population counts"
 
+    # ---- Backcalculate RI IPV Protection ----
+    # IPV prevents paralysis but does not block transmission.
+    # Since IPV and OPV immunity groups are assumed to overlap, and OPV-protected individuals
+    # were already marked as Recovered (i.e., immune to both transmission and paralysis),
+    # we only need to assign IPV protection to those who are not already immune.
+    # Therefore, IPV protection is only applied when IPV coverage exceeds OPV-derived immunity.
+    # Initialize IPV protection column
+    sus_by_age_node["n_ipv_protected"] = 0
+    # Check if IPV parameters are available
+    if ri_ipv is not None and len(ri_ipv) > 0:
+        # IPV eligibility threshold (must be born after ipv_start_year) + 98 days (roughly the timing of 2nd dose of RI IPV (+ 3rd dose of OPV))
+        # Convert to years for comparison with age bins
+        ipv_start_year = config.get("ipv_start_year", 2015)  # Default IPV start year is 2015
+        max_age_for_ipv_years = start_date.year - ipv_start_year + (98 / 365)
+        # Create mapping from dot_name to ri_ipv coverage
+        ipv_coverage_map = dict(zip(dot_names, ri_ipv, strict=False))
+        # IPV minimum age threshold in years (98 days)
+        ipv_min_age_years = 98 / 365
+        # Calculate IPV protection for each row in sus_by_age_node
+        for idx, row in sus_by_age_node.iterrows():
+            dot_name = row["dot_name"]
+            age_min_yr = row["age_min_yr"]
+            age_max_yr = row["age_max_yr"]
+            n_susceptible = row["n_susceptible"]
+            n_immune = row["n_immune"]
+            # Check if this age bin has any overlap with IPV eligibility
+            if age_max_yr >= ipv_min_age_years and age_min_yr <= max_age_for_ipv_years:
+                # Get IPV coverage for this node
+                vx_prob_ipv = ipv_coverage_map.get(dot_name, 0)
+                if vx_prob_ipv > 0:
+                    # Calculate total population in this age bin
+                    total_pop = n_susceptible + n_immune
+                    if total_pop > 0:
+                        # Calculate the proportion of this age bin that's eligible for IPV
+                        # Eligible age range: [ipv_min_age_years, max_age_for_ipv_years]
+                        # Age bin range: [age_min_yr, age_max_yr]
+
+                        # Find the overlap between eligible age range and age bin
+                        overlap_min = max(age_min_yr, ipv_min_age_years)
+                        overlap_max = min(age_max_yr, max_age_for_ipv_years)
+
+                        if overlap_max > overlap_min:
+                            # Calculate eligible fraction within this age bin
+                            age_bin_width = age_max_yr - age_min_yr
+                            overlap_width = overlap_max - overlap_min
+                            eligible_fraction = overlap_width / age_bin_width if age_bin_width > 0 else 0
+
+                            # Current immune fraction in this age bin
+                            immune_fraction = n_immune / total_pop
+
+                            # IPV gap: additional protection beyond existing immunity
+                            ipv_gap = max(0, vx_prob_ipv - immune_fraction)
+
+                            # Apply IPV protection to eligible portion only
+                            # IPV protects against paralysis but not transmission, so these remain susceptible for transmission
+                            eligible_pop = total_pop * eligible_fraction
+                            eligible_susceptible = n_susceptible * eligible_fraction
+                            n_ipv_protected = min(eligible_susceptible, eligible_pop * ipv_gap)
+                            sus_by_age_node.loc[idx, "n_ipv_protected"] = int(n_ipv_protected)
+
     # Validate all arrays match
     assert all(len(arr) == len(dot_names) for arr in [shp, node_lookup, init_prevs, pop, cbr, ri, ri_ipv, sia_prob, r0_scalars])
 

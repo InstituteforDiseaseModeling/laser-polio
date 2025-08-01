@@ -681,39 +681,54 @@ class DiseaseState_ABM:
             init_recovered = pars.init_pop - pars.init_sus
             sim.results.R[:, :] += init_recovered  # Tally here since they don't have a disease_state and won't get counted during logging
 
+            # Account for IPV protection which prevents paralysis but not transmission
+            # The subset of susceptible people who are IPV-protected is stored in the init_sus_by_age table as n_ipv_protected
+
+            # Initialize all agents as not IPV protected
+            sim.people.ipv_protected[: sim.people.count] = 0
+
+            # Filter for age groups that actually have IPV protection (n_ipv_protected > 0)
+            ipv_data = pars.init_sus_by_age[pars.init_sus_by_age["n_ipv_protected"] > 0]
+
+            if len(ipv_data) > 0:
+                # Group by node for more efficient processing
+                for node in ipv_data["node_id"].unique():
+                    # Get all agents in this node (filter by node once per node)
+                    node_mask = sim.people.node_id[: sim.people.count] == node
+                    node_agent_indices = np.where(node_mask)[0]
+
+                    if len(node_agent_indices) == 0:
+                        continue
+
+                    # Get ages in years for all agents in this node
+                    agent_ages_days = -sim.people.date_of_birth[node_agent_indices]
+                    agent_ages_years = agent_ages_days / 365.0
+
+                    # Get IPV data for this specific node
+                    node_ipv_data = ipv_data[ipv_data["node_id"] == node]
+
+                    # Apply IPV protection for each age group in this node
+                    for _, row in node_ipv_data.iterrows():
+                        n_ipv_protected = int(row["n_ipv_protected"])
+                        age_min_yr = row["age_min_yr"]
+                        age_max_yr = row["age_max_yr"]
+
+                        # Find agents in this age group
+                        age_mask = (agent_ages_years >= age_min_yr) & (agent_ages_years < age_max_yr)
+                        eligible_agents = node_agent_indices[age_mask]
+
+                        if len(eligible_agents) > 0:
+                            # Sample agents to protect with IPV (without replacement)
+                            n_to_protect = min(n_ipv_protected, len(eligible_agents))
+                            if n_to_protect > 0:
+                                protected_agents = np.random.choice(eligible_agents, size=n_to_protect, replace=False)
+                                sim.people.ipv_protected[protected_agents] = 1
+
             # Account for mortality in the immune/recovered population which is pre-calculated in the VitalDynamics_ABM component
             if hasattr(self.results, "deaths"):
                 deaths = self.results.deaths
                 cum_deaths = np.cumsum(deaths, axis=0)
                 self.results.R[:, :] -= cum_deaths
-
-            # TODO: Implement this
-            # # ---- Backcalculate RI IPV Protection ----
-            # # IPV prevents paralysis but does not block transmission.
-            # # Since IPV and OPV immunity groups are assumed to overlap, and OPV-protected individuals
-            # # were already marked as Recovered (i.e., immune to both transmission and paralysis),
-            # # we only need to assign IPV protection to those who are not already immune.
-            # # Therefore, IPV protection is only applied when IPV coverage exceeds OPV-derived immunity.
-            # if self.pars.vx_prob_ipv is not None and self.pars.ipv_start_year is not None:
-            #     # IPV eligibility threshold (must be born after ipv_start_year) + 98 days (roughly the timing of 2nd dose of RI IPV (+ 3rd dose of OPV))
-            #     max_age_for_ipv = (self.pars.start_date.year - self.pars.ipv_start_year) * 365 + 98
-
-            #     # Mask for people eligible for IPV by birth year AND age bin
-            #     eligible_for_ipv = eligible_mask & (age <= max_age_for_ipv)
-
-            #     if np.any(eligible_for_ipv):
-            #         # Fraction of individuals that *should* be IPV-protected by node
-            #         vx_prob_ipv = np.asarray(self.pars.vx_prob_ipv)
-            #         ipv_gap = vx_prob_ipv - immune_fractions  # immune_fractions are from init_immun
-            #         ipv_gap = np.clip(ipv_gap, 0, 1)  # In case immune_fraction > vx_prob
-            #         if ipv_gap.max() <= 0:
-            #             continue
-            #         for i in nb.prange(self.people.count):
-            #             if eligible_for_ipv[i]:
-            #                 if np.random.rand() < ipv_gap[node_ids[i]]:
-            #                     self.people.ipv_protected[i] = 1
-            #                 else:
-            #                     self.people.ipv_protected[i] = 0
 
         else:
             raise ValueError(f"Unsupported init_immun type: {type(pars.init_immun)}")
