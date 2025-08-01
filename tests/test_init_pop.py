@@ -12,6 +12,35 @@ test_dir = Path(__file__).parent
 data_path = test_dir / "data"
 
 
+@patch("laser_polio.root", Path("tests/"))
+def test_init_sus_by_age():
+    config = {
+        "regions": ["ZAMFARA"],
+        "start_year": 2018,
+        "n_days": 365,
+        "init_region": "ZAMFARA",
+        "init_prev": 100,
+        "results_path": None,
+    }
+
+    # Setup sim
+    sim = run_sim(config=config.copy(), run=False)
+    init_pop = sim.pars.init_pop.copy()
+    init_sus_by_age = sim.pars.init_sus_by_age.copy()
+    init_sus = init_sus_by_age.groupby("node_id")["n_susceptible"].sum().astype(int)
+    init_sus = np.atleast_1d(init_sus)
+
+    # Run sim
+    sim.run()
+    S = sim.results.S[0]
+    E = sim.results.E[0]
+    I = sim.results.I[0]
+    R = sim.results.R[0]
+
+    assert np.all(init_sus == (S + I)), "Initial susceptible counts do not match."
+    assert np.all(init_pop == (S + E + I + R)), "Initial population counts do not match."
+
+
 def plot(loaded, fresh):
     plt.figure(figsize=(12, 8), constrained_layout=True)
 
@@ -107,5 +136,6 @@ def test_init_pop_loading(tmp_path):
 
 if __name__ == "__main__":
     tmp_dir = Path(tempfile.mkdtemp())
+    test_init_sus_by_age()
     test_init_pop_loading(tmp_dir)
     print("Loading initialized population tests passed.")
