@@ -140,7 +140,7 @@ def run_sim(
     # Demographics and risk
     df_comp = pd.read_csv(lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
     df_comp = df_comp[df_comp["year"] == start_year]
-    pop = df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values * pop_scale
+    pop = (df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values * pop_scale).astype(int)
     cbr = df_comp.set_index("dot_name").loc[dot_names, "cbr"].values
     ri = df_comp.set_index("dot_name").loc[dot_names, "ri_eff"].values
     ri_ipv = df_comp.set_index("dot_name").loc[dot_names, "dpt3"].values
