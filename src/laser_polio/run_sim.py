@@ -169,6 +169,13 @@ def run_sim(
 
     # --- Calculate the number of initial susceptible people ---
 
+    # Load the age pyramid
+    age_pyramid = lp.load_age_pyramid(lp.root / "data/Nigeria_age_pyramid_2024.csv")
+    age_pyramid["age_min_months_pyramid"] = age_pyramid["age_min"] * 12  # Convert to months
+    age_pyramid["age_max_months_pyramid"] = age_pyramid["age_max"] * 12  # Convert to months
+    age_pyramid = age_pyramid.drop(columns=["age_min", "age_max"])
+    age_pyramid = age_pyramid.rename(columns={"pop_frac": "pop_frac_pyramid"})
+
     # Immunity
     init_immun = pd.read_hdf(lp.root / "data/init_immunity_0.5coverage_january.h5", key="immunity")
     init_immun = init_immun.set_index("dot_name").loc[dot_names]
@@ -192,14 +199,6 @@ def run_sim(
     ].astype(int)
     init_immun_long["age_max_months_immun"] += 1  # Make age_max exclusive
     init_immun_long = init_immun_long.drop(columns=["age_bin"])
-
-    # Load the age pyramid
-    age_pyramid = lp.load_age_pyramid(lp.root / "data/Nigeria_age_pyramid_2024.csv")
-    age_pyramid["age_min_months_pyramid"] = age_pyramid["age_min"] * 12  # Convert to months
-    age_pyramid["age_max_months_pyramid"] = age_pyramid["age_max"] * 12  # Convert to months
-    age_pyramid = age_pyramid.drop(columns=["age_min", "age_max"])
-    age_pyramid = age_pyramid.rename(columns={"pop_frac": "pop_frac_pyramid"})
-
     # Perform a cross join and filter down to rows where the bins overlap
     # Add temporary join key for cross-join
     init_immun_long["key"] = 1
@@ -236,23 +235,28 @@ def run_sim(
     # Compute immune/susceptible counts
     age_merged["n_immune"] = age_merged["pop_in_age_bin"] * age_merged["immune_frac"]
     age_merged["n_susceptible"] = age_merged["pop_in_age_bin"] * (1 - age_merged["immune_frac"])
-    # Sum by dot_name
-    immun_summary = age_merged.groupby("dot_name")[["n_immune", "n_susceptible"]].sum().astype(int)
     # Group and summarize
-    sus_by_age = (
+    sus_by_age_node = (
         age_merged.groupby(["dot_name", "node_id", "age_min_months_immun", "age_max_months_immun"])[["n_susceptible", "n_immune"]]
         .sum()
         .round()
         .astype(int)
         .reset_index()
     )
+    # Sum by dot_name
+    immun_summary = sus_by_age_node.groupby("dot_name")[["n_immune", "n_susceptible"]].sum()
+    # Account for rounding errors & handle them in the oldest age bin
+    pop_diff = pop - immun_summary["n_immune"] - immun_summary["n_susceptible"]
+    sus_by_age_node.loc[sus_by_age_node["age_max_months_immun"] == 1201, "n_immune"] += pop_diff.values
+    # Re-calculate the immune & susceptible counts
+    immun_summary = sus_by_age_node.groupby("dot_name")[["n_immune", "n_susceptible"]].sum()
     # Convert age_min_months_immun to years
-    sus_by_age["age_min_yr"] = sus_by_age["age_min_months_immun"] / 12
+    sus_by_age_node["age_min_yr"] = sus_by_age_node["age_min_months_immun"] / 12
     # Convert age_max_months_immun to years
-    sus_by_age["age_max_yr"] = sus_by_age["age_max_months_immun"] / 12
+    sus_by_age_node["age_max_yr"] = sus_by_age_node["age_max_months_immun"] / 12
     # Drop age_min_months_immun and age_max_months_immun
-    sus_by_age = sus_by_age.drop(columns=["age_min_months_immun", "age_max_months_immun"])
-    sus_summary = sus_by_age.groupby("dot_name")["n_susceptible"].sum().astype(int)
+    sus_by_age_node = sus_by_age_node.drop(columns=["age_min_months_immun", "age_max_months_immun"])
+    sus_summary = sus_by_age_node.groupby("dot_name")["n_susceptible"].sum().astype(int)
     assert np.all(immun_summary["n_immune"] + immun_summary["n_susceptible"] <= pop), (
         "Immune + susceptible counts are greater than population counts"
     )
@@ -273,7 +277,7 @@ def run_sim(
         "start_date": start_date,
         "dur": n_days,
         "init_pop": pop,
-        "init_sus_by_age": sus_by_age,
+        "init_sus_by_age": sus_by_age_node,
         "cbr": cbr,
         "init_prev": init_prevs,
         "r0_scalars": r0_scalars,
