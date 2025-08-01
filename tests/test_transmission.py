@@ -293,7 +293,7 @@ def test_zero_inflation():
         nodes_with_cases_no_inflation.append(np.sum(total_cases_by_node_no_inflation > 0))  # Number of nodes with cases across all time
         day1_nodes_with_cases_no_inflation.append(np.sum(sim_no_inflation.results.E[1] > 0))  # Number of nodes with cases on day 1
 
-        # 50% zero inflation
+        # 90% zero inflation
         sim_inflation = setup_zero_inflation_sim(zero_inflation=0.9, seed=seed)
         sim_inflation.run()
         total_cases_by_node_inflation = sim_inflation.results.E[1:].sum(axis=0)  # Sum over time, keep nodes separate
