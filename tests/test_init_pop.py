@@ -1,7 +1,6 @@
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
-import pytest
 
 import matplotlib.pyplot as plt
 import numpy as np
