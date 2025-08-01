@@ -1919,6 +1919,8 @@ class VitalDynamics_ABM:
                 T = self.results.deaths.shape[0]
                 expected_deaths = np.outer(np.ones(T), deaths_by_node)  # shape = [T, num_nodes]
                 self.results.deaths += np.random.poisson(expected_deaths)
+                # Set deaths on day 0 to 0 since we're not running vital dynamics on day 0, only recording the initial states
+                self.results.deaths[0, :] = 0
 
     def _initialize_birth_rates(self):
         pars = self.pars
