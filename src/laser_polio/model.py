@@ -235,13 +235,16 @@ class SEIR_ABM:
                 total_pop = init_sus.sum()
             else:
                 total_pop = np.sum(pars.init_pop)
+
             # Calculate capacity aka the total number of people expected over the course of the simulation
+            # TBD: we can do better than the 10% fundge factor here; see laserframe for details
             if (pars.cbr is not None) & (len(pars.cbr) == 1):
-                capacity = int(1.1 * calc_capacity(pars.init_pop.sum(), self.nt, pars.cbr[0]))
+                capacity = int(1.1 * calc_capacity(pars.init_pop.sum(), pars.dur, pars.cbr[0]))
             elif (pars.cbr is not None) & (len(pars.cbr) > 1):
-                capacity = int(1.1 * calc_capacity(pars.init_pop.sum(), self.nt, np.mean(pars.cbr)))
+                capacity = int(1.1 * calc_capacity(pars.init_pop.sum(), pars.dur, np.mean(pars.cbr)))
             else:
                 capacity = int(total_pop)
+
             # Initialize the LaserFrame
             self.people = LaserFrame(capacity=capacity, initial_count=int(total_pop))
 
@@ -283,15 +286,8 @@ class SEIR_ABM:
         model = cls.__new__(cls)
         model.common_init(pars, verbose=2)  # TBD: add nasty verbose param
 
-        # Use same logic as elsewhere to set capacity multiplier on count for expansion from vital dynamics
-        num_timesteps = pars.dur + 1
-        # 1.1 below is 'fudge factor' to give a bit of breathing room for stochasticity
-        if (pars.cbr is not None) & (len(pars.cbr) == 1):
-            capacity = int(1.1 * calc_capacity(np.sum(pars.init_pop), num_timesteps, pars.cbr[0]))
-        elif (pars.cbr is not None) & (len(pars.cbr) > 1):
-            capacity = int(1.1 * calc_capacity(np.sum(pars.init_pop), num_timesteps, np.mean(pars.cbr)))
         model.people = people
-        model._capacity = capacity
+        print(f"Capacity of reload = {model.people.capacity}.")
 
         # Setup node list
         model.nodes = np.unique(model.people.node_id[: model.people.count])
