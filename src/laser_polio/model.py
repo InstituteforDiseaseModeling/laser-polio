@@ -239,7 +239,7 @@ class SEIR_ABM:
             else:
                 total_pop = np.sum(pars.init_pop)
             # Next, calculate capacity aka the total number of people expected over the course of the simulation
-            # TBD: we can do better than the 10% fundge factor here; see laserframe for details
+            # TBD: we can do better than the 10% fudge factor here; see laserframe for details
             if (pars.cbr is not None) & (len(pars.cbr) == 1):
                 capacity = int(1.1 * calc_capacity(pars.init_pop.sum(), pars.dur, pars.cbr[0]))
             elif (pars.cbr is not None) & (len(pars.cbr) > 1):
