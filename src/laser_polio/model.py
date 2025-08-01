@@ -226,25 +226,29 @@ class SEIR_ABM:
             self.common_init(pars, verbose)
             pars = self.pars
 
-            # Initialize the LaserFrame based on the initial population & capacity
+            # --- Initialize the LaserFrame ---
+            # Start by setting the number of initial agents per node
             pars.init_pop = np.atleast_1d(pars.init_pop).astype(int)  # Ensure pars.init_pop is an array
             if pars.init_sus_by_age is not None:
                 # If init_sus_by_age is provided, we'll only allocate the laserframe for the susceptible population (saves on memory)
-                init_sus = pars.init_sus_by_age.groupby("node_id")["n_susceptible"].sum().astype(int)  # Calc sus counts across ages by node
+                init_sus = (
+                    pars.init_sus_by_age.groupby("node_id")["n_susceptible"].sum().astype(int)
+                )  # Sum susceptibles by node (i.e., sum across age bins)
                 pars.init_sus = np.atleast_1d(init_sus)
                 total_pop = init_sus.sum()
             else:
                 total_pop = np.sum(pars.init_pop)
-            # Calculate capacity aka the total number of people expected over the course of the simulation
+            # Next, calculate capacity aka the total number of people expected over the course of the simulation
             if (pars.cbr is not None) & (len(pars.cbr) == 1):
                 capacity = int(1.1 * calc_capacity(pars.init_pop.sum(), self.nt, pars.cbr[0]))
             elif (pars.cbr is not None) & (len(pars.cbr) > 1):
                 capacity = int(1.1 * calc_capacity(pars.init_pop.sum(), self.nt, np.mean(pars.cbr)))
             else:
                 capacity = int(total_pop)
-            # Initialize the LaserFrame
+            # Finally, initialize the LaserFrame
             self.people = LaserFrame(capacity=capacity, initial_count=int(total_pop))
 
+            # --- Initializes any essential agent properties that are required across multiple components ---
             # Initialize disease_state, ipv_protected, paralyzed, and potentially_paralyzed here since they're required for most other components
             self.people.add_scalar_property("disease_state", dtype=np.int8, default=-1)  # -1=Dead/inactive, 0=S, 1=E, 2=I, 3=R
             self.people.disease_state[: self.people.count] = 0  # Set initial population as susceptible
@@ -255,8 +259,15 @@ class SEIR_ABM:
             self.people.add_scalar_property("ipv_protected", dtype=np.int8, default=0)
             self.results = LaserFrame(capacity=1)
             self.people.add_scalar_property("strain", dtype=np.int8, default=0)  # 0 = VDPV, 1 = Sabin, 2 = nOPV2
+            # Setup the chronically missed population for vaccination: 0 = missed/inaccessible to vx, 1 = accessible for vaccination
+            self.people.add_scalar_property("chronically_missed", dtype=np.uint8, default=0)
+            missed_frac = pars.missed_frac
+            n = self.people.count
+            n_missed = int(missed_frac * n)
+            missed_ids = np.random.choice(n, size=n_missed, replace=False)
+            self.people.chronically_missed[missed_ids] = 1  # Set the missed population to 1 (missed/inaccessible)
 
-            # Initialize node IDs
+            # --- Initialize nodes & node IDs ---
             self.people.add_scalar_property("node_id", dtype=np.int16, default=-1)
             self.nodes = np.arange(len(pars.init_pop))
             if pars.init_sus_by_age is not None:
@@ -265,14 +276,6 @@ class SEIR_ABM:
                 pop_by_node = pars.init_pop
             node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pop_by_node)])
             self.people.node_id[0 : np.sum(pop_by_node)] = node_ids  # Assign node IDs to initial people
-
-            # Setup chronically missed population for vaccination: 0 = missed/inaccessible to vx, 1 = accessible for vaccination
-            self.people.add_scalar_property("chronically_missed", dtype=np.uint8, default=0)
-            missed_frac = pars.missed_frac
-            n = self.people.count
-            n_missed = int(missed_frac * n)
-            missed_ids = np.random.choice(n, size=n_missed, replace=False)
-            self.people.chronically_missed[missed_ids] = 1  # Set the missed population to 1 (missed/inaccessible)
 
             # Components
             self._components = []
@@ -655,7 +658,7 @@ class DiseaseState_ABM:
         if self.verbose >= 2:
             print(f"Before immune initialization, we have {sim.people.count} active agents.")
 
-        # Initialize immunity
+        # -- Initialize immunity --
         if pars.init_sus_by_age is None:
             # Normalize init_immun into per-node immunity fractions
             if isinstance(pars.init_immun, float):
@@ -721,7 +724,8 @@ class DiseaseState_ABM:
         else:
             raise ValueError(f"Unsupported init_immun type: {type(pars.init_immun)}")
 
-        # Seed infections - (potentially overwrites immunity, e.g., if an individual is drawn as both immune (during immunity initialization above) and infected (below), they will be infected)
+        # --- Seed infections ---
+        # This (potentially) overwrites immunity, e.g., if an individual is drawn as both immune (during immunity initialization above) and infected (below), they will be infected)
         # The specification is flexible and can handle a fixed number OR fraction
         infected_indices = []
         if isinstance(pars.init_prev, float):
@@ -788,7 +792,7 @@ class DiseaseState_ABM:
         self.results.new_potentially_paralyzed[t, :] = new_potential
         self.results.new_paralyzed[t, :] = new_paralyzed
 
-        # Seed infections after initialization
+        # --- Seed infections from seed_schedule ---
         if t in self.seed_schedule:
             for node_id, value in self.seed_schedule[t]:
                 node_mask = (self.people.node_id[: self.people.count] == node_id) & (self.people.disease_state[: self.people.count] >= 0)
@@ -1805,7 +1809,9 @@ class VitalDynamics_ABM:
         pars = self.pars
         self.people.add_scalar_property("date_of_birth", dtype=np.int32, default=-1)
 
+        # --- Initialize ages & births ---
         if pars.init_sus_by_age is not None:
+            # If we're initializing only susceptibles, we need to sample from the init_sus_by_age table for each node
             for node in self.nodes:
                 pyramid = pars.init_sus_by_age[pars.init_sus_by_age["node_id"] == node]
                 pyramid = pyramid.reset_index(drop=True)
@@ -1828,6 +1834,7 @@ class VitalDynamics_ABM:
                 self.people.date_of_birth[np.where(node_mask)[0]] = -ages
 
         else:
+            # If we're initializing the entire population, we need to sample ages from the age pyramid
             pyramid = load_pyramid_csv(pars.age_pyramid_path)
             MINCOL = 0
             MAXCOL = 1
@@ -1902,7 +1909,7 @@ class VitalDynamics_ABM:
                 pars.life_expectancies = life_expectancies
 
             if pars.init_sus_by_age is not None:
-                # If we're only initializing susceptible population, we need to account for mortality in the immune/recovered population
+                # If we're only initializing susceptibles, we need to account for mortality in the immune/recovered population
                 df = pars.init_sus_by_age
                 # Step 1: Compute average age per bin (in years)
                 df["avg_age_yr"] = (df["age_min_yr"] + df["age_max_yr"]) / 2  # Compute average age in years
