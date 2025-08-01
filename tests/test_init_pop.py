@@ -41,6 +41,68 @@ def test_init_sus_by_age():
     assert np.all(init_pop == (S + E + I + R)), "Initial population counts do not match."
 
 
+@patch("laser_polio.root", Path("tests/"))
+def test_init_ipv_protection():
+    config = {
+        "regions": ["ZAMFARA"],
+        "start_year": 2018,
+        "n_days": 365,
+        "init_region": "ZAMFARA",
+        "init_prev": 100,
+        "results_path": None,
+    }
+
+    # Setup sim
+    sim = run_sim(config=config.copy(), run=False)
+    init_sus_by_age = sim.pars.init_sus_by_age.copy()
+
+    # Get expected IPV protection counts from init_sus_by_age
+    expected_ipv_by_node = init_sus_by_age.groupby("node_id")["n_ipv_protected"].sum().astype(int)
+    expected_ipv_by_age_node = init_sus_by_age[init_sus_by_age["n_ipv_protected"] > 0].copy()
+
+    # Get actual IPV protection counts from the simulation
+    actual_ipv_by_node = np.zeros(len(sim.pars.init_pop), dtype=int)
+
+    # Count IPV protected agents by node
+    for node in range(len(sim.pars.init_pop)):
+        node_mask = sim.people.node_id[: sim.people.count] == node
+        node_indices = np.where(node_mask)[0]
+        actual_ipv_by_node[node] = np.sum(sim.people.ipv_protected[node_indices])
+
+    # Test 1: Total IPV protection per node matches expected values
+    for node in range(len(expected_ipv_by_node)):
+        expected = expected_ipv_by_node.iloc[node] if node < len(expected_ipv_by_node) else 0
+        actual = actual_ipv_by_node[node]
+        assert actual == expected, f"Node {node}: Expected {expected} IPV protected, got {actual}"
+
+    # Test 2: IPV protection by age group matches expected values
+    for _, row in expected_ipv_by_age_node.iterrows():
+        node = int(row["node_id"])
+        age_min_yr = row["age_min_yr"]
+        age_max_yr = row["age_max_yr"]
+        expected_count = int(row["n_ipv_protected"])
+
+        # Get agents in this node and age group
+        node_mask = sim.people.node_id[: sim.people.count] == node
+        node_agent_indices = np.where(node_mask)[0]
+
+        if len(node_agent_indices) > 0:
+            # Calculate ages in years
+            agent_ages_days = -sim.people.date_of_birth[node_agent_indices]
+            agent_ages_years = agent_ages_days / 365.0
+
+            # Find agents in this age group
+            age_mask = (agent_ages_years >= age_min_yr) & (agent_ages_years < age_max_yr)
+            age_group_agents = node_agent_indices[age_mask]
+
+            # Count IPV protected agents in this age group
+            actual_count = np.sum(sim.people.ipv_protected[age_group_agents])
+
+            assert actual_count == expected_count, (
+                f"Node {node}, age {age_min_yr}-{age_max_yr}yr: Expected {expected_count} IPV protected, got {actual_count}"
+            )
+
+
 def plot(loaded, fresh):
     plt.figure(figsize=(12, 8), constrained_layout=True)
 
