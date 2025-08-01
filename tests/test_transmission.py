@@ -308,18 +308,18 @@ def test_zero_inflation():
     # --- Assertions ---
     # Both should have at least node 0 with cases (the initially infected node)
     assert np.all(nodes_with_cases_no_inflation >= 1), "No inflation simulations should always have at least 1 node with cases"
-    assert np.all(nodes_with_cases_inflation >= 1), "Half inflation simulations should always have at least 1 node with cases"
+    assert np.all(nodes_with_cases_inflation >= 1), "Inflation simulations should always have at least 1 node with cases"
 
     # With zero inflation, we should generally have fewer nodes with cases
     mean_nodes_no_inflation_day1 = np.mean(day1_nodes_with_cases_no_inflation)
     mean_nodes_inflation_day1 = np.mean(day1_nodes_with_cases_inflation)
     assert mean_nodes_inflation_day1 < mean_nodes_no_inflation_day1, (
-        f"Zero inflation should reduce nodes with cases. No inflation: {mean_nodes_no_inflation_day1:.2f}, Half inflation: {mean_nodes_inflation_day1:.2f}"
+        f"Zero inflation should reduce nodes with cases. No inflation: {mean_nodes_no_inflation_day1:.2f}, With inflation: {mean_nodes_inflation_day1:.2f}"
     )
     mean_nodes_no_inflation = np.mean(nodes_with_cases_no_inflation)
     mean_nodes_inflation = np.mean(nodes_with_cases_inflation)
     assert mean_nodes_inflation < mean_nodes_no_inflation, (
-        f"Zero inflation should reduce nodes with cases. No inflation: {mean_nodes_no_inflation:.2f}, Half inflation: {mean_nodes_inflation:.2f}"
+        f"Zero inflation should reduce nodes with cases. No inflation: {mean_nodes_no_inflation:.2f}, With inflation: {mean_nodes_inflation:.2f}"
     )
 
     # Test extreme case: 99% zero inflation should dramatically reduce spread
@@ -335,10 +335,10 @@ def test_zero_inflation():
     mean_nodes_extreme_inflation = np.mean(nodes_with_cases_extreme_inflation)
     mean_nodes_extreme_inflation_day1 = np.mean(day1_nodes_with_cases_extreme_inflation)
     assert mean_nodes_extreme_inflation_day1 < mean_nodes_inflation_day1, (
-        f"Extreme zero inflation should reduce spread even more. Half: {mean_nodes_inflation_day1:.2f}, Extreme: {mean_nodes_extreme_inflation_day1:.2f}"
+        f"Extreme zero inflation should reduce spread even more. No inflation: {mean_nodes_inflation_day1:.2f}, Extreme: {mean_nodes_extreme_inflation_day1:.2f}"
     )
     assert mean_nodes_extreme_inflation < mean_nodes_inflation, (
-        f"Extreme zero inflation should reduce spread even more. Half: {mean_nodes_inflation:.2f}, Extreme: {mean_nodes_extreme_inflation:.2f}"
+        f"Extreme zero inflation should reduce spread even more. No inflation: {mean_nodes_inflation:.2f}, Extreme: {mean_nodes_extreme_inflation:.2f}"
     )
 
 
