@@ -15,7 +15,10 @@ def get_git_branch():
     """Get the current git branch name"""
     try:
         result = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True, check=True)
-        return result.stdout.strip()
+        branch_name = result.stdout.strip()
+        # Sanitize branch name for use in filenames (replace problematic characters)
+        sanitized_name = branch_name.replace("/", "_").replace("\\", "_").replace(":", "_").replace(" ", "_")
+        return sanitized_name
     except (subprocess.CalledProcessError, FileNotFoundError):
         return "unknown_branch"
 
