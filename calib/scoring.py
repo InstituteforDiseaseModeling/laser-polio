@@ -141,12 +141,12 @@ def compute_nll_dirichlet(actual, predicted, weights=None):
                 if set(a.keys()) != set(p.keys()):
                     raise ValueError(f"Key mismatch in nested dict '{key}': {set(a.keys()) ^ set(p.keys())}")
                 subkeys = sorted(a.keys())  # enforce consistent order
-                v_obs = np.array([a[k] for k in subkeys], dtype=float)
+                v_obs = np.array([a[k] for k in subkeys], dtype=int)
                 v_sim = np.array([p[k] for k in subkeys], dtype=float)
 
             # Handle flat arrays or lists
             else:
-                v_obs = np.array(a, dtype=float)
+                v_obs = np.array(a, dtype=int)
                 v_sim = np.array(p, dtype=float)
 
             # Ensure shape match
@@ -157,13 +157,21 @@ def compute_nll_dirichlet(actual, predicted, weights=None):
             # Clip simulation values to avoid log(0)
             v_sim = np.clip(v_sim, 1e-6, None)
 
-            if key == "total_by_period":
-                # Use Poisson likelihood for count data
-                logp = poisson.logpmf(v_obs, v_sim)
-
-            elif key in ["monthly_timeseries", "adm01_by_period"]:
-                # Use Dirichlet multinomial likelihood for compositional data
-                logp = sps.dirichlet_multinomial.logpmf(x=v_obs, n=v_obs.sum(), alpha=v_sim + 1)
+            if key in [
+                "cases_by_period",
+                "cases_by_month",
+                "cases_by_region",
+                "cases_by_region_period",
+                "cases_by_region_month",
+                "case_bins_by_region",
+            ]:
+                # Promote to 2D arrays so we can sum by rows (over axis=1). This handles both single and multi-sample cases.
+                v_obs = np.atleast_2d(v_obs)
+                v_sim = np.atleast_2d(v_sim)
+                x = v_obs
+                n = v_obs.sum(axis=1)
+                alpha = v_sim + 1
+                logp = sps.dirichlet_multinomial.logpmf(x=x, n=n, alpha=alpha)
 
             else:
                 # Default to Poisson for other keys
