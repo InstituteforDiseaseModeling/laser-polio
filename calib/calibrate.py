@@ -21,12 +21,8 @@ import laser_polio as lp
 # model_config = "config_nigeria_synth.yaml"
 # calib_config = "nigeria_synth.yaml"
 
-# study_name = "calib_nigeria_6y_2018_underwt_gravity_zinb_ipv_vxtrans_nwecnga_pop0.01_20250708"
-# model_config = "config_nigeria_6y_2018_underwt_gravity_zinb_ipv_nwecnga_3periods_pop0.01.yaml"
-# calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts_narrower.yaml"
-
-study_name = "calib_west_africa_7y_2017_underwt_20250715"
-model_config = "config_west_africa_7y_2017_underwt.yaml"
+study_name = "calib_west_africa_7y_2017_underwt_20250804"
+model_config = "config_west_africa_7y_2017_region_strategy.yaml"
 calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts_narrower_regionaltimeseries.yaml"
 
 fit_function = "log_likelihood"
