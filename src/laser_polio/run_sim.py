@@ -393,10 +393,12 @@ def run_sim(
 
     # Either initialize the sim from file or create a sim from scratch
     if init_pop_file:
-        print("Loading initial pop.")
+        if verbose >= 1:
+            print("Loading pop from file.")
         sim = from_file(init_pop_file)
     else:
-        print("Initializing initial pop.")
+        if verbose >= 1:
+            print("Initializing pop from scratch.")
         sim = regular()
         if save_init_pop:
             sim.people.save_snapshot(results_path / "init_pop.h5", sim.results.R[:], sim.pars)
@@ -417,7 +419,9 @@ def run_sim(
             sim.plot(save=True, results_path=results_path)
         if save_data:
             Path(results_path).mkdir(parents=True, exist_ok=True)
-            lp.save_results_to_csv(sim, filename=Path(results_path) / "simulation_results.csv")
+            # Pass summary_config if available for temporal and regional groupings
+            summary_config = configs.get("summary_config", None)
+            lp.save_sim_results(sim, filename=Path(results_path) / "simulation_results.csv", summary_config=summary_config)
         if save_final_pop:
             sim.people.save_snapshot(results_path / "final_pop.h5", sim.results.R[:], sim.pars)
 

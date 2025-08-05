@@ -1,5 +1,4 @@
 import calendar
-import csv
 import datetime
 import datetime as dt
 import json
@@ -17,9 +16,14 @@ import numpy as np
 import pandas as pd
 import psutil
 import sciris as sc
+import yaml
+
+import laser_polio as lp
 
 __all__ = [
     "TimingStats",
+    "add_regional_groupings",
+    "add_temporal_groupings",
     "calc_r0_scalars_from_rand_eff",
     "calc_sia_prob_from_rand_eff",
     "clean_strings",
@@ -40,7 +44,7 @@ __all__ = [
     "pbincount",
     "print_memory",
     "process_sia_schedule_polio",
-    "save_results_to_csv",
+    "save_sim_results",
     "truncate_colormap",
 ]
 
@@ -620,69 +624,84 @@ def get_seasonality(sim):
     return 1 + sim.pars["seasonal_amplitude"] * np.cos(2 * np.pi * (doy - sim.pars["seasonal_peak_doy"]) / days_in_year)
 
 
-def save_results_to_csv(sim, filename="simulation_results.csv"):
+def save_sim_results(data, filename="simulation_results.csv", summary_config=None):
     """
-    Save simulation results (S, E, I, R) to a CSV file with columns: Time, Node, S, E, I, R.
+    Save simulation results to a CSV file, optionally applying temporal and regional groupings.
 
-    :param sim: The sim object containing a results object with numpy arrays for S, E, I, and R.
-    :param filename: The name of the CSV file to save.
+    Parameters:
+    -----------
+    data : sim object
+        A sim object containing results arrays
+    filename : str
+        The name of the CSV file to save
+    summary_config : dict, optional
+        Configuration for temporal and regional groupings to apply to the data
+
+    Returns:
+    --------
+    pd.DataFrame
+        The processed DataFrame (useful for further analysis)
+
+    Example:
+    --------
+    # For simulation results:
+    save_results_to_csv(sim, "results.csv", summary_config=config["summary_config"])
+
     """
 
+    sim = data
     timesteps = sim.nt
     datevec = sim.datevec
     nodes = len(sim.nodes)
     results = sim.results
     node_lookup = sim.pars.node_lookup
 
-    with open(filename, mode="w", newline="") as file:
-        writer = csv.writer(file)
+    # Create DataFrame from simulation results
+    rows = []
+    for t in range(timesteps):
+        for n in range(nodes):
+            dot_name = node_lookup.get(n, {}).get("dot_name", "UNKNOWN")
+            rows.append(
+                {
+                    "timestep": t,
+                    "date": datevec[t],
+                    "node": n,
+                    "dot_name": dot_name,
+                    "S": results.S[t, n],
+                    "E": results.E[t, n],
+                    "I": results.I[t, n],
+                    "R": results.R[t, n],
+                    "P": results.paralyzed[t, n],
+                    "births": results.births[t, n],
+                    "deaths": results.deaths[t, n],
+                    "new_exposed": results.new_exposed[t, n],
+                    "potentially_paralyzed": results.potentially_paralyzed[t, n],
+                    "new_potentially_paralyzed": results.new_potentially_paralyzed[t, n],
+                    "new_paralyzed": results.new_paralyzed[t, n],
+                }
+            )
 
-        # Write header
-        writer.writerow(
-            [
-                "timestep",
-                "date",
-                "node",
-                "dot_name",
-                "S",
-                "E",
-                "I",
-                "R",
-                "P",
-                "births",
-                "deaths",
-                "new_exposed",
-                "potentially_paralyzed",
-                "new_potentially_paralyzed",
-                "new_paralyzed",
-            ]
-        )
+    df = pd.DataFrame(rows)
 
-        # Write data
-        for t in range(timesteps):
-            for n in range(nodes):
-                dot_name = node_lookup.get(n, {}).get("dot_name", "UNKNOWN")
-                writer.writerow(
-                    [
-                        t,
-                        datevec[t],
-                        n,
-                        dot_name,
-                        results.S[t, n],
-                        results.E[t, n],
-                        results.I[t, n],
-                        results.R[t, n],
-                        results.paralyzed[t, n],
-                        results.births[t, n],
-                        results.deaths[t, n],
-                        results.new_exposed[t, n],
-                        results.potentially_paralyzed[t, n],
-                        results.new_potentially_paralyzed[t, n],
-                        results.new_paralyzed[t, n],
-                    ]
-                )
+    # Apply temporal and regional groupings if summary_config provided
+    if summary_config is not None:
+        # Ensure date column is datetime
+        if "date" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["date"]):
+            df["date"] = pd.to_datetime(df["date"])
 
+        # Apply temporal groupings
+        if "time_periods" in summary_config:
+            df = add_temporal_groupings(df, summary_config["time_periods"])
+
+        # Apply regional groupings
+        if "region_groupings" in summary_config:
+            df = add_regional_groupings(df, summary_config["region_groupings"])
+
+    # Save to CSV
+    df.to_csv(filename, index=False)
     print(f"Results saved to {filename}")
+
+    return df
 
 
 def truncate_colormap(cmap_name, minval=0.0, maxval=1.0, n=256):
@@ -934,6 +953,121 @@ def nb_bincount_weighted(bins, num_indices, weights, tls):
     for i in nb.prange(num_indices):
         tls[nb.get_thread_id(), bins[i]] += weights[i]
     return
+
+
+def add_temporal_groupings(df, time_config):
+    """
+    Add time period columns to a DataFrame based on summary_config time configuration.
+
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        DataFrame containing simulation results with a 'date' column
+    time_config : dict
+        Configuration dictionary with 'bins' and 'labels' keys
+
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with added 'time_period' column
+
+    Example:
+    --------
+    time_config = {
+        "bins": ["2020-07-01", "2022-07-01"],
+        "labels": ["2018-2020.5", "2020.5-2022.5", "2022.5-2024"]
+    }
+    df = add_temporal_groupings(df, time_config)
+    """
+    df = df.copy()
+
+    if "bins" in time_config and "labels" in time_config:
+        bin_dates = [pd.Timestamp(d) for d in time_config["bins"]]
+        # Add min/max bounds
+        bins = [pd.Timestamp.min, *bin_dates, pd.Timestamp.max]
+        labels = time_config["labels"]
+        df["time_period"] = pd.cut(df["date"], bins=bins, labels=labels, right=False)
+
+    return df
+
+
+def add_regional_groupings(df, region_groupings, regions_yaml_path=None):
+    """
+    Add regional groupings based on region_groupings list.
+    Countries in the list use regions.yaml, all others use adm0.
+
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        DataFrame containing simulation results with 'dot_name' column
+    region_groupings : list
+        List of countries that need custom regions from regions.yaml
+    regions_yaml_path : str, optional
+        Path to regions.yaml file. If None, uses default path at data/regions.yaml
+
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with added administrative level columns (adm0, adm1, adm01) and 'region' column
+
+    Example:
+    --------
+    # In YAML config:
+    # region_groupings: ["NIGERIA", "BENIN"]
+
+    df = add_regional_groupings(df, ["NIGERIA", "BENIN"])
+    """
+
+    df = df.copy()
+
+    # Split dot_name into administrative level columns
+    dot_parts = df["dot_name"].str.split(":", expand=True)
+    df["adm0"] = dot_parts[1]
+    df["adm1"] = dot_parts[2]
+    df["adm01"] = df["adm0"] + ":" + df["adm1"]
+
+    # Default: group by adm0 (country level)
+    df["region"] = df["adm0"]
+
+    # Apply custom regions for specified countries
+    if region_groupings:
+        # Load regions.yaml for custom regions
+        regions_yaml_path = regions_yaml_path or lp.root / "data/regions.yaml"
+        try:
+            with open(regions_yaml_path) as f:
+                regions_data = yaml.safe_load(f)
+
+            # Apply custom regions for specified countries
+            for country in region_groupings:
+                country_upper = country.upper()
+
+                if country_upper in regions_data:
+                    # Get mask for this country's data
+                    country_mask = df["adm0"] == country_upper
+                    region_groups = regions_data[country_upper]
+
+                    # Apply custom region groups for this country
+                    for group_name, patterns in region_groups.items():
+                        pattern_mask = pd.Series(False, index=df.index)
+
+                        for pattern in patterns:
+                            if ":" in pattern and not pattern.startswith("AFRO:"):
+                                # Pattern like "NIGERIA:JIGAWA" - match against adm01
+                                pattern_mask |= df["adm01"] == pattern
+                            else:
+                                # Pattern for dot_name matching
+                                pattern_mask |= df["dot_name"].str.contains(pattern, case=False, na=False)
+
+                        # Apply to this country only
+                        final_mask = country_mask & pattern_mask
+                        df.loc[final_mask, "region"] = group_name
+                else:
+                    print(f"Warning: Custom regions not found for {country} in regions.yaml, using adm0")
+
+        except (FileNotFoundError, ImportError):
+            print(f"Warning: Could not load {regions_yaml_path}, using adm0 for all countries")
+
+    return df
 
 
 # warm up Numba
