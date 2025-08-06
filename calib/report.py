@@ -13,6 +13,8 @@ import sciris as sc
 import yaml
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
+from shapely.geometry import Polygon
+from shapely.ops import unary_union
 
 try:
     import cloud_calib_config as cfg
@@ -221,51 +223,43 @@ def plot_optuna(study_name, storage_url, output_dir=None):
 
 
 def plot_case_diff_choropleth_temporal(
-    shp, node_lookup, actual_cases_by_period, pred_cases_by_period, output_path, title="Case Count Difference by Period"
+    shp, actual_cases_by_period, pred_cases_by_period, output_path, title="Case Count Difference by Period"
 ):
     """
     Plot choropleth maps showing the difference between actual and predicted case counts
-    for multiple time periods (2018-2019, 2020-2021, 2022-2023 or before_2020, after_2020).
+    for multiple time periods using nested dictionary structure.
 
     Args:
-        shp (GeoDataFrame): The shapefile GeoDataFrame
-        node_lookup (dict): Dictionary mapping dot_names to administrative regions
-        actual_cases_by_period (dict): Dictionary of actual case counts by region and period
-        pred_cases_by_period (dict): Dictionary of predicted case counts by region and period
+        shp (GeoDataFrame): The shapefile GeoDataFrame with region-level geometries
+        actual_cases_by_period (dict): Nested dictionary of actual case counts {region: {period: count}}
+        pred_cases_by_period (dict): Nested dictionary of predicted case counts {region: {period: count}}
         output_path (Path): Path to save the plot
         title (str): Title for the plot
     """
 
-    # Determine which periods we have and extract data
-    periods = []
+    # Extract periods and regions from nested dictionary structure
+    # Extract all unique periods from all regions
+    all_periods = set()
+    for region_dict in actual_cases_by_period.values():
+        all_periods.update(region_dict.keys())
+    for region_dict in pred_cases_by_period.values():
+        all_periods.update(region_dict.keys())
+    periods = sorted(list(all_periods))
+
+    # Restructure data by period for easier processing
     period_actual = {}
     period_pred = {}
 
-    # Parse actual cases by period
-    for key, value in actual_cases_by_period.items():
-        # Parse the tuple key format: "('NIGERIA:JIGAWA', '2018-2019')"
-        parts = key.strip("()").split("', '")
-        if len(parts) == 2:
-            adm01_name = parts[0].strip("'")
-            period = parts[1].strip("'")
+    for period in periods:
+        period_actual[period] = {}
+        period_pred[period] = {}
 
-            if period not in periods:
-                periods.append(period)
-                period_actual[period] = {}
-                period_pred[period] = {}
+        # Extract data for this period from all regions
+        for region, region_data in actual_cases_by_period.items():
+            period_actual[period][region] = region_data.get(period, 0)
 
-            period_actual[period][adm01_name] = value
-
-    # Parse predicted cases by period
-    for key, value in pred_cases_by_period.items():
-        # Parse the tuple key format: "('NIGERIA:JIGAWA', '2018-2019')"
-        parts = key.strip("()").split("', '")
-        if len(parts) == 2:
-            adm01_name = parts[0].strip("'")
-            period = parts[1].strip("'")
-
-            if period in period_pred:
-                period_pred[period][adm01_name] = value
+        for region, region_data in pred_cases_by_period.items():
+            period_pred[period][region] = region_data.get(period, 0)
 
     # Use periods in the order they appear in the dictionary
     # Create figure with subplots
@@ -311,7 +305,7 @@ def plot_case_diff_choropleth_temporal(
 
         if diffs:
             shp_copy = shp.copy()
-            shp_copy["case_diff"] = shp_copy["adm01_name"].map(diffs)
+            shp_copy["case_diff"] = shp_copy["region"].map(diffs)
 
             shp_copy.plot(column="case_diff", ax=ax, cmap="RdBu", vmin=vmin, vmax=vmax, legend=False)
             ax.set_title(period)
@@ -335,7 +329,7 @@ def plot_case_diff_choropleth_temporal(
     plt.close(fig)
 
 
-def plot_case_diff_choropleth(shp, node_lookup, actual_cases, pred_cases, output_path, title="Case Count Difference"):
+def plot_case_diff_choropleth(shp, actual_cases, pred_cases, output_path, title="Case Count Difference"):
     """
     Plot a choropleth map showing the difference between actual and predicted case counts.
 
@@ -355,8 +349,8 @@ def plot_case_diff_choropleth(shp, node_lookup, actual_cases, pred_cases, output
     # Create a copy of the shapefile and add the differences
     shp_copy = shp.copy()
 
-    # Map the differences using adm01_name
-    shp_copy["case_diff"] = shp_copy["adm01_name"].map(differences)
+    # Map the differences using region
+    shp_copy["case_diff"] = shp_copy["region"].map(differences)
 
     # Create diverging colormap centered at 0
     max_abs_diff = max(abs(min(differences.values())), abs(max(differences.values())))
@@ -406,47 +400,92 @@ def plot_case_diff_choropleth(shp, node_lookup, actual_cases, pred_cases, output
 
 def get_shapefile_from_config(model_config):
     """
-    Generate a shapefile from the model configuration.
+    Generate a shapefile from the model configuration with proper regional groupings.
 
     Args:
         model_config (dict): Model configuration dictionary containing region information
 
     Returns:
-        tuple: (GeoDataFrame, dict) The generated shapefile and node lookup dictionary mapping dot_names to adm01 names
+        tuple: (GeoDataFrame, dict) The processed shapefile with region-level geometries and region lookup dictionary
     """
     # Extract region information from config
     regions = model_config.get("regions", [])
     if not regions:
         raise ValueError("No regions specified in model config")
     admin_level = model_config.get("admin_level", None)
+    summary_config = model_config.get("summary_config", {})
 
     # Get dot names for the regions
-    dot_names = lp.find_matching_dot_names(regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", admin_level=admin_level)
-
-    # Load node lookup and create dot_name to adm01 mapping
-    node_lookup_full = lp.get_node_lookup("data/node_lookup.json", dot_names)
-    # Convert from index-based to dot_name-based dictionary
-    node_lookup = {entry["dot_name"]: entry["adm01"] for entry in node_lookup_full.values()}
+    dot_names = lp.find_matching_dot_names(
+        regions, lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv", admin_level=admin_level, verbose=0
+    )
 
     # Load and filter shapefile
-    shp = gpd.read_file("data/shp_africa_low_res.gpkg", layer="adm2")
+    shp = gpd.read_file(lp.root / "data/shp_africa_low_res.gpkg", layer="adm2")
     shp = shp[shp["dot_name"].isin(dot_names)]
+    shp = shp.set_index("dot_name").loc[dot_names].reset_index()  # Ensure correct ordering
 
-    # Ensure correct ordering if needed
-    shp = shp.set_index("dot_name").loc[dot_names].reset_index()
+    if admin_level == 2:
+        return shp
 
-    # Add administrative region names from node_lookup
-    shp["adm01_name"] = shp["dot_name"].map(node_lookup)
+    elif admin_level == 1:
+        shp["geometry"] = shp["geometry"].buffer(0)  # Fix topology issues
+        shp = shp.dissolve(by="adm01", aggfunc="first").reset_index()  # Dissolve by adm01
+        return shp
 
-    # Verify we have all mappings
-    missing_mappings = shp[shp["adm01_name"].isna()]["dot_name"].tolist()
-    if missing_mappings:
-        print(f"[WARN] Missing node_lookup mappings for: {missing_mappings}")
+    elif admin_level == 0 and "region_groupings" not in summary_config:
+        shp["geometry"] = shp["geometry"].buffer(0)  # Fix topology issues
+        shp = lp.add_regional_groupings(shp)  # Add region column
+        shp = shp.dissolve(by="region", aggfunc="first").reset_index()  # Dissolve by adm0
+        shp = shp[["region", "geometry"]]
+        return shp
 
-    return shp, node_lookup
+    elif admin_level == 0 and "region_groupings" in summary_config:
+        shp = lp.add_regional_groupings(shp, summary_config["region_groupings"])  # Apply regional groupings
+
+        # Step 1: Dissolve by region to group polygons
+        region_dissolved = shp.dissolve(by="region", as_index=False)
+
+        # Step 2: For each region, fully merge all geometry parts into a single polygon
+        def unify_region_geometry(region_df):
+            return unary_union(region_df.geometry)
+
+        unified_geoms = []
+        for region_name in region_dissolved["region"]:
+            region_geom = unary_union(shp[shp["region"] == region_name].geometry)
+            unified_geoms.append((region_name, region_geom))
+
+        # Step 3: Build new GeoDataFrame
+        region_shp = gpd.GeoDataFrame(unified_geoms, columns=["region", "geometry"], crs=shp.crs)
+
+        def extract_outer_shell(geom):
+            # If it's a MultiPolygon, merge and take the union of all exteriors
+            if geom.geom_type == "MultiPolygon":
+                merged = unary_union(geom)
+                largest = max(merged.geoms, key=lambda g: g.area)
+                return Polygon(largest.exterior)
+            elif geom.geom_type == "Polygon":
+                return Polygon(geom.exterior)
+            else:
+                return geom  # Fallback (shouldn't happen)
+
+        # Step 4: Extract outer shell of each region
+        unified_geoms = []
+        for region_name in region_dissolved["region"]:
+            merged_geom = unary_union(shp[shp["region"] == region_name].geometry)
+            outer_geom = extract_outer_shell(merged_geom)
+            unified_geoms.append((region_name, outer_geom))
+        region_shp = gpd.GeoDataFrame(unified_geoms, columns=["region", "geometry"], crs=shp.crs)
+
+        # Step 5: Add label points
+        region_shp_proj = region_shp.to_crs(epsg=3857)  # Reproject to projected CRS (meters)
+        region_shp["center_lon"] = region_shp_proj.geometry.centroid.to_crs(epsg=4326).x
+        region_shp["center_lat"] = region_shp_proj.geometry.centroid.to_crs(epsg=4326).y
+
+        return region_shp
 
 
-def plot_targets(study, output_dir=None, shp=None, start_year=2018):
+def plot_targets(study, output_dir=None, shp=None):
     best = study.best_trial
     actual = best.user_attrs["actual"]
     preds = best.user_attrs["predicted"]
@@ -458,23 +497,20 @@ def plot_targets(study, output_dir=None, shp=None, start_year=2018):
     with open(metadata_path) as f:
         metadata = json.load(f)
     model_config = metadata.get("model_config", {})
+    start_year = model_config.get("start_year", 2018)
 
     # Create output directory for top trials plots
     best_dir = Path(output_dir) / "best_trial_plots"
     best_dir.mkdir(exist_ok=True)
 
     # Generate shapefile if not provided
-    if shp is None and ("adm01_cases" in actual or "adm01_by_period" in actual):
+    if shp is None:
         try:
-            shp, node_lookup = get_shapefile_from_config(model_config)
+            shp = get_shapefile_from_config(model_config)
             print("[INFO] Generated shapefile from model config")
         except Exception as e:
             print(f"[WARN] Could not generate shapefile: {e}")
             shp = None
-
-    # Load region group labels from study_metadata.json
-    region_groups = model_config.get("summary_config", {}).get("region_groups", {})
-    region_labels = list(region_groups.keys())
 
     # Define consistent colors
     n_reps = len(preds)
@@ -482,175 +518,260 @@ def plot_targets(study, output_dir=None, shp=None, start_year=2018):
     cmap = cm.get_cmap("Dark2")  # tab10
     color_map = {label: cmap(i) for i, label in enumerate(labels)}
 
-    # Total Infected
-    if "total_infected" in actual:
-        plt.figure()
-        plt.title("Total Infected")
-        width = 0.2
-        x = np.arange(len(labels))
-        values = [actual["total_infected"][0]] + [rep["total_infected"][0] for rep in preds]
-        plt.bar(x, values, width=width, color=[color_map[label] for label in labels])
-        plt.xticks(x, labels, rotation=45)
-        plt.ylabel("Cases")
-        plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_total_infected_comparison.png")
-        plt.close()
+    if "cases_by_period" in actual:
+        # Use the keys from the dictionary in their natural order
+        period_labels = list(actual["cases_by_period"].keys())
+        x = np.arange(len(period_labels))
+        actual_vals = [actual["cases_by_period"][period] for period in period_labels]
 
-    # Yearly Cases
-    if "yearly_cases" in actual:
-        years = list(range(start_year, start_year + len(actual["yearly_cases"])))
-        plt.figure()
-        plt.title("Yearly Cases")
-        plt.plot(years, actual["yearly_cases"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+        plt.figure(figsize=(10, 6))
+        plt.title(f"Cases by Period - Top {n_reps} Trials")
+        plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
         for i, rep in enumerate(preds):
+            pred = rep["cases_by_period"]
             label = f"Rep {i + 1}"
-            plt.plot(years, rep["yearly_cases"], "o-", label=label, color=color_map[label])
-        plt.xlabel("Year")
+            pred_vals = [pred.get(period, 0) for period in period_labels]
+            plt.scatter(x, pred_vals, label=label, color=color_map[f"Rep {i + 1}"], marker="o", s=50)
+        plt.xticks(x, period_labels, rotation=45, ha="right")
         plt.ylabel("Cases")
-        plt.legend()
+        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
         plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_yearly_cases_comparison.png")
-        plt.close()
-
-    # Monthly Cases
-    if "monthly_cases" in actual:
-        months = list(range(1, 1 + len(actual["monthly_cases"])))
-        plt.figure()
-        plt.title("Monthly Cases")
-        plt.plot(months, actual["monthly_cases"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
-        for i, rep in enumerate(preds):
-            label = f"Rep {i + 1}"
-            plt.plot(months, rep["monthly_cases"], "o-", label=label, color=color_map[label])
-        plt.xlabel("Month")
-        plt.ylabel("Cases")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_monthly_cases_comparison.png")
+        plt.savefig(best_dir / "plot_best_cases_by_period.png", bbox_inches="tight")
         plt.close()
 
     # Monthly Timeseries Cases
-    if "monthly_timeseries" in actual:
-        n_months = len(actual["monthly_timeseries"])
+    if "cases_by_month" in actual:
+        n_months = len(actual["cases_by_month"])
         months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
         plt.figure()
-        plt.title("Monthly Timeseries")
-        plt.plot(months_series, actual["monthly_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+        plt.title("Cases by Period")
+        plt.plot(months_series, actual["cases_by_month"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
         for i, rep in enumerate(preds):
             label = f"Rep {i + 1}"
-            plt.plot(months_series, rep["monthly_timeseries"], "o-", label=label, color=color_map[label])
+            plt.plot(months_series, rep["cases_by_month"], "o-", label=label, color=color_map[label])
         plt.xlabel("Month")
         plt.ylabel("Cases")
         plt.legend()
         plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_monthly_timeseries_comparison.png")
+        plt.savefig(best_dir / "plot_best_cases_by_month.png")
         plt.close()
 
-    # adm0_cases (bar plot)
-    if "adm0_cases" in actual:
-        adm0_actual = actual.get("adm0_cases")
-        if adm0_actual:
-            adm_labels = sorted(actual["adm0_cases"].keys())
-            x = np.arange(len(adm_labels))
-            # Get actual values
-            actual_vals = [actual["adm0_cases"].get(adm, 0) for adm in adm_labels]
-            plt.figure(figsize=(10, 6))
-            plt.title("ADM0 Cases")
-            # Plot actual as outlined bar
-            plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
-            # Plot predicted reps as colored dots
-            for i, rep in enumerate(preds):
-                label = f"Rep {i + 1}"
-                rep_vals = [rep["adm0_cases"].get(adm, 0) for adm in adm_labels]
-                plt.scatter(
-                    x,
-                    rep_vals,
-                    label=label,
-                    color=color_map[label],  # your original style
-                    marker="o",
-                    s=50,
-                )
-            # Axis formatting
-            plt.xticks(x, adm_labels, rotation=45, ha="right")
-            plt.ylabel("Cases")
-            plt.legend()
+    # Regional Cases (bar plot)
+    if "cases_by_region" in actual:
+        region_labels = list(actual["cases_by_region"].keys())
+        x = np.arange(len(region_labels))
+        width = 0.1
+        plt.figure()
+        plt.title("Regional Cases")
+        plt.bar(x, actual["cases_by_region"].values(), width, label="Actual", color=color_map["Actual"])
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            plt.bar(x + (i + 1) * width, rep["cases_by_region"].values(), width, label=f"Rep {i + 1}", color=color_map[label])
+        plt.xticks(x + width * (len(preds) // 2), region_labels, rotation=45, ha="right")
+        plt.ylabel("Cases")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(best_dir / "plot_best_cases_by_region.png")
+        plt.close()
+
+    # Regional Cases by Period (nested dictionary structure)
+    if "cases_by_region_period" in actual:
+        region_period_data = actual["cases_by_region_period"]
+
+        # Extract all unique periods from all regions
+        all_periods = set()
+        for region_dict in region_period_data.values():
+            all_periods.update(region_dict.keys())
+        periods = sorted(list(all_periods))
+
+        # Extract all unique regions
+        regions = sorted(region_period_data.keys())
+
+        # Create figure with subplots stacked vertically (one per period)
+        n_periods = len(periods)
+        if n_periods > 0:
+            fig, axes = plt.subplots(n_periods, 1, figsize=(12, 4 * n_periods))
+            if n_periods == 1:
+                axes = [axes]
+
+            for i, period in enumerate(periods):
+                ax = axes[i]
+
+                # Extract data for this period across all regions
+                x = np.arange(len(regions))
+                actual_vals = [region_period_data.get(region, {}).get(period, 0) for region in regions]
+
+                # Plot actual as outlined bar
+                ax.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
+
+                # Plot predicted reps as colored dots
+                for j, rep in enumerate(preds):
+                    label = f"Rep {j + 1}"
+                    rep_data = rep.get("cases_by_region_period", {})
+                    rep_vals = [rep_data.get(region, {}).get(period, 0) for region in regions]
+                    ax.scatter(x, rep_vals, label=label, color=color_map[label], marker="o", s=50)
+
+                ax.set_title(f"Regional Cases - {period}")
+                ax.set_xticks(x)
+                ax.set_xticklabels(regions, rotation=45, ha="right")
+                ax.set_ylabel("Cases")
+                ax.legend()
+
             plt.tight_layout()
-            plt.savefig(best_dir / "plot_adm0_cases.png")
+            plt.savefig(best_dir / "plot_best_cases_by_region_period.png")
             plt.close()
 
-    # adm01_cases (bar plot)
-    if "adm01_cases" in actual:
-        adm01_actual = actual.get("adm01_cases")
-        if adm01_actual:
-            adm_labels = sorted(actual["adm01_cases"].keys())
-            x = np.arange(len(adm_labels))
-            # Get actual values
-            actual_vals = [actual["adm01_cases"].get(adm, 0) for adm in adm_labels]
-            plt.figure(figsize=(10, 6))
-            plt.title("ADM01 Regional Cases")
-            # Plot actual as outlined bar
-            plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
-            # Plot predicted reps as colored dots
-            for i, rep in enumerate(preds):
-                label = f"Rep {i + 1}"
-                rep_vals = [rep["adm01_cases"].get(adm, 0) for adm in adm_labels]
-                plt.scatter(
-                    x,
-                    rep_vals,
-                    label=label,
-                    color=color_map[label],  # your original style
-                    marker="o",
-                    s=50,
-                )
-            # Axis formatting
-            plt.xticks(x, adm_labels, rotation=45, ha="right")
-            plt.ylabel("Cases")
-            plt.legend()
+    if "cases_by_region_month" in actual:
+        cases_by_region_month_actual = actual.get("cases_by_region_month")
+        regions = list(cases_by_region_month_actual.keys())
+        n_regions = len(regions)
+
+        if n_regions > 0:
+            # Create subplot grid (2x2 for 4 regions, adjust if different number)
+            n_cols = 2
+            n_rows = (n_regions + n_cols - 1) // n_cols  # Ceiling division
+
+            fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 10))
+            fig.suptitle("Regional Monthly Timeseries Comparison", fontsize=16)
+
+            # Flatten axes for easier indexing if multiple rows
+            if n_regions > 1:
+                axes = axes.flatten() if n_rows > 1 else [axes] if n_cols == 1 else axes
+            else:
+                axes = [axes]
+
+            # Get the length of the first key in the dictionary
+            first_key = next(iter(actual["cases_by_region_month"]))
+            n_months = len(actual["cases_by_region_month"][first_key])
+            months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
+
+            for idx, region in enumerate(regions):
+                ax = axes[idx]
+                timeseries = cases_by_region_month_actual[region]
+
+                # Plot actual data
+                ax.plot(months_series, timeseries, "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+
+                # Add predicted data for each replicate
+                for i, rep in enumerate(preds):
+                    if "cases_by_region_month" in rep and region in rep["cases_by_region_month"]:
+                        label = f"Rep {i + 1}"
+                        rep_timeseries = rep["cases_by_region_month"][region]
+                        ax.plot(months_series, rep_timeseries, "o-", label=label, color=color_map[label])
+
+                ax.set_title(f"{region.replace('_', ' ').title()}")
+                ax.set_xlabel("Month")
+                ax.set_ylabel("Cases")
+                ax.tick_params(axis="x", rotation=45)
+                ax.grid(True, alpha=0.3)
+
+                # Only add legend to first subplot to avoid clutter
+                if idx == 0:
+                    ax.legend(loc="upper left")
+
+            # Hide any unused subplots
+            for idx in range(n_regions, len(axes)):
+                axes[idx].set_visible(False)
+
             plt.tight_layout()
-            plt.savefig(best_dir / "plot_best_adm01_cases.png")
+            plt.savefig(best_dir / "plot_best_cases_by_region_month.png", dpi=300, bbox_inches="tight")
+            plt.close()
+
+    # District Case Bin Counts (binned histogram comparison)
+    if "case_bins_by_region" in actual:
+        # Read bin configuration from model config
+        bin_config = model_config.get("summary_config", {}).get("case_bins", {})
+        bin_labels = bin_config.get("bin_labels", ["0", "1", "2", "3", "4", "5-9", "10-19", "20+"])
+
+        case_bins_by_region_actual = actual["case_bins_by_region"]
+        regions = list(case_bins_by_region_actual.keys())
+        n_regions = len(regions)
+
+        if n_regions > 0:
+            # Create subplot grid (2x2 for 4 regions, adjust if different number)
+            n_cols = 2
+            n_rows = (n_regions + n_cols - 1) // n_cols  # Ceiling division
+
+            fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 10))
+            fig.suptitle("District Case Count Distribution by Region", fontsize=16)
+
+            # Flatten axes for easier indexing if multiple rows
+            if n_regions > 1:
+                axes = axes.flatten() if n_rows > 1 else [axes] if n_cols == 1 else axes
+            else:
+                axes = [axes]
+
+            # Get consistent y-axis scale across all subplots
+            all_counts = []
+            all_counts.extend(case_bins_by_region_actual.values())
+            for rep in preds:
+                if "case_bins_by_region" in rep:
+                    all_counts.extend(rep["case_bins_by_region"].values())
+            max_count = max(max(counts) if counts else 0 for counts in all_counts)
+
+            for idx, region in enumerate(regions):
+                ax = axes[idx]
+                actual_counts = case_bins_by_region_actual[region]
+                x_positions = range(len(bin_labels))
+
+                # Plot actual data as bars with edges only
+                ax.bar(x_positions, actual_counts, width=0.8, edgecolor=color_map["Actual"], facecolor="none", linewidth=2, label="Actual")
+
+                # Add predicted data for each replicate as dots
+                for i, rep in enumerate(preds):
+                    if "case_bins_by_region" in rep and region in rep["case_bins_by_region"]:
+                        label = f"Rep {i + 1}"
+                        rep_counts = rep["case_bins_by_region"][region]
+                        ax.scatter(x_positions, rep_counts, label=label, color=color_map[label], marker="o", s=50)
+
+                ax.set_title(f"{region.replace('_', ' ').title()}")
+                ax.set_xlabel("Number of Cases")
+                ax.set_ylabel("Number of Districts")
+                ax.set_xticks(x_positions)
+                ax.set_xticklabels(bin_labels, rotation=0)
+                ax.set_ylim(0, max_count * 1.1)
+                ax.grid(True, alpha=0.3)
+
+                # Add count annotations on actual bars
+                for i, count in enumerate(actual_counts):
+                    if count > 0:
+                        ax.text(i, count + max_count * 0.02, f"{int(count)}", ha="center", va="bottom", fontsize=9)
+
+                # Only add legend to first subplot to avoid clutter
+                if idx == 0:
+                    ax.legend(loc="upper right")
+
+            # Hide any unused subplots
+            for idx in range(n_regions, len(axes)):
+                axes[idx].set_visible(False)
+
+            plt.tight_layout()
+            plt.savefig(best_dir / "plot_best_case_bins_by_region.png", dpi=300, bbox_inches="tight")
             plt.close()
 
     # Plot choropleth of case count differences for each replicate
-    if shp is not None and "adm01_cases" in actual:
+    if shp is not None and "cases_by_region" in actual:
         for i, rep in enumerate(preds):
-            if "adm01_cases" in rep:
+            if "cases_by_region" in rep:
                 plot_case_diff_choropleth(
                     shp=shp,
-                    node_lookup=node_lookup,
-                    actual_cases=actual["adm01_cases"],
-                    pred_cases=rep["adm01_cases"],
+                    actual_cases=actual["cases_by_region"],
+                    pred_cases=rep["cases_by_region"],
                     output_path=best_dir / f"plot_best_case_diff_choropleth_rep{i + 1}.png",
                     title=f"Case Count Difference (Actual - Predicted) - Rep {i + 1}",
                 )
 
     # Plot temporal choropleth of case count differences for each replicate
-    if shp is not None and "adm01_by_period" in actual:
+    if shp is not None and "cases_by_region_period" in actual:
         for i, rep in enumerate(preds):
-            if "adm01_by_period" in rep:
+            if "cases_by_region_period" in rep:
                 plot_case_diff_choropleth_temporal(
                     shp=shp,
-                    node_lookup=node_lookup,
-                    actual_cases_by_period=actual["adm01_by_period"],
-                    pred_cases_by_period=rep["adm01_by_period"],
+                    actual_cases_by_period=actual["cases_by_region_period"],
+                    pred_cases_by_period=rep["cases_by_region_period"],
                     output_path=best_dir / f"plot_best_case_diff_choropleth_temporal_rep{i + 1}.png",
                     title=f"Case Count Difference by Period (Actual - Predicted) - Rep {i + 1}",
                 )
-
-    # Regional Cases (bar plot)
-    if "regional_cases" in actual:
-        x = np.arange(len(region_labels))
-        width = 0.1
-        plt.figure()
-        plt.title("Regional Cases")
-        plt.bar(x, actual["regional_cases"], width, label="Actual", color=color_map["Actual"])
-        for i, rep in enumerate(preds):
-            label = f"Rep {i + 1}"
-            plt.bar(x + (i + 1) * width, rep["regional_cases"], width, label=f"Rep {i + 1}", color=color_map[label])
-        plt.xticks(x + width * (len(preds) // 2), region_labels)
-        plt.ylabel("Cases")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_regional_cases_comparison.png")
-        plt.close()
 
     # Total Nodes with Cases
     if "nodes_with_cases_total" in actual:
@@ -683,96 +804,6 @@ def plot_targets(study, output_dir=None, shp=None, start_year=2018):
         plt.tight_layout()
         plt.savefig(best_dir / "plot_best_nodes_with_cases_timeseries.png")
         plt.close()
-
-    if "total_by_period" in actual:
-        # Use the keys from the dictionary in their natural order
-        period_labels = list(actual["total_by_period"].keys())
-        x = np.arange(len(period_labels))
-        actual_vals = [actual["total_by_period"][period] for period in period_labels]
-
-        plt.figure(figsize=(10, 6))
-        plt.title(f"Total Cases by Period - Top {n_reps} Trials")
-        plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
-
-        for i, rep in enumerate(preds):
-            pred = rep["total_by_period"]
-            label = f"Rep {i + 1}"
-            pred_vals = [pred.get(period, 0) for period in period_labels]
-            plt.scatter(x, pred_vals, label=label, color=color_map[f"Rep {i + 1}"], marker="o", s=50)
-
-        plt.xticks(x, period_labels, rotation=45, ha="right")
-        plt.ylabel("Cases")
-        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-        plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_total_by_period.png", bbox_inches="tight")
-        plt.close()
-
-    if "adm01_by_period" in actual:
-        adm01_by_period_actual = actual.get("adm01_by_period")
-
-        # Extract periods and regions from the dictionary keys
-        periods = []
-        period_data = {}
-
-        for key, value in adm01_by_period_actual.items():
-            # Parse the tuple key format: "('NIGERIA:JIGAWA', '2018-2019')"
-            # Extract both the region and period from the tuple-like string
-            parts = key.strip("()").split("', '")
-            if len(parts) == 2:
-                adm01_name = parts[0].strip("'")
-                period = parts[1].strip("'")
-
-                if period not in periods:
-                    periods.append(period)
-                    period_data[period] = {}
-
-                period_data[period][adm01_name] = value
-
-        # Use the periods in the order they appear in the dictionary
-        # Create figure with subplots stacked vertically
-        n_periods = len(periods)
-        if n_periods > 0:
-            fig, axes = plt.subplots(n_periods, 1, figsize=(12, 4 * n_periods))
-            if n_periods == 1:
-                axes = [axes]
-
-            for i, period in enumerate(periods):
-                ax = axes[i]
-                data = period_data.get(period, {})
-
-                if data:
-                    adm_labels = sorted(data.keys())
-                    x = np.arange(len(adm_labels))
-                    actual_vals = [data.get(adm, 0) for adm in adm_labels]
-
-                    # Plot actual as outlined bar
-                    ax.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
-
-                    # Plot predicted reps as colored dots
-                    for j, rep in enumerate(preds):
-                        label = f"Rep {j + 1}"
-                        rep_data = {}
-                        for key, value in rep.get("adm01_by_period", {}).items():
-                            # Parse the same way to extract period
-                            parts = key.strip("()").split("', '")
-                            if len(parts) == 2:
-                                rep_adm01_name = parts[0].strip("'")
-                                rep_period = parts[1].strip("'")
-                                if rep_period == period:
-                                    rep_data[rep_adm01_name] = value
-
-                        rep_vals = [rep_data.get(adm, 0) for adm in adm_labels]
-                        ax.scatter(x, rep_vals, label=label, color=color_map[label], marker="o", s=50)
-
-                    ax.set_title(f"ADM01 Regional Cases - {period}")
-                    ax.set_xticks(x)
-                    ax.set_xticklabels(adm_labels, rotation=45, ha="right")
-                    ax.set_ylabel("Cases")
-                    ax.legend()
-
-            plt.tight_layout()
-            plt.savefig(best_dir / "plot_best_adm01_by_period.png")
-            plt.close()
 
     # Regional Cases (bar plot)
     if "regional" in actual:
@@ -856,132 +887,6 @@ def plot_targets(study, output_dir=None, shp=None, start_year=2018):
 
             plt.tight_layout()
             plt.savefig(best_dir / "plot_best_regional_by_period.png")
-            plt.close()
-
-    if "regional_monthly_timeseries" in actual:
-        regional_monthly_timeseries_actual = actual.get("regional_monthly_timeseries")
-        regions = list(regional_monthly_timeseries_actual.keys())
-        n_regions = len(regions)
-
-        if n_regions > 0:
-            # Create subplot grid (2x2 for 4 regions, adjust if different number)
-            n_cols = 2
-            n_rows = (n_regions + n_cols - 1) // n_cols  # Ceiling division
-
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 10))
-            fig.suptitle("Regional Monthly Timeseries Comparison", fontsize=16)
-
-            # Flatten axes for easier indexing if multiple rows
-            if n_regions > 1:
-                axes = axes.flatten() if n_rows > 1 else [axes] if n_cols == 1 else axes
-            else:
-                axes = [axes]
-
-            n_months = len(actual["monthly_timeseries"])
-            months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
-
-            for idx, region in enumerate(regions):
-                ax = axes[idx]
-                timeseries = regional_monthly_timeseries_actual[region]
-
-                # Plot actual data
-                ax.plot(months_series, timeseries, "o-", label="Actual", color=color_map["Actual"], linewidth=2)
-
-                # Add predicted data for each replicate
-                for i, rep in enumerate(preds):
-                    if "regional_monthly_timeseries" in rep and region in rep["regional_monthly_timeseries"]:
-                        label = f"Rep {i + 1}"
-                        rep_timeseries = rep["regional_monthly_timeseries"][region]
-                        ax.plot(months_series, rep_timeseries, "o-", label=label, color=color_map[label])
-
-                ax.set_title(f"{region.replace('_', ' ').title()}")
-                ax.set_xlabel("Month")
-                ax.set_ylabel("Cases")
-                ax.tick_params(axis="x", rotation=45)
-                ax.grid(True, alpha=0.3)
-
-                # Only add legend to first subplot to avoid clutter
-                if idx == 0:
-                    ax.legend(loc="upper left")
-
-            # Hide any unused subplots
-            for idx in range(n_regions, len(axes)):
-                axes[idx].set_visible(False)
-
-            plt.tight_layout()
-            plt.savefig(best_dir / "plot_best_regional_monthly_timeseries_combined.png", dpi=300, bbox_inches="tight")
-            plt.close()
-
-        # District Case Bin Counts (binned histogram comparison)
-    if "district_case_bin_counts_by_region" in actual:
-        # Read bin configuration from model config
-        bin_config = model_config.get("summary_config", {}).get("case_bins", {})
-        bin_labels = bin_config.get("bin_labels", ["0", "1", "2", "3", "4", "5-9", "10-19", "20+"])
-
-        district_bin_counts_actual = actual["district_case_bin_counts_by_region"]
-        regions = list(district_bin_counts_actual.keys())
-        n_regions = len(regions)
-
-        if n_regions > 0:
-            # Create subplot grid (2x2 for 4 regions, adjust if different number)
-            n_cols = 2
-            n_rows = (n_regions + n_cols - 1) // n_cols  # Ceiling division
-
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 10))
-            fig.suptitle("District Case Count Distribution by Region", fontsize=16)
-
-            # Flatten axes for easier indexing if multiple rows
-            if n_regions > 1:
-                axes = axes.flatten() if n_rows > 1 else [axes] if n_cols == 1 else axes
-            else:
-                axes = [axes]
-
-            # Get consistent y-axis scale across all subplots
-            all_counts = []
-            all_counts.extend(district_bin_counts_actual.values())
-            for rep in preds:
-                if "district_case_bin_counts_by_region" in rep:
-                    all_counts.extend(rep["district_case_bin_counts_by_region"].values())
-            max_count = max(max(counts) if counts else 0 for counts in all_counts)
-
-            for idx, region in enumerate(regions):
-                ax = axes[idx]
-                actual_counts = district_bin_counts_actual[region]
-                x_positions = range(len(bin_labels))
-
-                # Plot actual data as bars with edges only
-                ax.bar(x_positions, actual_counts, width=0.8, edgecolor=color_map["Actual"], facecolor="none", linewidth=2, label="Actual")
-
-                # Add predicted data for each replicate as dots
-                for i, rep in enumerate(preds):
-                    if "district_case_bin_counts_by_region" in rep and region in rep["district_case_bin_counts_by_region"]:
-                        label = f"Rep {i + 1}"
-                        rep_counts = rep["district_case_bin_counts_by_region"][region]
-                        ax.scatter(x_positions, rep_counts, label=label, color=color_map[label], marker="o", s=50)
-
-                ax.set_title(f"{region.replace('_', ' ').title()}")
-                ax.set_xlabel("Number of Cases")
-                ax.set_ylabel("Number of Districts")
-                ax.set_xticks(x_positions)
-                ax.set_xticklabels(bin_labels, rotation=0)
-                ax.set_ylim(0, max_count * 1.1)
-                ax.grid(True, alpha=0.3)
-
-                # Add count annotations on actual bars
-                for i, count in enumerate(actual_counts):
-                    if count > 0:
-                        ax.text(i, count + max_count * 0.02, f"{int(count)}", ha="center", va="bottom", fontsize=9)
-
-                # Only add legend to first subplot to avoid clutter
-                if idx == 0:
-                    ax.legend(loc="upper right")
-
-            # Hide any unused subplots
-            for idx in range(n_regions, len(axes)):
-                axes[idx].set_visible(False)
-
-            plt.tight_layout()
-            plt.savefig(best_dir / "plot_best_district_case_bin_counts.png", dpi=300, bbox_inches="tight")
             plt.close()
 
 
@@ -1400,14 +1305,13 @@ def plot_top_trials(study, output_dir, n_best=10, title="Top Calibration Results
             )
 
         # Plot temporal choropleth for the best trial
-        if "adm01_by_period" in actual:
+        if "cases_by_region_period" in actual:
             best_trial = top_trials[0]
             best_pred = best_trial.user_attrs["predicted"][0]
             plot_case_diff_choropleth_temporal(
                 shp=shp,
-                node_lookup=node_lookup,
-                actual_cases_by_period=actual["adm01_by_period"],
-                pred_cases_by_period=best_pred["adm01_by_period"],
+                actual_cases_by_period=actual["cases_by_region_period"],
+                pred_cases_by_period=best_pred["cases_by_region_period"],
                 output_path=top_trials_dir / "case_diff_choropleth_temporal_best.png",
                 title=f"Case Count Difference by Period - Best Trial {best_trial.number} (value={best_trial.value:.2f})",
             )
