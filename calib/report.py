@@ -901,7 +901,7 @@ def plot_likelihoods(study, output_dir=None, use_log=True):
     keys = [k for k in likelihoods if k not in exclude_keys]
     values = [likelihoods[k] for k in keys]
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 7))  # Increased height to accommodate labels
     bars = ax.bar(keys, values)
     if use_log:
         ax.set_yscale("log")
@@ -923,8 +923,8 @@ def plot_likelihoods(study, output_dir=None, use_log=True):
             va="bottom" if not use_log else "top",
             fontsize=9,
         )
-    plt.tight_layout()
-    plt.savefig(output_dir / "plot_likelihoods.png")
+    plt.subplots_adjust(bottom=0.2)  # Reserve 20% of figure height for x-labels
+    plt.savefig(output_dir / "plot_likelihoods.png", bbox_inches="tight")
     # plt.show()
 
 
