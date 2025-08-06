@@ -244,7 +244,7 @@ def plot_case_diff_choropleth_temporal(
         all_periods.update(region_dict.keys())
     for region_dict in pred_cases_by_period.values():
         all_periods.update(region_dict.keys())
-    periods = sorted(list(all_periods))
+    periods = sorted(all_periods)
 
     # Restructure data by period for easier processing
     period_actual = {}
@@ -582,7 +582,7 @@ def plot_targets(study, output_dir=None, shp=None):
         all_periods = set()
         for region_dict in region_period_data.values():
             all_periods.update(region_dict.keys())
-        periods = sorted(list(all_periods))
+        periods = sorted(all_periods)
 
         # Extract all unique regions
         regions = sorted(region_period_data.keys())
