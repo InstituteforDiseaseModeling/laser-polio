@@ -14,6 +14,7 @@
 - Add strain tracking to understand number of exportations that result in cases.
 
 CALIBRATION
+- Simplify curation of actual data in worker.py
 - Try a missed pop frac scalar based on X (immunity, underwt, sia_coverage)
 - Sweep over radiation k and make a scatterplot like I did for gravity
 - Sweep over hetero with best pars from calib
