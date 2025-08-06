@@ -696,6 +696,8 @@ def save_sim_results(data, filename="simulation_results.csv", summary_config=Non
         # Apply regional groupings
         if "region_groupings" in summary_config:
             df = add_regional_groupings(df, summary_config["region_groupings"])
+        elif summary_config.get("admin_level", None) == 0:
+            df = add_regional_groupings(df)  # Default to adm0 level if admin_level is 0
 
     # Save to CSV
     df.to_csv(filename, index=False)
@@ -991,7 +993,7 @@ def add_temporal_groupings(df, time_config):
     return df
 
 
-def add_regional_groupings(df, region_groupings, regions_yaml_path=None):
+def add_regional_groupings(df, region_groupings=None, regions_yaml_path=None):
     """
     Add regional groupings based on region_groupings list.
     Countries in the list use regions.yaml, all others use adm0.
@@ -1029,7 +1031,7 @@ def add_regional_groupings(df, region_groupings, regions_yaml_path=None):
     # Default: group by adm0 (country level)
     df["region"] = df["adm0"]
 
-    # Apply custom regions for specified countries
+    # Apply custom regions for specified countries if provided
     if region_groupings:
         # Load regions.yaml for custom regions
         regions_yaml_path = regions_yaml_path or lp.root / "data/regions.yaml"
