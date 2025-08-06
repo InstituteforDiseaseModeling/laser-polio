@@ -421,6 +421,7 @@ def run_sim(
             Path(results_path).mkdir(parents=True, exist_ok=True)
             # Pass summary_config if available for temporal and regional groupings
             summary_config = configs.get("summary_config", None)
+            summary_config["admin_level"] = admin_level  # This facilitates grouping by admin level if == 0
             lp.save_sim_results(sim, filename=Path(results_path) / "simulation_results.csv", summary_config=summary_config)
         if save_final_pop:
             sim.people.save_snapshot(results_path / "final_pop.h5", sim.results.R[:], sim.pars)
