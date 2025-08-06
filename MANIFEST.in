@@ -13,6 +13,7 @@ include .readthedocs.yml
 include pytest.ini
 include tox.ini
 include pyrightconfig.json
+include CLAUDE.md
 
 include AUTHORS.rst
 include CHANGELOG.rst
