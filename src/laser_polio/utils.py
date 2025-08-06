@@ -645,7 +645,7 @@ def save_sim_results(data, filename="simulation_results.csv", summary_config=Non
     Example:
     --------
     # For simulation results:
-    save_results_to_csv(sim, "results.csv", summary_config=config["summary_config"])
+    save_sim_results(sim, "results.csv", summary_config=config["summary_config"])
 
     """
 
