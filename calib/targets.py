@@ -330,7 +330,11 @@ def calc_targets_regional(filename, model_config_path=None, is_actual_data=True)
     targets["cases_by_region_month"] = cases_by_region_month
 
     # Count the number of districts with X cases by region
-    if "case_bins" in model_config["summary_config"]:
+    if (
+        "summary_config" in model_config
+        and model_config["summary_config"]
+        and "case_bins" in model_config["summary_config"]
+    ):
         # Get case bins from config or use defaults
         bin_config = model_config["summary_config"]["case_bins"]
         bins = bin_config["bin_edges"]
