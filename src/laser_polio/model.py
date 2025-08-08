@@ -282,6 +282,9 @@ class SEIR_ABM:
                 pop_by_node = pars.init_sus
             else:
                 pop_by_node = pars.init_pop
+            # Check that pop_by_node is positive & non-zero
+            if np.any(pop_by_node <= 0) or np.any(np.isnan(pop_by_node)):
+                raise ValueError("pop_by_node must be positive & non-nan")
             node_ids = np.concatenate([np.full(count, i) for i, count in enumerate(pop_by_node)])
             self.people.node_id[0 : np.sum(pop_by_node)] = node_ids  # Assign node IDs to initial people
 
