@@ -182,9 +182,11 @@ def run_sim(
     init_immun = init_immun[init_immun["period"] == start_year]
     # Apply scalar multiplier to immunity values, clipping to [0.0, 1.0]
     immunity_cols = [col for col in init_immun.columns if col.startswith("immunity_")]
-    init_immun[immunity_cols] = init_immun[immunity_cols].clip(lower=0.0, upper=1.0) * init_immun_scalar
+    init_immun[immunity_cols] = init_immun[immunity_cols] * init_immun_scalar
     # Set immunity for 15+ to 1.0
     init_immun.loc[:, "immunity_180_1200"] = 1.0
+    # Clip immunity values to [0.0, 1.0]
+    init_immun[immunity_cols] = init_immun[immunity_cols].clip(lower=0.0, upper=1.0)
     # Wide → Long
     init_immun_long = init_immun.reset_index().melt(
         id_vars="dot_name",
@@ -257,10 +259,18 @@ def run_sim(
     # Drop age_min_months_immun and age_max_months_immun
     sus_by_age_node = sus_by_age_node.drop(columns=["age_min_months_immun", "age_max_months_immun"])
     sus_summary = sus_by_age_node.groupby("dot_name")["n_susceptible"].sum().astype(int)
+    # Sanity checks
+    assert np.all(age_merged["immune_frac"] <= 1.0), "Immunity fraction exceeds 1.0"
+    assert np.all(age_merged["immune_frac"] >= 0.0), "Negative immunity fraction"
+    assert np.all(age_merged["pop_in_age_bin"] >= 0.0), "Negative population in age bin"
+    assert np.all(age_merged["n_immune"] >= 0.0), "Negative immune count"
+    assert np.all(age_merged["n_susceptible"] >= 0.0), "Negative susceptible count"
     assert np.all(immun_summary["n_immune"] + immun_summary["n_susceptible"] <= pop), (
         "Immune + susceptible counts are greater than population counts"
     )
     assert np.all(sus_summary <= pop), "Susceptible counts are greater than population counts"
+    assert np.all(sus_by_age_node["n_immune"] >= 0.0), "Negative immune count"
+    assert np.all(sus_by_age_node["n_susceptible"] >= 0.0), "Negative susceptible count"
 
     # ---- Backcalculate RI IPV Protection ----
     # IPV prevents paralysis but does not block transmission.
@@ -321,6 +331,8 @@ def run_sim(
                             eligible_susceptible = n_susceptible * eligible_fraction
                             n_ipv_protected = min(eligible_susceptible, eligible_pop * ipv_gap)
                             sus_by_age_node.loc[idx, "n_ipv_protected"] = int(n_ipv_protected)
+    # Sanity checks
+    assert np.all(sus_by_age_node["n_ipv_protected"] >= 0.0), "Negative IPV protected count"
 
     # Validate all arrays match
     assert all(len(arr) == len(dot_names) for arr in [shp, node_lookup, init_prevs, pop, cbr, ri, ri_ipv, sia_prob, r0_scalars])
