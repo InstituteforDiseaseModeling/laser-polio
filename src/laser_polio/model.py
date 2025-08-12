@@ -246,15 +246,22 @@ class SEIR_ABM:
             else:
                 total_pop = np.sum(pars.init_pop)
             # Next, calculate capacity aka the total number of people expected over the course of the simulation
-            # TBD: we can do better than the 10% fudge factor here; see laserframe for details
-            if (pars.cbr is not None) & (len(pars.cbr) == 1):
-                capacity = int(1.1 * calc_capacity(pars.init_pop.sum(), pars.dur, pars.cbr[0]))
-            elif (pars.cbr is not None) & (len(pars.cbr) > 1):
-                capacity = int(1.1 * calc_capacity(pars.init_pop.sum(), pars.dur, np.mean(pars.cbr)))
+            # +100 is another fudge factor to account for calc_cap and other math tending to be too low.
+            ADAPTIVE_SAFETY_MARGIN_NUMERATOR = 4
+            expected_births = 0
+            if (pars.cbr is not None) and (len(pars.cbr) == 1):
+                expected_births = calc_capacity(pars.init_pop.sum(), pars.dur + 100, pars.cbr[0]) - pars.init_pop.sum()
+            elif (pars.cbr is not None) and (len(pars.cbr) > 1):
+                expected_births = calc_capacity(pars.init_pop.sum(), pars.dur + 100, np.mean(pars.cbr)) - pars.init_pop.sum()
+            if expected_births > 0:
+                fudge_factor = 1 + ADAPTIVE_SAFETY_MARGIN_NUMERATOR / np.sqrt(expected_births)
             else:
-                capacity = int(total_pop)
+                fudge_factor = 1
+            # Note that capacity = total_pop if there are no births.
+            capacity = int(fudge_factor * (total_pop + expected_births))
             # Finally, initialize the LaserFrame
             self.people = LaserFrame(capacity=capacity, initial_count=int(total_pop))
+            logging.info(f"count={self.people.count}, capacity={capacity}")
 
             # --- Initializes any essential agent properties that are required across multiple components ---
             # Initialize disease_state, ipv_protected, paralyzed, and potentially_paralyzed here since they're required for most other components
