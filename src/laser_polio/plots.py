@@ -660,7 +660,8 @@ def plot_infected_choropleth_by_strain(results, pars, save=False, results_path=N
                 missing_kwds={"color": "lightgrey", "label": "Zero infections"},
             )
             ax.set_title(f"Strain {strain_id} Infections at t={t}")
-        ax.set_axis_off()
+            ax.set_title(f"Strain {strain_id} Infections at t={t}")
+            ax.set_axis_off()
 
         # Add a shared colorbar
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
