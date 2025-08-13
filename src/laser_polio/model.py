@@ -35,60 +35,6 @@ from laser_polio.utils import TimingStats
 __all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "Transmission_ABM", "VitalDynamics_ABM"]
 
 
-# This utility function is called from two different places; doesn't need to be member of
-# a class
-def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, pars):
-    """
-    Populates acq_risk_out and infectivity_out arrays in-place using the specified
-    correlation structure and parameter set.
-
-    Parameters
-    ----------
-    start : int
-        Start index (inclusive).
-    end : int
-        End index (exclusive).
-    acq_risk_out : np.ndarray
-        Pre-allocated array to store acquisition risk multipliers.
-    infectivity_out : np.ndarray
-        Pre-allocated array to store daily infectivity values.
-    pars : PropertySet
-        LASER parameter set with keys:
-            - risk_mult_var
-            - r0
-            - dur_inf
-            - corr_risk_inf
-    """
-
-    mean_ln = 1
-    var_ln = pars.risk_mult_var
-    mu_ln = np.log(mean_ln**2 / np.sqrt(var_ln + mean_ln**2))
-    sigma_ln = np.sqrt(np.log(var_ln / mean_ln**2 + 1))
-    mean_gamma = pars.r0 / np.mean(pars.dur_inf(1000))
-    shape_gamma = 1
-    scale_gamma = max(mean_gamma / shape_gamma, 1e-10)
-
-    rho = pars.corr_risk_inf
-    cov_matrix = np.array([[1, rho], [rho, 1]])
-    L = np.linalg.cholesky(cov_matrix)
-
-    logger.info("FIXME: This chunk of code to initialize acq_risk_out and infectivity_out is know to be slow right now.")
-    BATCH_SIZE = 1_000_000
-    for batch_start in range(start, end, BATCH_SIZE):
-        batch_end = min(batch_start + BATCH_SIZE, end)
-        b_n = batch_end - batch_start
-
-        z = np.random.normal(size=(b_n, 2))
-        z_corr = z @ L.T
-
-        if pars.individual_heterogeneity:
-            acq_risk_out[batch_start:batch_end] = np.exp(mu_ln + sigma_ln * z_corr[:, 0])
-            infectivity_out[batch_start:batch_end] = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)
-        else:
-            acq_risk_out[batch_start:batch_end] = 1.0
-            infectivity_out[batch_start:batch_end] = mean_gamma
-
-
 # SEIR Model
 class SEIR_ABM:
     """
@@ -1163,6 +1109,60 @@ class DiseaseState_ABM:
                 plt.close(fig)
             else:
                 plt.show()
+
+
+# This utility function is called from two different places; doesn't need to be member of
+# a class
+def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, pars):
+    """
+    Populates acq_risk_out and infectivity_out arrays in-place using the specified
+    correlation structure and parameter set.
+
+    Parameters
+    ----------
+    start : int
+        Start index (inclusive).
+    end : int
+        End index (exclusive).
+    acq_risk_out : np.ndarray
+        Pre-allocated array to store acquisition risk multipliers.
+    infectivity_out : np.ndarray
+        Pre-allocated array to store daily infectivity values.
+    pars : PropertySet
+        LASER parameter set with keys:
+            - risk_mult_var
+            - r0
+            - dur_inf
+            - corr_risk_inf
+    """
+
+    mean_ln = 1
+    var_ln = pars.risk_mult_var
+    mu_ln = np.log(mean_ln**2 / np.sqrt(var_ln + mean_ln**2))
+    sigma_ln = np.sqrt(np.log(var_ln / mean_ln**2 + 1))
+    mean_gamma = pars.r0 / np.mean(pars.dur_inf(1000))
+    shape_gamma = 1
+    scale_gamma = max(mean_gamma / shape_gamma, 1e-10)
+
+    rho = pars.corr_risk_inf
+    cov_matrix = np.array([[1, rho], [rho, 1]])
+    L = np.linalg.cholesky(cov_matrix)
+
+    logger.info("FIXME: This chunk of code to initialize acq_risk_out and infectivity_out is know to be slow right now.")
+    BATCH_SIZE = 1_000_000
+    for batch_start in range(start, end, BATCH_SIZE):
+        batch_end = min(batch_start + BATCH_SIZE, end)
+        b_n = batch_end - batch_start
+
+        z = np.random.normal(size=(b_n, 2))
+        z_corr = z @ L.T
+
+        if pars.individual_heterogeneity:
+            acq_risk_out[batch_start:batch_end] = np.exp(mu_ln + sigma_ln * z_corr[:, 0])
+            infectivity_out[batch_start:batch_end] = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)
+        else:
+            acq_risk_out[batch_start:batch_end] = 1.0
+            infectivity_out[batch_start:batch_end] = mean_gamma
 
 
 @nb.njit((nb.int16[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32, nb.int32), parallel=True, nogil=True)
