@@ -4,11 +4,9 @@ from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
-import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numba as nb
 import numpy as np
-import pandas as pd
 import scipy.stats as stats
 import sciris as sc
 from alive_progress import alive_bar
@@ -23,13 +21,25 @@ from laser_core.migration import row_normalizer
 from laser_core.propertyset import PropertySet
 from laser_core.random import seed as set_seed
 from laser_core.utils import calc_capacity
-from matplotlib import cm
-from matplotlib.ticker import FormatStrFormatter
 from tqdm import tqdm
 
 import laser_polio as lp
 from laser_polio.logger import fmt
 from laser_polio.logger import logger
+from laser_polio.plots import plot_age_pyramid
+from laser_polio.plots import plot_cum_new_exposed_paralyzed
+from laser_polio.plots import plot_cum_ri_vx
+from laser_polio.plots import plot_cum_vx_sia
+from laser_polio.plots import plot_infected_by_node
+from laser_polio.plots import plot_infected_by_node_strain
+from laser_polio.plots import plot_infected_choropleth
+from laser_polio.plots import plot_infected_choropleth_by_strain
+from laser_polio.plots import plot_infected_dot_map
+from laser_polio.plots import plot_network
+from laser_polio.plots import plot_new_exposed_by_strain
+from laser_polio.plots import plot_node_pop
+from laser_polio.plots import plot_total_seir_counts
+from laser_polio.plots import plot_vital_dynamics
 from laser_polio.utils import TimingStats
 
 __all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "Transmission_ABM", "VitalDynamics_ABM"]
@@ -291,7 +301,7 @@ class SEIR_ABM:
 
         for component in self.instances:
             component.plot(save=save, results_path=results_path)
-        self.plot_node_pop(save=save, results_path=results_path)
+        plot_node_pop(self.results, self.nodes, save=save, results_path=results_path)
 
         if self.perf_stats and self.perf_stats.stats:
             # logger.debug(f"{self.instances=}")
@@ -327,20 +337,6 @@ class SEIR_ABM:
             plt.show()
 
         return
-
-    def plot_node_pop(self, save=False, results_path=None):
-        plt.figure(figsize=(10, 6))
-        for node in self.nodes:
-            pop = self.results.pop[:, node]
-            plt.plot(pop, label=f"Node {node}")
-        plt.title("Node Population")
-        plt.xlabel("Time (Timesteps)")
-        plt.ylabel("Population")
-        plt.grid()
-        if save:
-            plt.savefig(results_path / "node_population.png")
-        if not save:
-            plt.show()
 
 
 @nb.njit(parallel=True)
@@ -724,391 +720,15 @@ class DiseaseState_ABM:
         pass
 
     def plot(self, save=False, results_path=None):
-        self.plot_total_seir_counts(save=save, results_path=results_path)
-        self.plot_infected_by_node(save=save, results_path=results_path)
-        self.plot_infected_by_node_strain(save=save, results_path=results_path)
-        self.plot_infected_dot_map(save=save, results_path=results_path)
-        self.plot_cum_new_exposed_paralyzed(save=save, results_path=results_path)
-        self.plot_new_exposed_by_strain(save=save, results_path=results_path)
+        plot_total_seir_counts(self.results, save=save, results_path=results_path)
+        plot_infected_by_node(self.results, self.nodes, save=save, results_path=results_path)
+        plot_infected_by_node_strain(self.results, self.pars, save=save, results_path=results_path)
+        plot_infected_dot_map(self.results, self.pars, self.nodes, save=save, results_path=results_path)
+        plot_cum_new_exposed_paralyzed(self.results, save=save, results_path=results_path)
+        plot_new_exposed_by_strain(self.results, self.pars, save=save, results_path=results_path)
         if self.pars.shp is not None:
-            self.plot_infected_choropleth(save=save, results_path=results_path)
-            self.plot_infected_choropleth_by_strain(save=save, results_path=results_path)
-
-    def plot_total_seir_counts(self, save=False, results_path=None):
-        plt.figure(figsize=(10, 6))
-        plt.plot(np.sum(self.results.S, axis=1), label="Susceptible (S)")
-        plt.plot(np.sum(self.results.E, axis=1), label="Exposed (E)")
-        plt.plot(np.sum(self.results.I, axis=1), label="Infectious (I)")
-        plt.plot(np.sum(self.results.R, axis=1), label="Recovered (R)")
-        plt.plot(np.sum(self.results.paralyzed, axis=1), label="Paralyzed")
-        plt.title("SEIR Dynamics in Total Population")
-        plt.xlabel("Time (Timesteps)")
-        plt.ylabel("Count")
-        plt.legend()
-        plt.grid()
-        if save:
-            plt.savefig(results_path / "total_seir_counts.png")
-        if not save:
-            plt.show()
-
-    def plot_cum_new_exposed_paralyzed(self, save=False, results_path=None):
-        plt.figure(figsize=(10, 6))
-        plt.plot(np.cumsum(np.sum(self.results.new_exposed, axis=1)), label="Cumulative Exposed")
-        plt.plot(np.cumsum(np.sum(self.results.new_potentially_paralyzed, axis=1)), label="Cumulative Potentially Paralyzed")
-        plt.plot(np.cumsum(np.sum(self.results.new_paralyzed, axis=1)), label="Cumulative Paralyzed")
-        plt.title("Cumulative New Exposed, Potentially Paralyzed, and Paralyzed")
-        plt.xlabel("Time (Timesteps)")
-        plt.ylabel("Cumulative count")
-        plt.legend()
-        plt.grid()
-        if save:
-            plt.savefig(results_path / "cumulative_new_exposed_potentially_paralyzed.png")
-        if not save:
-            plt.show()
-
-    def plot_infected_by_node(self, save=False, results_path=None):
-        plt.figure(figsize=(10, 6))
-        for node in self.nodes:
-            plt.plot(self.results.I[:, node], label=f"Node {node}")
-        plt.title("Infected Population by Node")
-        plt.xlabel("Time (Timesteps)")
-        plt.ylabel("Population")
-        plt.legend()
-        plt.grid()
-        if save:
-            plt.savefig(results_path / "n_infected_by_node.png")
-        if not save:
-            plt.show()
-
-    def plot_infected_by_node_strain(self, save=False, results_path=None, figsize=(15, 20)):
-        """
-        Plot infected population by node for each strain, with a subplot for each strain.
-        """
-        # Get the strain-specific infection data
-        I_by_strain = self.results.I_by_strain  # Shape: (time, nodes, strains)
-        n_time, n_nodes, n_strains = I_by_strain.shape
-
-        # Create reverse mapping from strain index to strain name
-        strain_names = {v: k for k, v in self.pars.strain_ids.items()}
-
-        # Set up subplots - stack vertically (one column)
-        n_rows = n_strains
-        n_cols = 1
-
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, sharex=True, sharey=True)
-
-        # Handle case where we have only one subplot
-        if n_strains == 1:
-            axes = [axes]
-        else:
-            # axes is already a 1D array when n_cols=1, but ensure it's iterable
-            axes = axes if isinstance(axes, np.ndarray) else [axes]
-
-        # Plot each strain
-        for strain_idx in range(n_strains):
-            ax = axes[strain_idx]
-            strain_name = strain_names.get(strain_idx, f"Strain {strain_idx}")
-
-            # Plot infection timeseries for each node for this strain
-            for node_idx in range(n_nodes):
-                # Get node label
-                if self.pars.node_lookup and node_idx in self.pars.node_lookup:
-                    # Use the last part of dot_name for cleaner labels
-                    node_label = self.pars.node_lookup[node_idx].get("dot_name", f"Node {node_idx}").split(":")[-1]
-                else:
-                    node_label = f"Node {node_idx}"
-
-                # Plot this node's infections for this strain
-                infections = I_by_strain[:, node_idx, strain_idx]
-
-                # Only plot if there are any infections (to reduce clutter)
-                if np.sum(infections) > 0:
-                    ax.plot(infections, label=node_label, alpha=0.7)
-
-            # Formatting
-            ax.set_title(f"{strain_name} Infections by Node", fontsize=12, fontweight="bold")
-            ax.set_xlabel("Time (days)")
-            ax.set_ylabel("Number of Infected")
-            ax.grid(True, alpha=0.3)
-
-            # Add text indicating no infections if no lines plotted
-            if len(ax.get_lines()) == 0:
-                ax.text(0.5, 0.5, "No infections", transform=ax.transAxes, ha="center", va="center", fontsize=12, alpha=0.5)
-
-        # Turn off any unused subplots
-        for idx in range(n_strains, len(axes)):
-            axes[idx].axis("off")
-
-        # Overall formatting
-        # plt.suptitle("Infected Population by Node and Strain", fontsize=16, fontweight="bold")
-        plt.tight_layout()
-
-        # Save or show
-        if save:
-            if results_path is None:
-                raise ValueError("Please provide a results_path to save the plot.")
-            plot_path = Path(results_path) / "infected_by_node_strain.png"
-            plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-            plt.close()
-        else:
-            plt.show()
-
-    def plot_new_exposed_by_strain(self, save=False, results_path=None, figsize=(20, 20)):
-        """
-        Plot new exposures by strain in a 3x3 grid.
-        Rows: VDPV2, Sabin2, nOPV2
-        Columns: Total exposures, Transmission only, SIA only
-        """
-        # Check if we have the required exposure data
-        if not hasattr(self.results, "new_exposed_by_strain"):
-            print("No strain-specific exposure data available")
-            return
-
-        # Get the strain-specific exposure data
-        new_exposed_by_strain = self.results.new_exposed_by_strain  # Shape: (time, nodes, strains)
-        n_time, n_nodes, n_strains = new_exposed_by_strain.shape
-
-        # Create reverse mapping from strain index to strain name
-        strain_names = {v: k for k, v in self.pars.strain_ids.items()}
-
-        # Set up 3x3 subplot grid
-        n_rows = 3  # One for each strain
-        n_cols = 3  # Total, Transmission, SIA
-
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, sharex=True)
-
-        # Column titles
-        col_titles = ["Total New Exposures", "Transmission Only", "SIA Only"]
-
-        # Plot each strain (row)
-        for strain_idx in range(min(n_strains, 3)):  # Limit to 3 strains
-            strain_name = strain_names.get(strain_idx, f"Strain {strain_idx}")
-
-            # Get total exposures for this strain (sum across all nodes)
-            total_exposures = np.sum(new_exposed_by_strain[:, :, strain_idx], axis=1)
-
-            # Calculate transmission and SIA exposures
-            if hasattr(self.results, "sia_new_exposed_by_strain"):
-                sia_exposures = np.sum(self.results.sia_new_exposed_by_strain[:, :, strain_idx], axis=1)
-                trans_exposures = total_exposures - sia_exposures
-            else:
-                # If no SIA data, assume all exposures are from transmission
-                trans_exposures = total_exposures
-                sia_exposures = np.zeros_like(total_exposures)
-
-            # Column 1: Total exposures
-            ax = axes[strain_idx, 0]
-            if np.any(total_exposures > 0):
-                ax.plot(total_exposures, linewidth=2, color="black", label="Total")
-            else:
-                ax.text(0.5, 0.5, "No exposures", transform=ax.transAxes, ha="center", va="center", fontsize=10, alpha=0.5)
-
-            ax.set_title(f"{strain_name}\n{col_titles[0]}", fontsize=11, fontweight="bold")
-            ax.set_ylabel("New Exposures per Day")
-            ax.grid(True, alpha=0.3)
-
-            # Column 2: Transmission only
-            ax = axes[strain_idx, 1]
-            if np.any(trans_exposures > 0):
-                ax.plot(trans_exposures, linewidth=2, color="green", label="Transmission")
-            else:
-                ax.text(0.5, 0.5, "No transmission", transform=ax.transAxes, ha="center", va="center", fontsize=10, alpha=0.5)
-
-            ax.set_title(f"{strain_name}\n{col_titles[1]}", fontsize=11, fontweight="bold")
-            ax.set_ylabel("New Exposures per Day")
-            ax.grid(True, alpha=0.3)
-
-            # Column 3: SIA only
-            ax = axes[strain_idx, 2]
-            if np.any(sia_exposures > 0):
-                ax.plot(sia_exposures, linewidth=2, color="red", label="SIA")
-            else:
-                ax.text(0.5, 0.5, "No SIA", transform=ax.transAxes, ha="center", va="center", fontsize=10, alpha=0.5)
-
-            ax.set_title(f"{strain_name}\n{col_titles[2]}", fontsize=11, fontweight="bold")
-            ax.set_ylabel("New Exposures per Day")
-            ax.grid(True, alpha=0.3)
-
-        # Set x-labels for bottom row
-        for col in range(n_cols):
-            axes[n_rows - 1, col].set_xlabel("Time (days)")
-
-        # Overall formatting
-        plt.suptitle("New Exposures by Strain and Source", fontsize=16, fontweight="bold")
-        plt.tight_layout()
-
-        # Save or show
-        if save:
-            if results_path is None:
-                raise ValueError("Please provide a results_path to save the plot.")
-            plot_path = Path(results_path) / "new_exposed_by_strain_detailed.png"
-            plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-            plt.close()
-        else:
-            plt.show()
-
-    def plot_infected_dot_map(self, save=False, results_path=None, n_panels=6):
-        rows, cols = 2, int(np.ceil(n_panels / 2))
-        fig, axs = plt.subplots(rows, cols, figsize=(cols * 6, rows * 6), sharex=True, sharey=True, constrained_layout=True)
-        axs = axs.ravel()  # Flatten in case of non-square grid
-        timepoints = np.linspace(0, self.pars.dur, n_panels, dtype=int)
-        lats = [self.pars.node_lookup[i]["lat"] for i in self.nodes]
-        lons = [self.pars.node_lookup[i]["lon"] for i in self.nodes]
-        # Scale population for plotting (adjust scale_factor as needed)
-        scale_factor = 5  # tweak this number to look good visually
-        sizes = np.array(self.pars.init_pop)
-        sizes = np.log1p(sizes) * scale_factor
-        # Get global min and max for consistent color scale
-        infection_min = np.min(self.results.I)
-        infection_max = np.max(self.results.I)
-        for i, ax in enumerate(axs[:n_panels]):  # Ensure we don't go out of bounds
-            t = timepoints[i]
-            infection_counts = self.results.I[t, :]
-            scatter = ax.scatter(
-                lons, lats, c=infection_counts, s=sizes, cmap="RdYlBu_r", edgecolors=None, alpha=0.9, vmin=infection_min, vmax=infection_max
-            )
-            ax.set_title(f"Timepoint {t}")
-            # Show labels only on the leftmost and bottom plots
-            if i % cols == 0:
-                ax.set_ylabel("Latitude")
-            else:
-                ax.set_yticklabels([])
-            if i >= n_panels - cols:
-                ax.set_xlabel("Longitude")
-            else:
-                ax.set_xticklabels([])
-        # Add a single colorbar for all plots
-        fig.colorbar(scatter, ax=axs, location="right", fraction=0.05, pad=0.05, label="Infection Count")
-        fig.suptitle("Infected Population by Node", fontsize=16)
-        if save:
-            if results_path is None:
-                raise ValueError("Please provide a results path to save the plots.")
-            plt.savefig(f"{results_path}/infected_map.png")
-        else:
-            plt.show()
-
-    def plot_infected_choropleth(self, save=False, results_path=None, n_panels=6):
-        rows, cols = 2, int(np.ceil(n_panels / 2))
-        fig, axs = plt.subplots(rows, cols, figsize=(cols * 6, rows * 6), constrained_layout=True)
-        axs = axs.ravel()
-        timepoints = np.linspace(0, self.pars.dur, n_panels, dtype=int)
-        shp = self.pars.shp.copy()  # Don't mutate original GeoDataFrame
-
-        # Get global min/max for consistent color scale across panels
-        infection_min = np.min(self.results.I[self.results.I > 0]) if np.any(self.results.I > 0) else 0
-        infection_max = np.max(self.results.I)
-        alpha = 0.9
-
-        # Use rainbow colormap and truncate if desired
-        cmap = plt.cm.get_cmap("rainbow")
-        norm = mcolors.Normalize(vmin=infection_min, vmax=infection_max)
-
-        for i, ax in enumerate(axs[:n_panels]):
-            t = timepoints[i]
-            infection_counts = self.results.I[t, :]  # shape = (num_nodes,)
-            shp["infected"] = infection_counts
-            shp["infected_masked"] = shp["infected"].replace({0: np.nan})  # Mask out zeros
-
-            shp.plot(
-                column="infected_masked",
-                ax=ax,
-                cmap=cmap,
-                norm=norm,
-                alpha=alpha,
-                linewidth=0.1,
-                edgecolor="white",
-                legend=False,
-                missing_kwds={"color": "lightgrey", "label": "Zero infections"},
-            )
-            ax.set_title(f"Infections at t={t}")
-            ax.set_axis_off()
-
-        # Add a shared colorbar
-        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-        sm._A = []
-        cbar = fig.colorbar(sm, ax=axs, orientation="vertical", fraction=0.03, pad=0.01)
-        cbar.solids.set_alpha(alpha)
-        cbar.set_label("Infection Count")
-        fig.suptitle("Choropleth of Infected Population by Node", fontsize=16)
-
-        if save:
-            if results_path is None:
-                raise ValueError("Please provide a results path to save the plots.")
-            plt.savefig(results_path / "infected_choropleth.png")
-        else:
-            plt.show()
-
-    def plot_infected_choropleth_by_strain(self, save=False, results_path=None, n_panels=6):
-        """
-        Plot separate choropleth figures for each strain using results.I_by_strain.
-        Creates one figure per strain, each with n_panels showing infection counts over time.
-        """
-
-        timepoints = np.linspace(0, self.pars.dur, n_panels, dtype=int)
-        shp = self.pars.shp.copy()  # Don't mutate original GeoDataFrame
-
-        # Get strain information
-        strain_ids = self.sim.pars.strain_ids
-        # results.I_by_strain has shape (time, nodes, strains)
-        I_by_strain = self.results.I_by_strain
-        for strain_idx, strain_id in enumerate(strain_ids):
-            # Get data for this strain across all time and nodes
-            strain_data = I_by_strain[:, :, strain_idx]  # shape: (time, nodes)
-
-            # Get global min/max for consistent color scale across panels for this strain
-            infection_min = np.min(strain_data[strain_data > 0]) if np.any(strain_data > 0) else 0
-            infection_max = np.max(strain_data)
-
-            # Skip strains with no infections
-            if infection_max == 0:
-                print(f"Skipping strain {strain_id} - no infections found")
-                continue
-
-            alpha = 0.9
-            rows, cols = 2, int(np.ceil(n_panels / 2))
-            fig, axs = plt.subplots(rows, cols, figsize=(cols * 6, rows * 6), constrained_layout=True)
-            axs = axs.ravel()
-
-            # Use rainbow colormap
-            cmap = plt.cm.get_cmap("rainbow")
-            norm = mcolors.Normalize(vmin=infection_min, vmax=infection_max)
-
-            for i, ax in enumerate(axs[:n_panels]):
-                t = timepoints[i]
-                infection_counts = strain_data[t, :]  # shape = (num_nodes,)
-                shp["infected"] = infection_counts
-                shp["infected_masked"] = shp["infected"].replace({0: np.nan})  # Mask out zeros
-                shp.plot(
-                    column="infected_masked",
-                    ax=ax,
-                    cmap=cmap,
-                    norm=norm,
-                    alpha=alpha,
-                    linewidth=0.1,
-                    edgecolor="white",
-                    legend=False,
-                    missing_kwds={"color": "lightgrey", "label": "Zero infections"},
-                )
-            ax.set_title(f"Strain {strain_id} Infections at t={t}")
-            ax.set_axis_off()
-
-            # Add a shared colorbar
-            sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-            sm._A = []
-            cbar = fig.colorbar(sm, ax=axs, orientation="vertical", fraction=0.03, pad=0.01)
-            cbar.solids.set_alpha(alpha)
-            cbar.set_label("Infection Count")
-            fig.suptitle(f"Choropleth of Infected Population by Node - Strain {strain_id}", fontsize=16)
-
-            if save:
-                if results_path is None:
-                    raise ValueError("Please provide a results path to save the plots.")
-                plt.savefig(
-                    results_path / f"infected_choropleth_strain_{strain_id}.png", dpi=300, format="png", facecolor="white", edgecolor="none"
-                )
-                plt.close(fig)
-            else:
-                plt.show()
+            plot_infected_choropleth(self.results, self.pars, save=save, results_path=results_path)
+            plot_infected_choropleth_by_strain(self.results, self.pars, save=save, results_path=results_path)
 
 
 # This utility function is called from two different places; doesn't need to be member of
@@ -1757,65 +1377,7 @@ class Transmission_ABM:
             logger.info("")
 
     def plot(self, save=False, results_path=""):
-        """
-        print( f"{self.beta_sum_time=}" )
-        print( f"{self.spatial_beta_time=}" )
-        print( f"{self.seasonal_beta_time=}" )
-        print( f"{self.probs_time=}" )
-        print( f"{self.calc_ni_time=}" )
-        print( f"{self.do_ni_time=}" )
-        """
-        self.plot_network(self.network, save=save, results_path=results_path)
-
-    def plot_network(self, network, save=False, results_path=""):
-        """
-        Plot a heatmap of the network & a histogram of the proportions of infections leaving each node.
-        """
-        # Handle paths
-        results_path = Path(results_path)
-        results_path.mkdir(parents=True, exist_ok=True)
-
-        fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-
-        # Convert to array
-        network_array = np.array(network)
-
-        # Mask zeros
-        masked_network = np.ma.masked_where(network_array == 0.0, network_array)
-
-        # Create custom colormap
-        cmap = cm.get_cmap("plasma").copy()
-        cmap.set_bad("white")
-
-        # Plot heatmap using imshow
-        im = axs[0].imshow(masked_network, cmap=cmap, origin="upper", interpolation="none")
-        axs[0].set_title("Transmission Matrix (Heatmap)")
-        axs[0].set_xlabel("Destination Node")
-        axs[0].set_ylabel("Source Node")
-        fig.colorbar(im, ax=axs[0], fraction=0.046, pad=0.04)
-
-        # Optionally annotate small networks
-        if network_array.shape[0] <= 10:
-            for i in range(network_array.shape[0]):
-                for j in range(network_array.shape[1]):
-                    val = network_array[i, j]
-                    if val != 0.0:
-                        axs[0].text(j, i, f"{val:.2f}", ha="center", va="center", fontsize=8, color="black")
-
-        # Histogram
-        values = network_array.sum(axis=1)
-        axs[1].hist(values, bins=10, edgecolor="black", color="steelblue")
-        axs[1].set_title("Proportion of Infections Leaving Each Node")
-        axs[1].set_xlabel("Proportion")
-        axs[1].set_ylabel("Count")
-        axs[1].xaxis.set_major_formatter(FormatStrFormatter("%.2f"))  # round x-axis
-        axs[1].yaxis.set_major_formatter(FormatStrFormatter("%.2f"))  # optional: round y-axis
-
-        plt.tight_layout()
-
-        if save:
-            fig.savefig(results_path / "network.png", dpi=300)
-        plt.close(fig)
+        plot_network(self.network, save=save, results_path=results_path)
 
 
 @nb.njit(parallel=True, cache=False)
@@ -2088,71 +1650,8 @@ class VitalDynamics_ABM:
         pass
 
     def plot(self, save=False, results_path=None):
-        self.plot_age_pyramid(save=save, results_path=results_path)
-        self.plot_vital_dynamics(save=save, results_path=results_path)
-
-    def plot_age_pyramid(self, save=False, results_path=None):
-        # Expected age distribution
-        pars = self.sim.pars
-        exp_ages = pd.read_csv(pars.age_pyramid_path)
-        exp_ages["Total"] = exp_ages["M"] + exp_ages["F"]
-        exp_ages["Proportion"] = exp_ages["Total"] / exp_ages["Total"].sum()
-
-        # Observed age distribution
-        obs_ages = ((self.people.date_of_birth[: self.people.count] * -1) + self.sim.t) / 365  # THIS IS WRONG
-        pyramid = load_pyramid_csv(pars.age_pyramid_path)
-        bins = pyramid[:, 0]
-        # Add 105+ bin
-        bins = np.append(bins, 105)
-        age_bins = pd.cut(obs_ages, bins=bins, right=False)
-        age_bins.value_counts().sort_index()
-        obs_age_distribution = age_bins.value_counts().sort_index()
-        obs_age_distribution = obs_age_distribution / obs_age_distribution.sum()  # Normalize
-
-        # Plot
-        fig, ax = plt.subplots(figsize=(10, 6))
-        x_labels = exp_ages["Age"]
-        x = np.arange(len(x_labels))
-        ax.plot(x, exp_ages["Proportion"], label="Expected", color="green", linestyle="-", marker="x")
-        ax.plot(x, obs_age_distribution, label="Observed at end of sim", color="blue", linestyle="--", marker="o")
-        ax.set_xlabel("Age Group")
-        ax.set_ylabel("Proportion of Population")
-        ax.set_xticks(x)
-        ax.set_xticklabels(x_labels, rotation=45)
-        ax.set_title("Age Distribution as Proportion of Total Population")
-        ax.legend()  # Add legend
-        plt.tight_layout()
-        if save:
-            plt.savefig(results_path / "age_distribution.png")
-        if not save:
-            plt.show()
-
-    def plot_vital_dynamics(self, save=False, results_path=None):
-        """
-        This function originally plot births and deaths for each node, but we've switched it to be aggregated.
-        This was because we weren't noticing errors with the node-wise plots and we don't have spatially
-        varying inputs for fertility and mortality rates at this time.
-        """
-        # Calculate cumulative sums
-        births_total = np.sum(self.results.births, axis=1)
-        deaths_total = np.sum(self.results.deaths, axis=1)
-
-        # Compute cumulative sums over time
-        cum_births = np.cumsum(births_total)
-        cum_deaths = np.cumsum(deaths_total)
-
-        plt.figure(figsize=(10, 6))
-        plt.plot(cum_births, label="Births", color="blue")
-        plt.plot(cum_deaths, label="Deaths", color="red")
-        plt.title("Cumulative births and deaths (All Nodes)")
-        plt.xlabel("Time")
-        plt.ylabel("Count")
-        plt.legend()
-        plt.grid()
-        if save:
-            plt.savefig(results_path / "cum_births_deaths.png")
-        if not save:
-            plt.show()
+        plot_age_pyramid(self.people, self.pars, self.sim, save=save, results_path=results_path)
+        plot_vital_dynamics(self.results, save=save, results_path=results_path)
 
 
 @nb.njit(
@@ -2385,21 +1884,7 @@ class RI_ABM:
         pass
 
     def plot(self, save=False, results_path=None):
-        self.plot_cum_ri_vx(save=save, results_path=results_path)
-
-    def plot_cum_ri_vx(self, save=False, results_path=None):
-        # Plot cumulative RI vaccinated
-        cum_ri_vaccinated = np.cumsum(self.results.ri_vaccinated, axis=0)
-        plt.figure(figsize=(10, 6))
-        plt.plot(cum_ri_vaccinated)
-        plt.title("Cumulative RI Vaccinated (includes efficacy)")
-        plt.xlabel("Time")
-        plt.ylabel("Cumulative Vaccinated")
-        plt.grid()
-        if save:
-            plt.savefig(results_path / "cum_ri_vx.png")
-        if not save:
-            plt.show()
+        plot_cum_ri_vx(self.results, save=save, results_path=results_path)
 
 
 @nb.njit(parallel=True)
@@ -2576,17 +2061,4 @@ class SIA_ABM:
         pass
 
     def plot(self, save=False, results_path=None):
-        self.plot_cum_vx_sia(save=save, results_path=results_path)
-
-    def plot_cum_vx_sia(self, save=False, results_path=None):
-        cum_vx_sia = np.cumsum(self.results.sia_vaccinated, axis=0)
-        plt.figure(figsize=(10, 6))
-        plt.plot(cum_vx_sia)
-        plt.title("Supplemental Immunization Activity (SIA) Vaccination")
-        plt.xlabel("Time (Timesteps)")
-        plt.ylabel("Cumulative Vaccinated")
-        plt.grid()
-        if save:
-            plt.savefig(results_path / "cum_sia_vx.png")
-        if not save:
-            plt.show()
+        plot_cum_vx_sia(self.results, save=save, results_path=results_path)
