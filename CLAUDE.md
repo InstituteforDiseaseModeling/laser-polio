@@ -142,3 +142,6 @@ Tests cover:
 - Uses sparse matrices for migration when possible
 - Logging configured to timestamped files in `logs/` directory
 - Results saved to timestamped directories in `results/`
+
+## Code style rules
+- Always put imports at the top of files. 
