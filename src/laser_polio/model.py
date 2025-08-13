@@ -768,7 +768,7 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
     cov_matrix = np.array([[1, rho], [rho, 1]])
     L = np.linalg.cholesky(cov_matrix)
 
-    logger.info("FIXME: This chunk of code to initialize acq_risk_out and infectivity_out is know to be slow right now.")
+    logger.info("FIXME: This chunk of code to initialize acq_risk_out and infectivity_out is known to be slow right now.")
     BATCH_SIZE = 1_000_000
     for batch_start in range(start, end, BATCH_SIZE):
         batch_end = min(batch_start + BATCH_SIZE, end)
