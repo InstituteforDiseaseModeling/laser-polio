@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import sciris as sc
@@ -13,7 +14,24 @@ def run_docker_commands():
     dockerfile = "calib/Dockerfile"
     platform = "linux/amd64"  # Setting for aks. If you're running locally (e.g. on a mac), you'll need to change this to "linux/arm64".
 
-    build_cmd = ["docker", "build", ".", "-f", dockerfile, "-t", image_tag, "--platform", platform]
+    # Generate a cache-busting value (timestamp)
+    cache_breaker = str(int(time.time()))
+
+    # Build command with --build-arg
+    build_cmd = [
+        "docker",
+        "build",
+        ".",
+        "-f",
+        dockerfile,
+        "-t",
+        image_tag,
+        "--platform",
+        platform,
+        "--build-arg",
+        f"CACHE_BREAKER={cache_breaker}",
+    ]
+
     create_cmd = ["docker", "create", "--name", "temp_laser", image_tag]
     cp_cmd = ["docker", "cp", "temp_laser:/app/laser_polio_deps.txt", "./laser_polio_deps.txt"]
     rm_cmd = ["docker", "rm", "temp_laser"]
