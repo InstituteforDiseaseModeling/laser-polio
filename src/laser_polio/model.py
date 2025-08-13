@@ -1461,14 +1461,6 @@ class Transmission_ABM:
             logger.info("")
 
     def plot(self, save=False, results_path=""):
-        """
-        print( f"{self.beta_sum_time=}" )
-        print( f"{self.spatial_beta_time=}" )
-        print( f"{self.seasonal_beta_time=}" )
-        print( f"{self.probs_time=}" )
-        print( f"{self.calc_ni_time=}" )
-        print( f"{self.do_ni_time=}" )
-        """
         plot_network(self.network, save=save, results_path=results_path)
 
 
