@@ -1,18 +1,14 @@
-import logging
 import numbers
-import os
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from typing import ClassVar
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numba as nb
 import numpy as np
 import pandas as pd
-import pytz
 import scipy.stats as stats
 import sciris as sc
 from alive_progress import alive_bar
@@ -32,91 +28,11 @@ from matplotlib.ticker import FormatStrFormatter
 from tqdm import tqdm
 
 import laser_polio as lp
+from laser_polio.logger import fmt
+from laser_polio.logger import logger
 from laser_polio.utils import TimingStats
 
 __all__ = ["RI_ABM", "SEIR_ABM", "SIA_ABM", "DiseaseState_ABM", "Transmission_ABM", "VitalDynamics_ABM"]
-
-### START WITH LOGGER SETUP
-
-
-# Let's color-code our log messages based on level.
-# Note that this just does the log level and module name, not the whole message
-class LogColors:
-    RESET = "\033[0m"
-    BROWN = "\033[38;5;94m"  # Approximate brown using 256-color mode
-    BLUE = "\033[34m"
-    GREEN = "\033[32m"
-    YELLOW = "\033[33m"
-    RED = "\033[31m"
-    MAGENTA = "\033[35m"
-
-
-# Let's add a whole new log level that logging doesn't know about
-# We do this in the middle of color-coding since our new level will need a color too.
-VALID = 15
-logging.addLevelName(VALID, "VALID")
-
-
-class ColorFormatter(logging.Formatter):
-    LEVEL_COLORS: ClassVar[dict[int, str]] = {
-        logging.DEBUG: LogColors.BROWN,
-        logging.INFO: LogColors.GREEN,
-        logging.WARNING: LogColors.YELLOW,
-        logging.ERROR: LogColors.RED,
-        logging.CRITICAL: LogColors.MAGENTA,
-        VALID: LogColors.BLUE,
-    }
-
-    def format(self, record):
-        color = self.LEVEL_COLORS.get(record.levelno, LogColors.RESET)
-        record.levelname = f"{color}{record.levelname}{LogColors.RESET}"
-        record.name = f"{color}{record.name}{LogColors.RESET}"
-        return super().format(record)
-
-
-def valid(self, message, *args, **kwargs):
-    if self.isEnabledFor(VALID):
-        self._log(VALID, message, args, **kwargs)
-
-
-logging.Logger.valid = valid
-
-# Actually get the logger singleton by module-name
-logger = logging.getLogger("laser-polio")
-# Prevents double/multiple logging
-logger.propagate = False
-
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(ColorFormatter("[%(levelname)s] %(name)s: %(message)s"))
-logger.addHandler(console_handler)
-
-### DONE WITH LOGGER SETUP
-
-# Configure the logger
-log_dir = "logs"
-os.makedirs(log_dir, exist_ok=True)
-local_tz = pytz.timezone("America/Los_Angeles")  # Replace with your local timezone
-timestamp = datetime.now(local_tz).strftime("%Y%m%d-%H%M%S")
-log_file = os.path.join(log_dir, f"simulation_log-{timestamp}.txt")
-logging.basicConfig(
-    filename=log_file,
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s: %(message)s",
-    filemode="w",  # Overwrite each time you run; use "a" to append
-)
-logger = logging.getLogger(__name__)
-
-
-# Logger precision formatter
-def fmt(arr, precision=2):
-    """Format NumPy arrays as single-line strings with no wrapping."""
-    return np.array2string(
-        np.asarray(arr),  # Ensures even scalars/lists work
-        separator=" ",
-        threshold=np.inf,
-        max_line_width=np.inf,
-        precision=precision,
-    )
 
 
 # This utility function is called from two different places; doesn't need to be member of
@@ -263,7 +179,7 @@ class SEIR_ABM:
             capacity = int(fudge_factor * (total_pop + expected_births))
             # Finally, initialize the LaserFrame
             self.people = LaserFrame(capacity=capacity, initial_count=int(total_pop))
-            logging.info(f"count={self.people.count}, capacity={capacity}")
+            logger.info(f"count={self.people.count}, capacity={capacity}")
 
             # --- Initializes any essential agent properties that are required across multiple components ---
             # Initialize disease_state, ipv_protected, paralyzed, and potentially_paralyzed here since they're required for most other components
