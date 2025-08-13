@@ -84,7 +84,6 @@ logging.basicConfig(
 )
 
 # Also create a module-specific logger
-logger = logging.getLogger(__name__)
 
 
 def fmt(arr, precision=2):
