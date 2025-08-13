@@ -8,7 +8,7 @@ ENV NUMBA_CPU_NAME=generic
 ENV HEADLESS=1
 
 
-# Install laser-polio (use cache nullification hack suggetsed by robot)
+# Install laser-polio (use cache nullification hack suggested by robot)
 # Add '--build-arg CACHE_BREAKER=$(date +%s)' to docker build line
 ARG CACHE_BREAKER=1
 RUN pip install -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio
