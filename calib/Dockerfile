@@ -7,8 +7,11 @@ ENV POLIO_ROOT=/app
 ENV NUMBA_CPU_NAME=generic
 ENV HEADLESS=1
 
-# Install laser-polio (maximize layer cache)
-RUN pip install --no-cache-dir --upgrade --force-reinstall -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio
+
+# Install laser-polio (use cache nullification hack suggetsed by robot)
+# Add '--build-arg CACHE_BREAKER=$(date +%s)' to docker build line
+ARG CACHE_BREAKER=1
+RUN pip install -i https://packages.idmod.org/api/pypi/pypi-production/simple laser-polio
 
 # Copy application code and configuration files
 COPY calib/ ./calib/
