@@ -497,7 +497,7 @@ def get_trial_by_number(study, trial_number):
     raise ValueError(f"Trial {trial_number} not found in study")
 
 
-def plot_trial_targets(study, trial_number, output_dir=None, shp=None, start_year=2018, model_config=None):
+def plot_trial_targets(study, trial_number, output_dir=None, shp=None, model_config=None, start_year=2018):
     """Plot targets for a specific trial number."""
     trial = get_trial_by_number(study, trial_number)
     if trial.state != optuna.trial.TrialState.COMPLETE:
