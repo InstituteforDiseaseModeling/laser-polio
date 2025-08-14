@@ -5,17 +5,17 @@ import yaml
 
 # ------------------- USER CONFIGS -------------------
 
-# # Goal: Determine if the regional groupings allow us to calibrate to Nigeria.
-# job_name = "lpsk3"
-# study_name = "calib_nigeria_7y_2017_underwt_region_groupings_20250813"
-# model_config = "config_nigeria_7y_2017_region_groupings.yaml"
-# calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts_narrower_regionaltimeseries.yaml"
-
-# Goal: Determine if the adm01 groupings work
-job_name = "lpsk4"
-study_name = "calib_nigeria_7y_2017_underwt_adm01_groupings_20250813"
-model_config = "config_nigeria_7y_2017_adm01_groupings.yaml"
+# Goal: Determine if the regional groupings allow us to calibrate to Nigeria.
+job_name = "lpsk3"
+study_name = "calib_nigeria_7y_2017_underwt_region_groupings_20250813"
+model_config = "config_nigeria_7y_2017_region_groupings.yaml"
 calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts_narrower_regionaltimeseries.yaml"
+
+# # Goal: Determine if the adm01 groupings work
+# job_name = "lpsk4"
+# study_name = "calib_nigeria_7y_2017_underwt_adm01_groupings_20250813"
+# model_config = "config_nigeria_7y_2017_adm01_groupings.yaml"
+# calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts_narrower_regionaltimeseries.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 1  # Number of trials to run per pod
