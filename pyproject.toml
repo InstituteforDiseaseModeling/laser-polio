@@ -36,6 +36,7 @@ classifiers = [
 
 dependencies = [
     "alive_progress",
+    "cartopy",
     "click",
     "geopandas",
     "geopy",
