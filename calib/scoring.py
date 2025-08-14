@@ -154,7 +154,7 @@ def compute_nll_dirichlet(actual, predicted, weights=None):
         # dict of dict/list -> matrix
         if isinstance(values[0], (dict, list, tuple, np.ndarray)):
             row_labels = sorted(obj.keys())
-            # inner key sets by OBSERVED object
+            # Collect the set of inner keys from each row of the observed data to determine the union of all possible column labels (i.e., the column structure)
             inner_sets_obs = []
             for r in row_labels:
                 v = obj[r]
