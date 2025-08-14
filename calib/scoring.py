@@ -114,91 +114,152 @@ def compute_log_likelihood_fit(
 
 def compute_nll_dirichlet(actual, predicted, weights=None):
     """
-    Compute log-likelihood using mixed approaches:
-    - Poisson for total_by_period (count data)
-    - Dirichlet multinomial for monthly_timeseries and adm01_by_period (compositional data)
+    Compute negative log-likelihood with minimal, key-agnostic rules:
+    - If the observed target is a scalar -> Poisson.
+    - Otherwise (vector or matrix, including nested dicts) -> Dirichlet-multinomial
+      with alpha = simulated + 1 (posterior-predictive style).
 
-    Parameters:
-        actual (dict): Observed summary statistics
-        predicted (dict): Simulated summary statistics
-        weights (dict): Optional weights per target
-        norm_by_n (bool): Normalize by data length
-        dirichlet_alpha (float): Concentration parameter for Dirichlet distribution
-
-    Returns:
-        dict: log-likelihoods per key + total
+    Automatically handles:
+      - lists / 1D arrays
+      - 1-level dicts (vector by sorted keys)
+      - 2-level nested dicts (rows = outer keys, cols = union of inner keys across obs/pred)
+      - dict -> list (inner list indexed as 0..K-1)
     """
     log_likelihoods = {}
     weights = weights or {}
+
+    def _to_matrix(obj):
+        """
+        Convert obj into a 2D array and (row_labels, col_labels).
+        - scalar                   -> (1,1), rows=[None], cols=[None]
+        - list/1D array            -> (1,K), rows=[None], cols=[0..K-1]
+        - dict (1-level)           -> (1,K), rows=[None], cols=sorted(keys)
+        - dict of dict/list (2-lvl)-> (R,C), rows=sorted(outer), cols=sorted(union inner)
+        """
+        # scalar
+        if not isinstance(obj, (dict, list, tuple, np.ndarray)):
+            return np.array([[float(obj)]]), [None], [None]
+
+        # list/array
+        if not isinstance(obj, dict):
+            arr = np.asarray(obj, dtype=float).reshape(1, -1)
+            return arr, [None], list(range(arr.shape[1]))
+
+        # empty dict -> empty row
+        if len(obj) == 0:
+            return np.zeros((1, 0), dtype=float), [None], []
+
+        values = list(obj.values())
+
+        # dict of dict/list -> matrix
+        if isinstance(values[0], (dict, list, tuple, np.ndarray)):
+            row_labels = sorted(obj.keys())
+            # inner key sets by OBSERVED object
+            inner_sets_obs = []
+            for r in row_labels:
+                v = obj[r]
+                if isinstance(v, dict):
+                    inner_sets_obs.append(set(v.keys()))
+                else:
+                    inner_sets_obs.append(set(range(len(v))))
+            col_labels = sorted(set().union(*inner_sets_obs))
+            R, C = len(row_labels), len(col_labels)
+            M = np.zeros((R, C), dtype=float)
+            for i, r in enumerate(row_labels):
+                v = obj[r]
+                if isinstance(v, dict):
+                    for j, c in enumerate(col_labels):
+                        M[i, j] = float(v.get(c, 0.0))
+                else:
+                    v_list = list(v)
+                    for j, c in enumerate(col_labels):
+                        if isinstance(c, int) and 0 <= c < len(v_list):
+                            M[i, j] = float(v_list[c])
+            return M, row_labels, col_labels
+
+        # dict (1-level) -> single row vector by sorted keys
+        col_labels = sorted(obj.keys())
+        row = [float(obj[k]) for k in col_labels]
+        return np.asarray([row], dtype=float), [None], col_labels
+
+    def _align_pred(pred, row_labels, col_labels):
+        """
+        Align prediction into the same (R,C) shape as observed.
+        Missing entries are treated as 0.0 (simple, explicit).
+        """
+        # scalar
+        if row_labels == [None] and col_labels == [None]:
+            try:
+                return np.array([[float(pred)]], dtype=float)
+            except Exception:
+                return np.array([[0.0]], dtype=float)
+
+        # vector
+        if row_labels == [None]:
+            if isinstance(pred, dict):
+                return np.array([[float(pred.get(c, 0.0)) for c in col_labels]], dtype=float)
+            v = np.asarray(pred, dtype=float).reshape(1, -1)
+            out = np.zeros((1, len(col_labels)), dtype=float)
+            for j, c in enumerate(col_labels):
+                if isinstance(c, int) and c < v.shape[1]:
+                    out[0, j] = v[0, c]
+            return out
+
+        # matrix
+        R, C = len(row_labels), len(col_labels)
+        out = np.zeros((R, C), dtype=float)
+        if isinstance(pred, dict):
+            for i, r in enumerate(row_labels):
+                sub = pred.get(r, {})
+                if isinstance(sub, dict):
+                    for j, c in enumerate(col_labels):
+                        out[i, j] = float(sub.get(c, 0.0))
+                else:
+                    sub_list = list(sub) if not isinstance(sub, (list, tuple, np.ndarray)) else list(sub)  # noqa: RUF034
+                    for j, c in enumerate(col_labels):
+                        if isinstance(c, int) and 0 <= c < len(sub_list):
+                            out[i, j] = float(sub_list[c])
+        return out
 
     for key in actual:
         try:
             a = actual[key]
             p = predicted[key]
 
-            # Handle nested dictionaries (for adm01_by_period)
-            if isinstance(a, dict) and isinstance(p, dict):
-                if set(a.keys()) != set(p.keys()):
-                    raise ValueError(f"Key mismatch in nested dict '{key}': {set(a.keys()) ^ set(p.keys())}")
-                subkeys = sorted(a.keys())  # enforce consistent order
-
-                # Check if values are also dictionaries (doubly nested)
-                obs_values = []
-                sim_values = []
-                for k in subkeys:
-                    obs_val = a[k]
-                    sim_val = p[k]
-
-                    if isinstance(obs_val, dict) and isinstance(sim_val, dict):
-                        # Handle doubly nested case - flatten by summing values
-                        obs_values.append(sum(obs_val.values()))
-                        sim_values.append(sum(sim_val.values()))
-                    else:
-                        obs_values.append(obs_val)
-                        sim_values.append(sim_val)
-
-                v_obs = np.array(obs_values, dtype=int)
-                v_sim = np.array(sim_values, dtype=float)
-
-            # Handle flat arrays or lists
-            else:
-                v_obs = np.array(a, dtype=int)
-                v_sim = np.array(p, dtype=float)
+            # Build aligned arrays
+            v_obs, row_labels, col_labels = _to_matrix(a)
+            v_sim = _align_pred(p, row_labels, col_labels)
 
             # Ensure shape match
             if v_obs.shape != v_sim.shape:
-                sc.printyellow(f"[WARN] Shape mismatch on '{key}': {v_obs.shape} vs {v_sim.shape}")
+                try:
+                    sc.printyellow(f"[WARN] Shape mismatch on '{key}': {v_obs.shape} vs {v_sim.shape}")
+                except Exception:
+                    print(f"[WARN] Shape mismatch on '{key}': {v_obs.shape} vs {v_sim.shape}")
                 continue
 
-            # Clip simulation values to avoid log(0)
-            v_sim = np.clip(v_sim, 1e-6, None)
+            # Clip simulation values to avoid negatives or log(0)
+            v_sim = np.clip(v_sim, 0.0, None)
 
-            if key in [
-                "cases_by_period",
-                "cases_by_month",
-                "cases_by_region",
-                "cases_by_region_period",
-                "cases_by_region_month",
-                "case_bins_by_region",
-            ]:
-                # Promote to 2D arrays so we can sum by rows (over axis=1). This handles both single and multi-sample cases.
-                v_obs = np.atleast_2d(v_obs)
-                v_sim = np.atleast_2d(v_sim)
-                x = v_obs
-                n = v_obs.sum(axis=1)
-                alpha = v_sim + 1
+            # Decide likelihood: scalar -> Poisson, else -> Dirichlet-multinomial
+            if v_obs.size == 1:
+                # Poisson for scalar targets
+                y = int(round(float(v_obs[0, 0])))  # noqa: RUF046
+                lam = max(float(v_sim[0, 0]), 1e-12)
+                logp = poisson.logpmf(y, lam)
+            else:
+                # Dirichlet-multinomial for vectors/matrices (posterior-predictive with +1)
+                x = v_obs.astype(int)
+                n = x.sum(axis=1)
+                alpha = v_sim + 1.0
                 logp = sps.dirichlet_multinomial.logpmf(x=x, n=n, alpha=alpha)
 
-            else:
-                # Default to Poisson for other keys
-                logp = poisson.logpmf(v_obs, v_sim)
-
-            weight = weights.get(key, 1.0)
-            neg_ll = -1.0 * weight * logp.sum()
-            log_likelihoods[key] = neg_ll
+            weight = float(weights.get(key, 1.0))
+            neg_ll = -1.0 * weight * np.sum(logp)
+            log_likelihoods[key] = float(neg_ll)
 
         except Exception as e:
             print(f"[ERROR] Skipping '{key}' due to: {e}")
 
-    log_likelihoods["total_log_likelihood"] = sum(log_likelihoods.values())
+    log_likelihoods["total_log_likelihood"] = float(sum(log_likelihoods.values()))
     return log_likelihoods
