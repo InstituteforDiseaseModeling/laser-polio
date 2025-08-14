@@ -244,7 +244,7 @@ def compute_nll_dirichlet(actual, predicted, weights=None):
             # Decide likelihood: scalar -> Poisson, else -> Dirichlet-multinomial
             if v_obs.size == 1:
                 # Poisson for scalar targets
-                y = int(round(float(v_obs[0, 0])))  # noqa: RUF046
+                y = np.round(v_obs[0, 0]).astype(int)
                 lam = max(float(v_sim[0, 0]), 1e-12)
                 logp = poisson.logpmf(y, lam)
             else:
