@@ -559,7 +559,34 @@ def plot_targets(study, output_dir=None, shp=None):
 
 
 def _plot_targets_impl(actual, preds, output_dir, shp, model_config, start_year, title_prefix):
-    """Common implementation for plotting targets data."""
+    """
+    Common implementation for plotting targets data.
+
+    This function generates plots comparing actual and predicted target data for a given trial or set of trials.
+    It is used by both `plot_targets` (for the best trial) and `plot_trial_targets` (for a specific trial).
+
+    Parameters
+    ----------
+    actual : dict
+        Dictionary containing the actual target data, typically with keys for different target types (e.g., "cases_by_period").
+    preds : list or dict
+        Predicted data, typically a list of dictionaries (one per replicate) or a dictionary with similar structure to `actual`.
+    output_dir : Path or str
+        Directory where the generated plots will be saved.
+    shp : GeoDataFrame or None
+        Shapefile data as a GeoPandas GeoDataFrame, or None if not available.
+    model_config : dict
+        Model configuration dictionary, may contain additional metadata such as "start_year".
+    start_year : int
+        The starting year for the time series plots.
+    title_prefix : str
+        Prefix to use in plot titles (e.g., "Best" or "Trial 5").
+
+    Returns
+    -------
+    None
+        The function saves plots to the specified output directory and does not return a value.
+    """
     # For now, just call the original plot_targets logic with proper parameters
     # This is a simplified implementation - the full plotting logic from plot_targets
     # could be moved here for better code reuse
