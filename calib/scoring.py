@@ -215,7 +215,7 @@ def compute_nll_dirichlet(actual, predicted, weights=None):
                     for j, c in enumerate(col_labels):
                         out[i, j] = float(sub.get(c, 0.0))
                 else:
-                    sub_list = list(sub) if not isinstance(sub, (list, tuple, np.ndarray)) else list(sub)  # noqa: RUF034
+                    sub_list = list(sub)  # noqa: RUF034
                     for j, c in enumerate(col_labels):
                         if isinstance(c, int) and 0 <= c < len(sub_list):
                             out[i, j] = float(sub_list[c])
