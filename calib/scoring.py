@@ -239,7 +239,7 @@ def compute_nll_dirichlet(actual, predicted, weights=None):
                 continue
 
             # Clip simulation values to avoid negatives or log(0)
-            v_sim = np.clip(v_sim, 0.0, None)
+            v_sim = np.clip(v_sim, 1e-12, None)
 
             # Decide likelihood: scalar -> Poisson, else -> Dirichlet-multinomial
             if v_obs.size == 1:
