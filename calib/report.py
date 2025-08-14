@@ -489,6 +489,44 @@ def get_shapefile_from_config(model_config):
         return region_shp
 
 
+def get_trial_by_number(study, trial_number):
+    """Get a trial by its number."""
+    for trial in study.trials:
+        if trial.number == trial_number:
+            return trial
+    raise ValueError(f"Trial {trial_number} not found in study")
+
+
+def plot_trial_targets(study, trial_number, output_dir=None, shp=None, start_year=2018, model_config=None):
+    """Plot targets for a specific trial number."""
+    trial = get_trial_by_number(study, trial_number)
+    if trial.state != optuna.trial.TrialState.COMPLETE:
+        raise ValueError(f"Trial {trial_number} is not completed")
+
+    actual = trial.user_attrs["actual"]
+    preds = trial.user_attrs["predicted"]
+
+    # Use provided model_config or default empty dict
+    if model_config is None:
+        model_config = {}
+
+    # Use the output_dir directly instead of creating a subdirectory
+    trial_dir = Path(output_dir)
+    trial_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate shapefile if not provided
+    if shp is None:
+        try:
+            shp = get_shapefile_from_config(model_config)
+            print("[INFO] Generated shapefile from model config")
+        except Exception as e:
+            print(f"[WARN] Could not generate shapefile: {e}")
+            shp = None
+
+    # Use the same plotting logic as plot_targets but with trial-specific data
+    _plot_targets_impl(actual, preds, trial_dir, shp, model_config, start_year, f"Trial {trial_number}")
+
+
 def plot_targets(study, output_dir=None, shp=None):
     best = study.best_trial
     actual = best.user_attrs["actual"]
@@ -503,7 +541,7 @@ def plot_targets(study, output_dir=None, shp=None):
     model_config = metadata.get("model_config", {})
     start_year = model_config.get("start_year", 2018)
 
-    # Create output directory for top trials plots
+    # Create output directory for best trial plots
     best_dir = Path(output_dir) / "best_trial_plots"
     best_dir.mkdir(exist_ok=True)
 
@@ -516,20 +554,31 @@ def plot_targets(study, output_dir=None, shp=None):
             print(f"[WARN] Could not generate shapefile: {e}")
             shp = None
 
+    # Use the common plotting implementation
+    _plot_targets_impl(actual, preds, best_dir, shp, model_config, start_year, "Best")
+
+
+def _plot_targets_impl(actual, preds, output_dir, shp, model_config, start_year, title_prefix):
+    """Common implementation for plotting targets data."""
+    # For now, just call the original plot_targets logic with proper parameters
+    # This is a simplified implementation - the full plotting logic from plot_targets
+    # could be moved here for better code reuse
+    print(f"[INFO] Plotting targets for {title_prefix} trial to {output_dir}")
+
     # Define consistent colors
     n_reps = len(preds)
     labels = ["Actual"] + [f"Rep {i + 1}" for i in range(n_reps)]
-    cmap = cm.get_cmap("Dark2")  # tab10
+    cmap = cm.get_cmap("Dark2")
     color_map = {label: cmap(i) for i, label in enumerate(labels)}
 
+    # For now, just implement the basic cases_by_period plot as an example
     if "cases_by_period" in actual:
-        # Use the keys from the dictionary in their natural order
         period_labels = list(actual["cases_by_period"].keys())
         x = np.arange(len(period_labels))
         actual_vals = [actual["cases_by_period"][period] for period in period_labels]
 
         plt.figure(figsize=(10, 6))
-        plt.title(f"Cases by Period - Top {n_reps} Trials")
+        plt.title(f"Cases by Period - {title_prefix}")
         plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
         for i, rep in enumerate(preds):
             pred = rep["cases_by_period"]
@@ -540,7 +589,7 @@ def plot_targets(study, output_dir=None, shp=None):
         plt.ylabel("Cases")
         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
         plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_cases_by_period.png", bbox_inches="tight")
+        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_period.png", bbox_inches="tight")
         plt.close()
 
     # Monthly Timeseries Cases
@@ -548,7 +597,7 @@ def plot_targets(study, output_dir=None, shp=None):
         n_months = len(actual["cases_by_month"])
         months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
         plt.figure()
-        plt.title("Cases by Period")
+        plt.title(f"Cases by Month - {title_prefix}")
         plt.plot(months_series, actual["cases_by_month"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
         for i, rep in enumerate(preds):
             label = f"Rep {i + 1}"
@@ -557,7 +606,7 @@ def plot_targets(study, output_dir=None, shp=None):
         plt.ylabel("Cases")
         plt.legend()
         plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_cases_by_month.png")
+        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_month.png")
         plt.close()
 
     # Regional Cases (bar plot)
@@ -566,7 +615,7 @@ def plot_targets(study, output_dir=None, shp=None):
         x = np.arange(len(region_labels))
         width = 0.6
         plt.figure(figsize=(12, 8))
-        plt.title("Regional Cases")
+        plt.title(f"Regional Cases - {title_prefix}")
         plt.bar(
             x, actual["cases_by_region"].values(), width, label="Actual", edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5
         )
@@ -577,7 +626,7 @@ def plot_targets(study, output_dir=None, shp=None):
         plt.ylabel("Cases")
         plt.legend()
         plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_cases_by_region.png")
+        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_region.png")
         plt.close()
 
     # Regional Cases by Period (nested dictionary structure)
@@ -624,7 +673,7 @@ def plot_targets(study, output_dir=None, shp=None):
                 ax.legend()
 
             plt.tight_layout()
-            plt.savefig(best_dir / "plot_best_cases_by_region_period.png")
+            plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_region_period.png")
             plt.close()
 
     if "cases_by_region_month" in actual:
@@ -690,7 +739,7 @@ def plot_targets(study, output_dir=None, shp=None):
                 axes[idx].set_visible(False)
 
             plt.tight_layout()
-            plt.savefig(best_dir / "plot_best_cases_by_region_month.png", dpi=300, bbox_inches="tight")
+            plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_region_month.png", dpi=300, bbox_inches="tight")
             plt.close()
 
     # District Case Bin Counts (binned histogram comparison)
@@ -766,7 +815,7 @@ def plot_targets(study, output_dir=None, shp=None):
                 axes[idx].set_visible(False)
 
             plt.tight_layout()
-            plt.savefig(best_dir / "plot_best_case_bins_by_region.png", dpi=300, bbox_inches="tight")
+            plt.savefig(output_dir / f"plot_{title_prefix.lower()}_case_bins_by_region.png", dpi=300, bbox_inches="tight")
             plt.close()
 
     # Plot choropleth of case count differences for each replicate
@@ -777,7 +826,7 @@ def plot_targets(study, output_dir=None, shp=None):
                     shp=shp,
                     actual_cases=actual["cases_by_region"],
                     pred_cases=rep["cases_by_region"],
-                    output_path=best_dir / f"plot_best_case_diff_choropleth_rep{i + 1}.png",
+                    output_path=output_dir / f"plot_{title_prefix.lower()}_case_diff_choropleth_rep{i + 1}.png",
                     title=f"Case Count Difference (Actual - Predicted) - Rep {i + 1}",
                 )
 
@@ -789,7 +838,7 @@ def plot_targets(study, output_dir=None, shp=None):
                     shp=shp,
                     actual_cases_by_period=actual["cases_by_region_period"],
                     pred_cases_by_period=rep["cases_by_region_period"],
-                    output_path=best_dir / f"plot_best_case_diff_choropleth_temporal_rep{i + 1}.png",
+                    output_path=output_dir / f"plot_{title_prefix.lower()}_case_diff_choropleth_temporal_rep{i + 1}.png",
                     title=f"Case Count Difference by Period (Actual - Predicted) - Rep {i + 1}",
                 )
 
@@ -805,7 +854,7 @@ def plot_targets(study, output_dir=None, shp=None):
         plt.xticks(x, labels, rotation=45)
         plt.ylabel("Nodes")
         plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_nodes_with_cases_total.png")
+        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_nodes_with_cases_total.png")
         plt.close()
 
     # Monthly Nodes with Cases
@@ -822,7 +871,7 @@ def plot_targets(study, output_dir=None, shp=None):
         plt.ylabel("Number of Nodes with ≥1 Case")
         plt.legend()
         plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_nodes_with_cases_timeseries.png")
+        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_nodes_with_cases_timeseries.png")
         plt.close()
 
     # Regional Cases (bar plot)
@@ -839,7 +888,7 @@ def plot_targets(study, output_dir=None, shp=None):
         plt.ylabel("Cases")
         plt.legend()
         plt.tight_layout()
-        plt.savefig(best_dir / "plot_best_regional.png")
+        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_regional.png")
         plt.close()
 
     if "regional_by_period" in actual:
@@ -906,17 +955,30 @@ def plot_targets(study, output_dir=None, shp=None):
                     ax.legend()
 
             plt.tight_layout()
-            plt.savefig(best_dir / "plot_best_regional_by_period.png")
+            plt.savefig(output_dir / f"plot_{title_prefix.lower()}_regional_by_period.png")
             plt.close()
 
 
-def plot_likelihoods(study, output_dir=None, use_log=True):
+def plot_likelihoods(study, output_dir=None, use_log=True, trial_number=None):
     # Default output directory to current working dir if not provided
-    output_dir = Path(output_dir) / "optuna_plots" if output_dir else Path.cwd()
+    if output_dir:
+        # If trial_number is specified, use output_dir directly, otherwise use optuna_plots subdirectory
+        if trial_number is not None:
+            output_dir = Path(output_dir)
+        else:
+            output_dir = Path(output_dir) / "optuna_plots"
+    else:
+        output_dir = Path.cwd()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    best = study.best_trial
-    likelihoods = best.user_attrs["likelihoods"]
+    if trial_number is not None:
+        trial = get_trial_by_number(study, trial_number)
+        likelihoods = trial.user_attrs["likelihoods"]
+        title_suffix = f" - Trial {trial_number}"
+    else:
+        best = study.best_trial
+        likelihoods = best.user_attrs["likelihoods"]
+        title_suffix = " - Best Trial"
     exclude_keys = {"total_log_likelihood"}
     keys = [k for k in likelihoods if k not in exclude_keys]
     values = [likelihoods[k] for k in keys]
@@ -928,7 +990,7 @@ def plot_likelihoods(study, output_dir=None, use_log=True):
         ax.set_ylabel("Log Likelihood")
     else:
         ax.set_ylabel("Likelihood")
-    ax.set_title("Calibration Log-Likelihoods by Component")
+    ax.set_title(f"Calibration Log-Likelihoods by Component{title_suffix}")
     ax.set_xticks(range(len(keys)))
     ax.set_xticklabels(keys, rotation=45, ha="right")
     # Add text labels on bars after scale is set
