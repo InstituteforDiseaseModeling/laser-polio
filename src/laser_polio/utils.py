@@ -639,7 +639,7 @@ def save_sim_results(sim, filename="simulation_results.csv", summary_config=None
     data = {
         "timestep": np.repeat(np.arange(timesteps), nodes),
         "date": np.repeat(np.asarray(datevec), nodes),
-        "node": np.repeat(np.arange(nodes), timesteps),
+        "node": np.tile(np.arange(nodes), timesteps),
         "dot_name": np.empty(
             total_rows, dtype=object
         ),  # Initialized as object for compatibility; converted to pandas 'category' type later to reduce memory usage
