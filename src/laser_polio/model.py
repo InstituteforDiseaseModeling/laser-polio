@@ -426,7 +426,7 @@ def disease_state_step_kernel(
             infection_timer[i] -= 1
 
         # ---- Paralysis ----
-        if (disease_state[i] == 1) or (disease_state[i] == 2) or (disease_state[i] == 3):
+        if disease_state[i] in (1, 2, 3):
             if potentially_paralyzed[i] == -1:  # after exposure, but not yet flagged
                 if paralysis_timer[i] <= 0:
                     if ipv_protected[i] == 0:
