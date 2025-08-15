@@ -24,6 +24,7 @@ uv.lock
 *local_storage.yaml
 *params.json
 *simulation_results.csv
+*simulation_results.h5
 results/
 *local_storage.yaml
 *laser_polio_deps.txt
