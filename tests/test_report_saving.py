@@ -88,7 +88,7 @@ def test_save_sim_results(ext):
 
 
 def test_save_sim_results_equal():
-    # TODO: fix log printing
+    # Test that the CSV and H5 files are equal aside from dtypes
     lp.root = Path()
     sim = run_sim(
         regions=["BENIN"],
