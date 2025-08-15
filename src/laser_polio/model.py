@@ -341,7 +341,7 @@ class SEIR_ABM:
         return
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True, cache=True)
 def disease_state_step_nb(
     node_id,
     n_nodes,
@@ -426,7 +426,7 @@ def set_filter_mask(num_people, disease_state, filter_mask):
     return
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True, cache=True)
 def get_eligible_by_node(num_nodes, num_people, eligible, node_ids):
     tls_counts = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)  # Adjust size as needed
 
@@ -789,7 +789,7 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
             infectivity_out[batch_start:batch_end] = mean_gamma
 
 
-@nb.njit((nb.int16[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32, nb.int32), parallel=True, nogil=True)
+@nb.njit((nb.int16[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32, nb.int32), parallel=True, nogil=True, cache=True)
 def count_SEIRP(node_id, disease_state, strain, potentially_paralyzed, paralyzed, n_nodes, n_strains, n_people):
     """
     Go through each person exactly once and increment counters for their node and strain.
@@ -863,7 +863,7 @@ def count_SEIRP(node_id, disease_state, strain, potentially_paralyzed, paralyzed
     )
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True, cache=True)
 def tx_step_prep_nb(
     num_nodes,
     num_people,
@@ -901,7 +901,7 @@ def tx_step_prep_nb(
     return beta_by_node_strain, exposure_by_node, sus_by_node
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True, cache=True)
 def tx_infect_nb(
     num_nodes,
     num_people,
@@ -1891,7 +1891,7 @@ class RI_ABM:
         plot_cum_ri_vx(self.results, save=save, results_path=results_path)
 
 
-@nb.njit(parallel=True)
+@nb.njit(parallel=True, cache=True)
 def fast_sia(
     node_ids,
     disease_states,
