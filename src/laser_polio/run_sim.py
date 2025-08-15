@@ -12,6 +12,7 @@ from laser_core.laserframe import LaserFrame
 from laser_core.propertyset import PropertySet
 
 import laser_polio as lp
+from laser_polio.logger import configure_logging
 
 __all__ = ["run_sim"]
 
@@ -57,6 +58,9 @@ def run_sim(
         python -m laser_polio.run_sim --extra-pars='{"gravity_k": 2.2, "r0": 14}'
 
     """
+    # Configure logging based on verbose level
+    configure_logging(verbose)
+
     print("run_sim started")
     config = config or {}
     configs = sc.mergedicts(config, kwargs)
