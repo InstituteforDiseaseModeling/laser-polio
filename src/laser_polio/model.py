@@ -341,8 +341,7 @@ class SEIR_ABM:
         return
 
 
-@nb.njit(parallel=True, cache=True)
-def disease_state_step_nb(
+def disease_state_step(
     node_id,
     n_nodes,
     disease_state,
@@ -357,20 +356,66 @@ def disease_state_step_nb(
     new_potential,
     new_paralyzed,
 ):
-    # ---- Setup thread-local buffers to avoid write conflicts ----
-    local_new_potential = np.zeros((nb.get_num_threads(), n_nodes), dtype=np.int32)
-    local_new_paralyzed = np.zeros((nb.get_num_threads(), n_nodes), dtype=np.int32)
+    """
+    Python wrapper:
+      - allocates thread-local buffers once
+      - calls the jitted kernel to fill them
+      - reduces across threads into the provided output arrays in-place
+    """
+    n_threads = nb.get_num_threads()  # OK to call here (outside jitted code)
+    local_new_potential = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    local_new_paralyzed = np.zeros((n_threads, n_nodes), dtype=np.int32)
 
+    # kernel mutates state arrays in-place + accumulates thread-local counts
+    disease_state_step_kernel(
+        node_id,
+        n_nodes,
+        disease_state,
+        active_count,
+        exposure_timer,
+        infection_timer,
+        potentially_paralyzed,
+        paralyzed,
+        ipv_protected,
+        paralysis_timer,
+        p_paralysis,
+        local_new_potential,
+        local_new_paralyzed,
+    )
+
+    # Parallel-safe reduction (NumPy on host is fine)
+    new_potential[:] += local_new_potential.sum(axis=0)
+    new_paralyzed[:] += local_new_paralyzed.sum(axis=0)
+
+
+@nb.njit(parallel=True, nogil=True, cache=True)  # no explicit signature -> no import-time compile
+def disease_state_step_kernel(
+    node_id,
+    n_nodes,
+    disease_state,
+    active_count,
+    exposure_timer,
+    infection_timer,
+    potentially_paralyzed,
+    paralyzed,
+    ipv_protected,
+    paralysis_timer,
+    p_paralysis,
+    local_new_potential,
+    local_new_paralyzed,
+):
+    # NOTE: no large allocations, no nb.get_num_threads() here
     for i in nb.prange(active_count):
         tid = nb.get_thread_id()
         nid = node_id[i]
+
         was_potentially_paralyzed = False
         was_paralyzed = False
 
         # ---- Exposed to Infected Transition ----
         if disease_state[i] == 1:  # Exposed
-            # For exposed, we decrement the exposure timer first b/c we expose people in the transmission component after the disease state component has run, so newly exposed miss their first timer decrement
-            exposure_timer[i] -= 1  # Decrement exposure timer
+            # Decrement first because newly exposed were set after last disease-state step
+            exposure_timer[i] -= 1
             if exposure_timer[i] <= 0:
                 disease_state[i] = 2  # Become infected
 
@@ -378,34 +423,28 @@ def disease_state_step_nb(
         if disease_state[i] == 2:  # Infected
             if infection_timer[i] <= 0:
                 disease_state[i] = 3  # Become recovered
-            infection_timer[i] -= 1  # Decrement infection timer
+            infection_timer[i] -= 1
 
         # ---- Paralysis ----
-        if disease_state[i] in (1, 2, 3) and potentially_paralyzed[i] == -1:  # Any time after exposure, but not yet potentially paralyzed
-            # NOTE: Currently we don't have strain tracking, so I had to set potentially_paralyzed to 0 in SIA_ABM & RI_ABM, otherwise those interventions would cause potential paralysis cases.
-            # TODO: revise when we have strain stracking
-            # TODO: remove the potential_paralysis attributes from RI & SIAs after we have strain tracking
-            if paralysis_timer[i] <= 0:
-                if ipv_protected[i] == 0:
-                    potentially_paralyzed[i] = 1  # Become a potential paralysis case
-                    was_potentially_paralyzed = True
-                    if np.random.random() < p_paralysis:
-                        paralyzed[i] = 1  # Become paralyzed
-                        was_paralyzed = True
-                else:
-                    potentially_paralyzed[i] = 0
-            paralysis_timer[i] -= 1  # Decrement paralysis timer
+        if (disease_state[i] == 1) or (disease_state[i] == 2) or (disease_state[i] == 3):
+            if potentially_paralyzed[i] == -1:  # after exposure, but not yet flagged
+                if paralysis_timer[i] <= 0:
+                    if ipv_protected[i] == 0:
+                        potentially_paralyzed[i] = 1
+                        was_potentially_paralyzed = True
+                        # Numba supports np.random.random() in nopython mode
+                        if np.random.random() < p_paralysis:
+                            paralyzed[i] = 1
+                            was_paralyzed = True
+                    else:
+                        # Explicitly set to 0 if protected
+                        potentially_paralyzed[i] = 0
+                paralysis_timer[i] -= 1
 
         if was_potentially_paralyzed:
             local_new_potential[tid, nid] += 1
         if was_paralyzed:
             local_new_paralyzed[tid, nid] += 1
-
-    # Parallel-safe reduction
-    new_potential[:] += local_new_potential.sum(axis=0)
-    new_paralyzed[:] += local_new_paralyzed.sum(axis=0)
-
-    return
 
 
 @nb.njit(parallel=True, cache=True)
@@ -662,7 +701,7 @@ class DiseaseState_ABM:
         # Progress disease state & check for paralysis
         new_potential = np.zeros(n_nodes, dtype=np.int32)
         new_paralyzed = np.zeros(n_nodes, dtype=np.int32)
-        disease_state_step_nb(
+        disease_state_step(
             node_id=self.people.node_id,
             n_nodes=n_nodes,
             disease_state=self.people.disease_state,
@@ -789,116 +828,160 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
             infectivity_out[batch_start:batch_end] = mean_gamma
 
 
-@nb.njit((nb.int16[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int8[:], nb.int32, nb.int32, nb.int32), parallel=True, nogil=True, cache=True)
-def count_SEIRP(node_id, disease_state, strain, potentially_paralyzed, paralyzed, n_nodes, n_strains, n_people):
+# model.py (or wherever count_SEIRP lives)
+import numpy as np
+import numba as nb
+
+def count_SEIRP(node_id, disease_state, strain, potentially_paralyzed, paralyzed,
+                     n_nodes: int, n_strains: int, n_people: int):
     """
-    Go through each person exactly once and increment counters for their node and strain.
-
-    node_id:        array of node IDs for each individual
-    disease_state:  array storing each person's disease state (-1=dead/inactive, 0=S, 1=E, 2=I, 3=R)
-    strain:         array of strain IDs for each individual
-    potentially_paralyzed: array (0 or 1) if the person is potentially paralyzed
-    paralyzed:      array (0 or 1) if the person is paralyzed
-    n_nodes:        total number of nodes
-    n_strains:      total number of strains
-
-    Returns: S, E, I, R, E_by_strain, I_by_strain, potentially_paralyzed, paralyzed where:
-        S, E, I, R, potentially_paralyzed, paralyzed have shape (n_nodes,)
-        E_by_strain, I_by_strain have shape (n_nodes, n_strains)
+    Python wrapper:
+      - allocates thread-local buffers once
+      - calls the jitted kernel to fill them
+      - reduces across threads & strains to produce outputs
     """
-
+    # Thread-local buffers, allocated outside jitted code
     n_threads = nb.get_num_threads()
-    S = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    E_by_strain = np.zeros((n_threads, n_nodes, n_strains), dtype=np.int32)
-    I_by_strain = np.zeros((n_threads, n_nodes, n_strains), dtype=np.int32)
-    R = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    POTP = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    P = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    S      = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    R      = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    POTP   = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    P      = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    Ebs    = np.zeros((n_threads, n_nodes, n_strains), dtype=np.int32)  # E_by_strain
+    Ibs    = np.zeros((n_threads, n_nodes, n_strains), dtype=np.int32)  # I_by_strain
 
-    # Single pass over the entire population
+    # Fill in thread-local buffers
+    count_SEIRP_kernel(
+        node_id, disease_state, strain, potentially_paralyzed, paralyzed,
+        n_people, S, R, POTP, P, Ebs, Ibs
+    )
+
+    # Reductions (can be in Python/Numpy — no need to jittify)
+    S_final   = S.sum(axis=0)
+    R_final   = R.sum(axis=0)
+    POTP_final= POTP.sum(axis=0)
+    P_final   = P.sum(axis=0)
+
+    E_by_strain_final = Ebs.sum(axis=0)
+    I_by_strain_final = Ibs.sum(axis=0)
+    E_final = E_by_strain_final.sum(axis=1)
+    I_final = I_by_strain_final.sum(axis=1)
+
+    return (
+        S_final, E_final, I_final, R_final,
+        E_by_strain_final, I_by_strain_final,
+        POTP_final, P_final
+    )
+
+
+@nb.njit(parallel=True, nogil=True, cache=True)  # <-- no explicit signature here
+def count_SEIRP_kernel(
+    node_id, disease_state, strain, potentially_paralyzed, paralyzed,
+    n_people,
+    S, R, POTP, P, Ebs, Ibs
+):
+    """
+    Jitted kernel:
+      - no big dynamic allocations inside
+      - only writes into provided thread-local buffers
+      - safe to cache
+    """
     for i in nb.prange(n_people):
-        if disease_state[i] >= 0:  # Only count those who are alive
+        if disease_state[i] >= 0:
             nd = node_id[i]
             ds = disease_state[i]
             st = strain[i]
             tid = nb.get_thread_id()
 
-            if ds == 0:  # Susceptible
+            if ds == 0:
                 S[tid, nd] += 1
-            elif ds == 1:  # Exposed
-                E_by_strain[tid, nd, st] += 1
-            elif ds == 2:  # Infected
-                I_by_strain[tid, nd, st] += 1
-            elif ds == 3:  # Recovered
+            elif ds == 1:
+                Ebs[tid, nd, st] += 1
+            elif ds == 2:
+                Ibs[tid, nd, st] += 1
+            elif ds == 3:
                 R[tid, nd] += 1
 
-            # Check paralyzed
             if potentially_paralyzed[i] == 1:
                 POTP[tid, nd] += 1
             if paralyzed[i] == 1:
                 P[tid, nd] += 1
 
-    # Sum across threads and strains where needed
-    S_final = S.sum(axis=0)
-    E_by_strain_final = E_by_strain.sum(axis=0)
-    I_by_strain_final = I_by_strain.sum(axis=0)
-    R_final = R.sum(axis=0)
-    POTP_final = POTP.sum(axis=0)
-    P_final = P.sum(axis=0)
+def tx_step_prep(
+    num_nodes: int,
+    num_people: int,
+    n_strains: int,
+    strains,
+    strain_r0_scalars,
+    disease_states,
+    node_ids,
+    daily_infectivity,  # per-agent infectivity (heterogeneous)
+    risks,              # per-agent susceptibility (heterogeneous)
+):
+    """
+    Python wrapper:
+      - allocates thread-local buffers once
+      - calls the jitted kernel to fill them
+      - reduces across threads and returns arrays matching the original API
+    """
+    n_threads = nb.get_num_threads()
 
-    # Sum across strains for backward compatibility
-    E_final = E_by_strain_final.sum(axis=1)
-    I_final = I_by_strain_final.sum(axis=1)
+    # Thread-local buffers allocated outside jitted code (cache-friendly)
+    tl_beta_by_node_strain = np.zeros((n_threads, num_nodes, n_strains), dtype=np.float32)
+    tl_exposure_by_node    = np.zeros((n_threads, num_nodes), dtype=np.float32)
+    tl_sus_by_node         = np.zeros((n_threads, num_nodes), dtype=np.int32)
 
-    # return S, E, I, R, E_by_strain, I_by_strain, potentially_paralyzed, paralyzed
-    return (
-        S_final,
-        E_final,
-        I_final,
-        R_final,
-        E_by_strain_final,
-        I_by_strain_final,
-        POTP_final,
-        P_final,
+    # Fill thread-local buffers in parallel
+    tx_step_prep_kernel(
+        num_people,
+        n_strains,
+        strains,
+        strain_r0_scalars,
+        disease_states,
+        node_ids,
+        daily_infectivity,
+        risks,
+        tl_beta_by_node_strain,
+        tl_exposure_by_node,
+        tl_sus_by_node,
     )
 
+    # Reductions across threads (NumPy host reductions are fine)
+    exposure_by_node        = tl_exposure_by_node.sum(axis=0)
+    sus_by_node             = tl_sus_by_node.sum(axis=0)
+    beta_by_node_strain_pre = tl_beta_by_node_strain.sum(axis=0)
+    beta_by_node_strain     = beta_by_node_strain_pre.copy()  # preserve your original copy semantics
 
-@nb.njit(parallel=True, cache=True)
-def tx_step_prep_nb(
-    num_nodes,
+    return beta_by_node_strain, exposure_by_node, sus_by_node
+
+
+@nb.njit(parallel=True, nogil=True, cache=True)  # no large allocations inside
+def tx_step_prep_kernel(
     num_people,
     n_strains,
     strains,
     strain_r0_scalars,
     disease_states,
     node_ids,
-    daily_infectivity,  # per agent infectivity/shedding (heterogeneous)
-    risks,  # per agent susceptibility (heterogeneous)
+    daily_infectivity,
+    risks,
+    tl_beta_by_node_strain,
+    tl_exposure_by_node,
+    tl_sus_by_node,
 ):
-    # Step 1: Use parallelized loop to obtain per node sums or counts of:
-    #  - exposure (susceptibility/node)
-    #  - susceptible individuals (count/node)
-    #  - beta (infectivity/node)
-    tl_beta_by_node_strain = np.zeros((nb.get_num_threads(), num_nodes, n_strains), dtype=np.float32)
-    # tl_beta_by_node = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float32)
-    tl_exposure_by_node = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.float32)
-    tl_sus_by_node = np.zeros((nb.get_num_threads(), num_nodes), dtype=np.int32)
+    # NOTE: no nb.get_num_threads() here; buffers provided by the wrapper
     for i in nb.prange(num_people):
         state = disease_states[i]
-        tid = nb.get_thread_id()
-        strain = strains[i]
-        nid = node_ids[i]
-        if state == 0:
+        tid   = nb.get_thread_id()
+        nid   = node_ids[i]
+
+        if state == 0:  # susceptible
             tl_exposure_by_node[tid, nid] += risks[i]
             tl_sus_by_node[tid, nid] += 1
-        if state == 2:
-            tl_beta_by_node_strain[tid, nid, strain] += daily_infectivity[i] * strain_r0_scalars[strain]
-    exposure_by_node = tl_exposure_by_node.sum(axis=0)  # Sum across threads
-    sus_by_node = tl_sus_by_node.sum(axis=0)  # Sum across threads
-    beta_by_node_strain_pre = tl_beta_by_node_strain.sum(axis=0)  # Sum across threads
-    beta_by_node_strain = beta_by_node_strain_pre.copy()  # Copy to avoid modifying the original
 
-    return beta_by_node_strain, exposure_by_node, sus_by_node
+        elif state == 2:  # infected
+            s = strains[i]
+            # (Assumes 0 <= s < n_strains; if not, validate upstream)
+            tl_beta_by_node_strain[tid, nid, s] += daily_infectivity[i] * strain_r0_scalars[s]
 
 
 @nb.njit(parallel=True, cache=True)
@@ -1206,7 +1289,7 @@ class Transmission_ABM:
         with self.step_stats.start("Part 2"):
             # 2) Compute force of infection, scale by seasonality and geographic scalars, and compute the number of new exposures
             beta_seasonality = lp.get_seasonality(self.sim)
-            beta_by_node_strain, exposure_by_node, sus_by_node = tx_step_prep_nb(
+            beta_by_node_strain, exposure_by_node, sus_by_node = tx_step_prep(
                 num_nodes,
                 num_people,
                 n_strains,
