@@ -17,10 +17,6 @@ from laser_polio.logger import configure_logging
 __all__ = ["run_sim"]
 
 
-if os.getenv("POLIO_ROOT"):
-    lp.root = Path(os.getenv("POLIO_ROOT"))
-
-
 def run_sim(
     config=None,
     init_pop_file=None,
@@ -89,6 +85,9 @@ def run_sim(
     r0_scalar_wt_center = configs.pop("r0_scalar_wt_center", 0.22)
     sia_re_center = configs.pop("sia_re_center", 0.5)
     sia_re_scale = configs.pop("sia_re_scale", 1.0)
+
+    if os.getenv("POLIO_ROOT"):
+        lp.root = Path(os.getenv("POLIO_ROOT"))
 
     # Geography
     dot_names = lp.find_matching_dot_names(
