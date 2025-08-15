@@ -828,12 +828,7 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
             infectivity_out[batch_start:batch_end] = mean_gamma
 
 
-# model.py (or wherever count_SEIRP lives)
-import numpy as np
-import numba as nb
-
-def count_SEIRP(node_id, disease_state, strain, potentially_paralyzed, paralyzed,
-                     n_nodes: int, n_strains: int, n_people: int):
+def count_SEIRP(node_id, disease_state, strain, potentially_paralyzed, paralyzed, n_nodes: int, n_strains: int, n_people: int):
     """
     Python wrapper:
       - allocates thread-local buffers once
@@ -842,43 +837,32 @@ def count_SEIRP(node_id, disease_state, strain, potentially_paralyzed, paralyzed
     """
     # Thread-local buffers, allocated outside jitted code
     n_threads = nb.get_num_threads()
-    S      = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    R      = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    POTP   = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    P      = np.zeros((n_threads, n_nodes), dtype=np.int32)
-    Ebs    = np.zeros((n_threads, n_nodes, n_strains), dtype=np.int32)  # E_by_strain
-    Ibs    = np.zeros((n_threads, n_nodes, n_strains), dtype=np.int32)  # I_by_strain
+    S = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    R = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    POTP = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    P = np.zeros((n_threads, n_nodes), dtype=np.int32)
+    Ebs = np.zeros((n_threads, n_nodes, n_strains), dtype=np.int32)  # E_by_strain
+    Ibs = np.zeros((n_threads, n_nodes, n_strains), dtype=np.int32)  # I_by_strain
 
     # Fill in thread-local buffers
-    count_SEIRP_kernel(
-        node_id, disease_state, strain, potentially_paralyzed, paralyzed,
-        n_people, S, R, POTP, P, Ebs, Ibs
-    )
+    count_SEIRP_kernel(node_id, disease_state, strain, potentially_paralyzed, paralyzed, n_people, S, R, POTP, P, Ebs, Ibs)
 
     # Reductions (can be in Python/Numpy — no need to jittify)
-    S_final   = S.sum(axis=0)
-    R_final   = R.sum(axis=0)
-    POTP_final= POTP.sum(axis=0)
-    P_final   = P.sum(axis=0)
+    S_final = S.sum(axis=0)
+    R_final = R.sum(axis=0)
+    POTP_final = POTP.sum(axis=0)
+    P_final = P.sum(axis=0)
 
     E_by_strain_final = Ebs.sum(axis=0)
     I_by_strain_final = Ibs.sum(axis=0)
     E_final = E_by_strain_final.sum(axis=1)
     I_final = I_by_strain_final.sum(axis=1)
 
-    return (
-        S_final, E_final, I_final, R_final,
-        E_by_strain_final, I_by_strain_final,
-        POTP_final, P_final
-    )
+    return (S_final, E_final, I_final, R_final, E_by_strain_final, I_by_strain_final, POTP_final, P_final)
 
 
 @nb.njit(parallel=True, nogil=True, cache=True)  # <-- no explicit signature here
-def count_SEIRP_kernel(
-    node_id, disease_state, strain, potentially_paralyzed, paralyzed,
-    n_people,
-    S, R, POTP, P, Ebs, Ibs
-):
+def count_SEIRP_kernel(node_id, disease_state, strain, potentially_paralyzed, paralyzed, n_people, S, R, POTP, P, Ebs, Ibs):
     """
     Jitted kernel:
       - no big dynamic allocations inside
@@ -906,6 +890,7 @@ def count_SEIRP_kernel(
             if paralyzed[i] == 1:
                 P[tid, nd] += 1
 
+
 def tx_step_prep(
     num_nodes: int,
     num_people: int,
@@ -915,7 +900,7 @@ def tx_step_prep(
     disease_states,
     node_ids,
     daily_infectivity,  # per-agent infectivity (heterogeneous)
-    risks,              # per-agent susceptibility (heterogeneous)
+    risks,  # per-agent susceptibility (heterogeneous)
 ):
     """
     Python wrapper:
@@ -927,8 +912,8 @@ def tx_step_prep(
 
     # Thread-local buffers allocated outside jitted code (cache-friendly)
     tl_beta_by_node_strain = np.zeros((n_threads, num_nodes, n_strains), dtype=np.float32)
-    tl_exposure_by_node    = np.zeros((n_threads, num_nodes), dtype=np.float32)
-    tl_sus_by_node         = np.zeros((n_threads, num_nodes), dtype=np.int32)
+    tl_exposure_by_node = np.zeros((n_threads, num_nodes), dtype=np.float32)
+    tl_sus_by_node = np.zeros((n_threads, num_nodes), dtype=np.int32)
 
     # Fill thread-local buffers in parallel
     tx_step_prep_kernel(
@@ -946,10 +931,10 @@ def tx_step_prep(
     )
 
     # Reductions across threads (NumPy host reductions are fine)
-    exposure_by_node        = tl_exposure_by_node.sum(axis=0)
-    sus_by_node             = tl_sus_by_node.sum(axis=0)
+    exposure_by_node = tl_exposure_by_node.sum(axis=0)
+    sus_by_node = tl_sus_by_node.sum(axis=0)
     beta_by_node_strain_pre = tl_beta_by_node_strain.sum(axis=0)
-    beta_by_node_strain     = beta_by_node_strain_pre.copy()  # preserve your original copy semantics
+    beta_by_node_strain = beta_by_node_strain_pre.copy()  # preserve your original copy semantics
 
     return beta_by_node_strain, exposure_by_node, sus_by_node
 
@@ -971,8 +956,8 @@ def tx_step_prep_kernel(
     # NOTE: no nb.get_num_threads() here; buffers provided by the wrapper
     for i in nb.prange(num_people):
         state = disease_states[i]
-        tid   = nb.get_thread_id()
-        nid   = node_ids[i]
+        tid = nb.get_thread_id()
+        nid = node_ids[i]
 
         if state == 0:  # susceptible
             tl_exposure_by_node[tid, nid] += risks[i]
