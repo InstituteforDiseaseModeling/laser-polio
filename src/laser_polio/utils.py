@@ -625,7 +625,7 @@ def get_seasonality(sim):
     return 1 + sim.pars["seasonal_amplitude"] * np.cos(2 * np.pi * (doy - sim.pars["seasonal_peak_doy"]) / days_in_year)
 
 
-def save_sim_results(sim, filename="simulation_results.csv", summary_config=None):
+def save_sim_results(sim, filename="simulation_results.h5", summary_config=None):
     timesteps = sim.nt
     datevec = sim.datevec
     nodes = len(sim.nodes)
