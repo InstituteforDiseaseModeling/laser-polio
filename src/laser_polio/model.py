@@ -1411,6 +1411,7 @@ def nb_bincounts(bins, num_indices, weights, tl_counts, tl_weights):
 
     return
 
+BLINK = 182 # default timer for RI
 
 class VitalDynamics_ABM:
     def __init__(self, sim):
@@ -1623,7 +1624,7 @@ class VitalDynamics_ABM:
             # assign node IDs to newborns
             self.people.node_id[start:end] = np.repeat(np.arange(num_nodes), births)
             if any(isinstance(component, RI_ABM) for component in self.sim.components):
-                self.people.ri_timer[start:end] = 182
+                self.people.ri_timer[start:end] = BLINK
 
             self.results.births[t] = births
 
