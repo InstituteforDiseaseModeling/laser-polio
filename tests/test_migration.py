@@ -10,7 +10,7 @@ data_path = test_dir / "data"
 
 
 @patch("laser_polio.root", Path("tests/"))
-def test_radiation(n_reps=5, duration=30, low_k=0.02, high_k=0.1, min_diff=2):
+def test_radiation(n_reps=5, duration=30, low_k=-2, high_k=-1, min_diff=2):
     """
     Run n_reps sims with 3 values of radiation_k_log10: 0.0, low_k, and high_k.
     Confirm that spatial spread increases with radiation_k_log10.
@@ -41,7 +41,7 @@ def test_radiation(n_reps=5, duration=30, low_k=0.02, high_k=0.1, min_diff=2):
         }
 
         # No migration
-        sim_zero = run_sim(radiation_k_log10=0.0, **base_args)
+        sim_zero = run_sim(radiation_k_log10=-5, **base_args)
         infected_zero = np.sum(sim_zero.results.I, axis=0)
         spread_zero.append(np.count_nonzero(infected_zero > 0))
 
