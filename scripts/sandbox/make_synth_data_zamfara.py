@@ -15,7 +15,7 @@ init_region = "ANKA"
 init_prev = 200
 r0 = 14
 migration_method = "radiation"
-radiation_k = 0.5
+radiation_k_log10 = -0.3
 max_migr_frac = 1.0
 results_path = "results/synth_data_zamfara"
 save_plots = True
@@ -35,7 +35,7 @@ sim = lp.run_sim(
     init_prev=init_prev,
     r0=r0,
     migration_method=migration_method,
-    radiation_k=radiation_k,
+    radiation_k_log10=radiation_k_log10,
     max_migr_frac=max_migr_frac,
     results_path=results_path,
     save_plots=save_plots,
@@ -112,7 +112,7 @@ print(df.dtypes)
 print(df.head())
 
 # Save as h5
-synth_filename = f"{results_path}/synth_data_nigeria_r0{r0}_k{radiation_k}.h5"
+synth_filename = f"{results_path}/synth_data_nigeria_r0{r0}_k{radiation_k_log10}.h5"
 df.to_hdf(synth_filename, key="epi", mode="w", format="table")
 
 # Load the saved data to verify

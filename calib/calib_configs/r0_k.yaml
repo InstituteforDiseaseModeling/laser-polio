@@ -2,9 +2,9 @@ parameters:
   r0:
     low: 5.0
     high: 20.0
-  radiation_k:
-    low: 0.0
-    high: 3.0
+  radiation_k_log10:
+    low: -3.0  # 10^-3 = 0.001 
+    high: 1.0   # 10^1 = 10.0 (wider range as suggested)
 
 metadata:
   scoring_fn: compute_log_likelihood_fit

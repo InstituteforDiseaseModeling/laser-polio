@@ -1144,7 +1144,7 @@ class Transmission_ABM:
             self.network = gravity(init_pops, dist_matrix, k, a, b, c)
             self.network /= np.power(init_pops.sum(), c)  # Normalize
         elif self.pars.migration_method.lower() == "radiation":
-            k = self.pars.radiation_k
+            k = 10**self.pars.radiation_k_log10  # Transform from log10 space
             self.network = radiation(init_pops, dist_matrix, k, include_home=False)
         else:
             raise ValueError(f"Unknown migration method: {self.pars.migration_method}")

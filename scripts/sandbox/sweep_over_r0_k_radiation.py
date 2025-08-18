@@ -19,8 +19,8 @@ results_path = "results/scan_over_r0_k_radiation_zamfara"
 # Define the range of par values to sweep
 n_pts = 5  # Number of points to simulate
 n_reps = 3
-r0_values = np.linspace(5, 50, n_pts)
-radiation_k_values = np.linspace(0.0, 1.5, n_pts)
+r0_values = np.linspace(5, 20, n_pts)
+radiation_k_values = np.linspace(-5, 1, n_pts)
 
 
 ######### END OF USER PARS ########
@@ -33,12 +33,12 @@ num_nodes_infected_matrix = np.zeros_like(total_infected_matrix)
 
 
 # Run sweep
-for i, radiation_k in enumerate(radiation_k_values):
+for i, radiation_k_log10 in enumerate(radiation_k_values):
     for j, r0 in enumerate(r0_values):
         total_infected_accum = 0.0
         nodes_infected_accum = 0.0
 
-        print(f"\nRunning {n_reps} reps for R0 = {r0:.2f}, radiation_k = {radiation_k:.2f}")
+        print(f"\nRunning {n_reps} reps for R0 = {r0:.2f}, radiation_k_log10 = {radiation_k_log10:.2f}")
 
         for rep in range(n_reps):
             print(f"  ↳ Rep {rep + 1}/{n_reps}")
@@ -54,7 +54,7 @@ for i, radiation_k in enumerate(radiation_k_values):
                 save_plots=False,
                 save_data=False,
                 r0=r0,
-                radiation_k=radiation_k,
+                radiation_k_log10=radiation_k_log10,
                 seed=rep,  # Optional: control randomness
             )
 
@@ -89,20 +89,20 @@ def plot_heatmap(matrix, title, filename, xlabel, ylabel, xticks, yticks):
 
 plot_heatmap(
     total_infected_matrix,
-    title="Total Infected vs R₀ and radiation_k",
+    title="Total Infected vs R₀ and radiation_k_log10",
     filename="total_infected_heatmap_avg.png",
     xlabel="R₀",
-    ylabel="radiation_k",
+    ylabel="radiation_k_log10",
     xticks=r0_values,
     yticks=radiation_k_values,
 )
 
 plot_heatmap(
     num_nodes_infected_matrix,
-    title="Number of Nodes Infected vs R₀ and radiation_k",
+    title="Number of Nodes Infected vs R₀ and radiation_k_log10",
     filename="nodes_infected_heatmap_avg.png",
     xlabel="R₀",
-    ylabel="radiation_k",
+    ylabel="radiation_k_log10",
     xticks=r0_values,
     yticks=radiation_k_values,
 )

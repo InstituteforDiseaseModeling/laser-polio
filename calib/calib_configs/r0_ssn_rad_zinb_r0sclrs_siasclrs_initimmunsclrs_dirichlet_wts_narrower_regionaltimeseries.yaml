@@ -8,7 +8,7 @@ parameters:
   seasonal_peak_doy:
     low: 90
     high: 270
-  radiation_k:
+  radiation_k_log10:
     low: 0.0
     high: 3.0
   node_seeding_zero_inflation:

@@ -25,7 +25,7 @@ suggested_params = {
     "r0": 10.09477395131999,
     "seasonal_amplitude": 0.39921439427854394,
     "seasonal_peak_doy": 217,
-    "radiation_k": 2.990077796097201,
+    "radiation_k_log10": 2.990077796097201,
 }
 
 # Runtime parameters

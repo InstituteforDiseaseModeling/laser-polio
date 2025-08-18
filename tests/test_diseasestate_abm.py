@@ -599,7 +599,7 @@ def test_potential_paralysis():
     init_prev = 200
     r0 = 14
     migration_method = "radiation"
-    radiation_k = 0.5
+    radiation_k_log10 = -0.3
     max_migr_frac = 1.0
     verbose = 0
     vx_prob_ri = 0.0  # Sets OPV RI to 0, but allows IPV RI to be applied
@@ -632,7 +632,7 @@ def test_potential_paralysis():
         seed=seed,
         r0=r0,
         migration_method=migration_method,
-        radiation_k=radiation_k,
+        radiation_k_log10=radiation_k_log10,
         max_migr_frac=max_migr_frac,
         vx_prob_ri=vx_prob_ri,
         init_pop_file=init_pop_file,
