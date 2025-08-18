@@ -27,7 +27,6 @@ RUN pip3 install pipdeptree && pipdeptree -p laser-polio > /app/laser_polio_deps
 RUN pip3 cache purge
 
 # Run a real, minimal simulation
-# This is currently failing because POLIO_ROOT somehow is not being set correctly in the code which makes no sense
 RUN python3 -c "\
 from laser_polio.run_sim import run_sim; \
 run_sim(regions=['ZAMFARA'], start_year=2020, n_days=1, init_prev=0.001, r0=10, \
