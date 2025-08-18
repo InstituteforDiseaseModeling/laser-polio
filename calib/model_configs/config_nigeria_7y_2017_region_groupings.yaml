@@ -21,7 +21,7 @@ seed_schedule:
   - date: "2020-10-01"
     dot_name: "AFRO:NIGERIA:NIGER:SULEJA"
     prevalence: 100
-migration_method: "gravity"
+migration_method: "radiation"
 max_migr_frac: 0.1
 node_seeding_dispersion: 1.0
 use_pim_scalars: false

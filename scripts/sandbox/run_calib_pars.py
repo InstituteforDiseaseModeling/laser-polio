@@ -18,29 +18,19 @@ typically printed during calibration runs.
 ######### USER PARAMETERS #########
 
 # Load model configuration from YAML file
-model_config_path = Path("calib/model_configs/config_nigeria_6y_2018_underwt_gravity_zinb_ipv_nwecnga_3periods.yaml")
+model_config_path = Path("calib/model_configs/config_nigeria_7y_2017_region_groupings.yaml")
 
 # Calib pars
 suggested_params = {
-    "r0": 11.376375828469293,
-    "seasonal_amplitude": 0.06618410394577416,
-    "seasonal_peak_doy": 229,
-    "gravity_k_exponent": -8.896082688911651,
-    "gravity_a": 1.048239808810217,
-    "gravity_b": 0.7554399511356332,
-    "gravity_c": 0.459539396713007,
-    "node_seeding_zero_inflation": 0.6910803759617196,
-    "r0_scalar_wt_slope": 65.53324288590474,
-    "r0_scalar_wt_intercept": 0.10098281242018137,
-    "r0_scalar_wt_center": 0.40362946074304457,
-    "sia_re_center": 0.04566830306726448,
-    "sia_re_scale": 0.03337002867425776,
-    "init_immun_scalar": 1.0961955322491634,
+    "r0": 10.09477395131999,
+    "seasonal_amplitude": 0.39921439427854394,
+    "seasonal_peak_doy": 217,
+    "radiation_k": 2.990077796097201,
 }
 
 # Runtime parameters
 verbose = 1
-results_path = "results/nigeria_calib_20250812"
+results_path = "results/calib_nigeria_7y_2017_underwt_region_groupings_20250814"
 
 ######### END OF USER PARS ########
 ###################################

@@ -27,6 +27,8 @@ import laser_polio as lp
 from laser_polio.logger import fmt
 from laser_polio.logger import logger
 from laser_polio.plots import plot_age_pyramid
+from laser_polio.plots import plot_animated_strain_map
+from laser_polio.plots import plot_animated_strain_map_panels
 from laser_polio.plots import plot_cum_new_exposed_paralyzed
 from laser_polio.plots import plot_cum_ri_vx
 from laser_polio.plots import plot_cum_vx_sia
@@ -729,6 +731,8 @@ class DiseaseState_ABM:
         if self.pars.shp is not None:
             plot_infected_choropleth(self.results, self.pars, save=save, results_path=results_path)
             plot_infected_choropleth_by_strain(self.results, self.pars, save=save, results_path=results_path)
+            plot_animated_strain_map(self.results, self.pars, self.sim.datevec, save=save, results_path=results_path)
+            plot_animated_strain_map_panels(self.results, self.pars, self.sim.datevec, save=save, results_path=results_path)
 
 
 # This utility function is called from two different places; doesn't need to be member of

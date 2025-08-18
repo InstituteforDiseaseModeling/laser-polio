@@ -13,7 +13,7 @@ from typing import ClassVar
 import numpy as np
 import pytz
 
-__all__ = ["VALID", "ColorFormatter", "LogColors", "fmt", "logger", "valid"]
+__all__ = ["VALID", "ColorFormatter", "LogColors", "configure_logging", "fmt", "logger", "valid"]
 
 
 class LogColors:
@@ -61,6 +61,7 @@ def valid(self, message, *args, **kwargs):
 # Add the valid method to the Logger class
 logging.Logger.valid = valid
 
+
 # Set up the main logger
 logger = logging.getLogger("laser-polio")
 logger.propagate = False  # Prevents double/multiple logging
@@ -69,6 +70,10 @@ logger.propagate = False  # Prevents double/multiple logging
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(ColorFormatter("[%(levelname)s] %(name)s: %(message)s"))
 logger.addHandler(console_handler)
+
+# Set default logging level
+logger.setLevel(logging.INFO)
+console_handler.setLevel(logging.INFO)
 
 # Configure file logging with timestamped log files
 log_dir = "logs"
@@ -95,3 +100,32 @@ def fmt(arr, precision=2):
         max_line_width=np.inf,
         precision=precision,
     )
+
+
+def configure_logging(verbose=1):
+    """
+    Configure logging level based on verbose parameter.
+
+    Args:
+        verbose (int): Verbosity level
+            - 0: Silent (WARNING and above only)
+            - 1: Info level (default)
+            - 2: Debug level
+            - 3: Debug level with all messages (including VALID level)
+    """
+    # Map verbose levels to logging levels
+    level_map = {
+        0: logging.WARNING,  # Silent - only warnings and errors
+        1: logging.INFO,  # Normal - info, warnings, errors
+        2: logging.DEBUG,  # Debug - all messages
+        3: logging.DEBUG,  # Debug with validation - all messages
+    }
+
+    # Default to INFO for any invalid verbose level
+    level = level_map.get(verbose, logging.INFO)
+
+    # Configure both logger and console handler
+    logger.setLevel(level)
+    for handler in logger.handlers:
+        if isinstance(handler, logging.StreamHandler):
+            handler.setLevel(level)

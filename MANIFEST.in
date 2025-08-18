@@ -33,4 +33,4 @@ recursive-exclude results *
 recursive-exclude scripts *
 
 recursive-exclude .devcontainer *
-global-exclude *.py[cod] __pycache__/* *.so *.dylib
+global-exclude *.py[cod] __pycache__/* *.so *.dylib .DS_Store

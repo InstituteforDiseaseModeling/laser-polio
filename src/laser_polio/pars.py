@@ -89,7 +89,7 @@ default_pars = PropertySet(
         "actual_data": None,  # Actual dataset
         "summary_config": None,  # Summary configuration for calibration plotting
         # Verbosity
-        "verbose": 1,  # 0 = silent, 1 = info, 2 = debug, 3 = validate with special logging features
+        "verbose": 1,  # Logging level: 0=silent (warnings only), 1=info, 2=debug, 3=debug+validation
         # Stopping rules
         "stop_if_no_cases": True,  # Stop if no E, I, or seed_schedules remain
     }

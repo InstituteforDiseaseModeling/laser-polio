@@ -2,24 +2,23 @@ parameters:
   r0:
     low: 5.0
     high: 20.0
-  radiation_k:
-    low: 0.0
-    high: 2.0
   seasonal_amplitude:
     low: 0.0
     high: 0.4
   seasonal_peak_doy:
-    low: 0
-    high: 364
-
+    low: 90
+    high: 270
+  radiation_k:
+    low: 0.0
+    high: 3.0
+    
 metadata:
-  scoring_fn: compute_log_likelihood_fit
-  target_fn: calc_targets_temporal_regional_nodes
+  scoring_fn: compute_nll_dirichlet
+  target_fn: calc_targets_regional
   weights:
-    total_infected: 1.0
-    yearly_cases: 2.0
-    monthly_cases: 1.0
-    monthly_timeseries: 3.0
-    regional_cases: 1.0
-    nodes_with_cases_total: 1.0
-    nodes_with_cases_timeseries: 3.0
+    cases_by_period: 3.0
+    cases_by_month: 1.0
+    cases_by_region: 1.0
+    cases_by_region_period: 1.0
+    cases_by_region_month: 0.0
+    case_bins_by_region: 0.2
