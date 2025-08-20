@@ -5,23 +5,29 @@ import yaml
 
 # ------------------- USER CONFIGS -------------------
 
-# Goal: Determine if the regional groupings allow us to calibrate to Nigeria.
-job_name = "lpsk3"
-study_name = "calib_nigeria_7y_2017_underwt_region_groupings_20250813"
-model_config = "config_nigeria_7y_2017_region_groupings.yaml"
-calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts_narrower_regionaltimeseries.yaml"
+# # Goal: Start with 4 pars
+# job_name = "lpsk5"
+# study_name = "calib_nigeria_7y_2017_underwt_region_groupings_20250814"
+# model_config = "config_nigeria_7y_2017_region_groupings.yaml"
+# calib_config = "r0_k_ssn_wts.yaml"
 
-# # Goal: Determine if the adm01 groupings work
-# job_name = "lpsk4"
-# study_name = "calib_nigeria_7y_2017_underwt_adm01_groupings_20250813"
-# model_config = "config_nigeria_7y_2017_adm01_groupings.yaml"
-# calib_config = "r0_ssn_gravkabc_zinb_r0sclrs_siasclrs_initimmunsclrs_dirichlet_wts_narrower_regionaltimeseries.yaml"
+# # Goal: switch to radiation_k_log10 & add max_migr_frac
+# job_name = "lpsk6"
+# study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_20250818"
+# model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac.yaml"
+# calib_config = "r0_k_ssn_wts_maxmigrfrac.yaml"
+
+# Goal: switch to radiation_k_log10 & add max_migr_frac, but set seasonal_peak_doy based on last calib
+job_name = "lpsk8"
+study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_setssnpeakdoy_20250818_forreal"
+model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac_setssnpeakdoy.yaml"
+calib_config = "r0_k_ssnamp_wts_maxmigrfrac.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 1  # Number of trials to run per pod
 n_replicates = 1  # Number of replicates to run for each trial
-parallelism = 50  # The number of pods (i.e., jobs) to run in parallel
-completions = 10000  # The total number of pods (i.e., jobs) that need to successfully complete before the job is considered "done"
+parallelism = 200  # The number of pods (i.e., jobs) to run in parallel
+completions = 5000  # The total number of pods (i.e., jobs) that need to successfully complete before the job is considered "done"
 
 # ---------------------------------------------------
 

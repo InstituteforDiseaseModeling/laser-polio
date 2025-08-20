@@ -22,8 +22,8 @@ seed_schedule:
     dot_name: "AFRO:NIGERIA:NIGER:SULEJA"
     prevalence: 100
 migration_method: "radiation"
-max_migr_frac: 0.1
 node_seeding_dispersion: 1.0
+seasonal_peak_doy: 217
 use_pim_scalars: false
 results_path: "results/demo_nigeria"
 save_plots: false

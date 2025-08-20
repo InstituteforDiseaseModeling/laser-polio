@@ -17,7 +17,7 @@ pop_scale = 1
 init_region = "ANKA"
 init_prev = 200
 r0 = 19.57
-radiation_k = 0.049
+radiation_k_log10 = 0.049
 seasonal_amplitude = 0.195
 seasonal_peak_doy = 268
 use_pim_scalars = True
@@ -56,7 +56,7 @@ for i, risk_mult_var in enumerate(risk_mult_var_values):
             init_region=init_region,
             init_prev=init_prev,
             r0=r0,
-            radiation_k=radiation_k,
+            radiation_k_log10=radiation_k_log10,
             use_pim_scalars=use_pim_scalars,
             seasonal_amplitude=seasonal_amplitude,
             seasonal_peak_doy=seasonal_peak_doy,

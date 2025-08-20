@@ -10,10 +10,10 @@ data_path = test_dir / "data"
 
 
 @patch("laser_polio.root", Path("tests/"))
-def test_radiation(n_reps=5, duration=30, low_k=0.02, high_k=0.1, min_diff=2):
+def test_radiation(n_reps=5, duration=30, low_k=-2, high_k=-1, min_diff=2):
     """
-    Run n_reps sims with 3 values of radiation_k: 0.0, low_k, and high_k.
-    Confirm that spatial spread increases with radiation_k.
+    Run n_reps sims with 3 values of radiation_k_log10: 0.0, low_k, and high_k.
+    Confirm that spatial spread increases with radiation_k_log10.
     """
     spread_zero = []
     spread_low = []
@@ -41,17 +41,17 @@ def test_radiation(n_reps=5, duration=30, low_k=0.02, high_k=0.1, min_diff=2):
         }
 
         # No migration
-        sim_zero = run_sim(radiation_k=0.0, **base_args)
+        sim_zero = run_sim(radiation_k_log10=-5, **base_args)
         infected_zero = np.sum(sim_zero.results.I, axis=0)
         spread_zero.append(np.count_nonzero(infected_zero > 0))
 
         # Low migration
-        sim_low = run_sim(radiation_k=low_k, **base_args)
+        sim_low = run_sim(radiation_k_log10=low_k, **base_args)
         infected_low = np.sum(sim_low.results.I, axis=0)
         spread_low.append(np.count_nonzero(infected_low > 0))
 
         # High migration
-        sim_high = run_sim(radiation_k=high_k, **base_args)
+        sim_high = run_sim(radiation_k_log10=high_k, **base_args)
         infected_high = np.sum(sim_high.results.I, axis=0)
         spread_high.append(np.count_nonzero(infected_high > 0))
 

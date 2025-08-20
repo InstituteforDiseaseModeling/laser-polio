@@ -42,7 +42,7 @@ def run_memory_profiling():
     init_prev = 200
     r0 = 10
     migration_method = "radiation"
-    radiation_k = 0.5
+    radiation_k_log10 = -0.3
     max_migr_frac = 1.0
     vx_prob_ri = 0.0
     missed_frac = 0.1
@@ -142,7 +142,7 @@ def run_memory_profiling():
             seed_schedule=seed_schedule,
             r0=r0,
             migration_method=migration_method,
-            radiation_k=radiation_k,
+            radiation_k_log10=radiation_k_log10,
             max_migr_frac=max_migr_frac,
             vx_prob_ri=vx_prob_ri,
             missed_frac=missed_frac,

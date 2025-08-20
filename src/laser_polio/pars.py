@@ -54,7 +54,7 @@ default_pars = PropertySet(
         "node_seeding_dispersion": 1000,  # INTEGER (or will round) - negative binomial "k" parameter for the first importation into each node. Larger values -> Poisson.
         "node_seeding_zero_inflation": 0.0,  # Fraction of node seeding events to zero out, float value between 0 and 1; 0.0 -> no zero inflation.
         "migration_method": "radiation",  # Migration method: "gravity" or "radiation"
-        "radiation_k": 0.5,  # Radiation model scaling constant. Based on testing, this value should be between 0.0 and ~3 for Nigeria.
+        "radiation_k_log10": -0.3,  # Radiation model scaling constant in log10 space (10^-0.30103 ≈ 0.5). Based on testing, this par should be between -3.0 and 1.0 for Nigeria.
         "gravity_k": 1.0,  # Gravity scaling constant
         "gravity_k_exponent": 0.0,  # Exponent of the gravity_k term
         "gravity_a": 1,  # Origin population exponent

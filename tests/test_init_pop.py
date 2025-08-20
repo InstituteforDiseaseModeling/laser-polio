@@ -136,7 +136,7 @@ def test_init_pop_loading(tmp_path):
         "init_prev": 0.01,
         "pop_scale": 1.0,
         "r0": 14,
-        "radiation_k": 0.5,
+        "radiation_k_log10": 0.5,
         "migration_method": "radiation",
         "max_migr_frac": 1.0,
         "vx_prob_ri": None,

@@ -2,7 +2,7 @@ parameters:
   r0:
     low: 5.0
     high: 50.0
-  radiation_k:
+  radiation_k_log10:
     low: 0.0
     high: 3.0
   seasonal_amplitude:

@@ -197,7 +197,7 @@ def plot_optuna(study_name, storage_url, output_dir=None):
 
     # Contour plots - WARNING! Can be slow for large studies
     # try:
-    #     fig4 = vis.plot_contour(study, params=["r0", "radiation_k"])
+    #     fig4 = vis.plot_contour(study, params=["r0", "radiation_k_log10"])
     #     fig4.write_html(output_dir / "plot_contour_r0_radiation_k.html")
     # try:
     #     fig4 = vis.plot_contour(study, params=["r0", "gravity_k_exponent"])
@@ -206,7 +206,7 @@ def plot_optuna(study_name, storage_url, output_dir=None):
     #     fig4.write_html(output_dir / "plot_contour_r0_gravity_c.html")
     # Candidate pairs to try
     # param_pairs = [
-    #     ("r0", "radiation_k"),
+    #     ("r0", "radiation_k_log10"),
     #     ("r0", "gravity_k_exponent"),
     #     ("r0", "gravity_c"),
     #     ("gravity_k_exponent", "gravity_c"),

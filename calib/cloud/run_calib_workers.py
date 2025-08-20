@@ -9,6 +9,14 @@ from kubernetes import config
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from get_lp_module_versions import check_version_match
 
+"""
+This script is used to run the calibration workers on a Kubernetes cluster.
+Set tolerations and the node pool to either "64gb" or "128gb". 
+If running on the 64gb node pool, set the memory request to 50Gi & parallelism to 200.
+If running on the 128gb node pool, set the memory request to 100Gi & parallelism to 100.
+"""
+
+
 # Compare the version of laser_polio in the Docker image with the version in the GitHub repository
 check_version_match(
     repo="InstituteforDiseaseModeling/laser-polio",
@@ -56,8 +64,8 @@ template = client.V1PodTemplateSpec(
         containers=[container],
         restart_policy="OnFailure",
         image_pull_secrets=[client.V1LocalObjectReference(name="idmodregcred3")],
-        node_selector={"nodepool": "128gb"},
-        tolerations=[client.V1Toleration(key="nodepool", operator="Equal", value="128gb", effect="NoSchedule")],
+        node_selector={"nodepool": "64gb"},
+        tolerations=[client.V1Toleration(key="nodepool", operator="Equal", value="64gb", effect="NoSchedule")],
         volumes=[
             client.V1Volume(
                 name="shared-data",
