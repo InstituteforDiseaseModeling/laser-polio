@@ -427,6 +427,10 @@ def disease_state_step_kernel(
 
         # ---- Paralysis ----
         if disease_state[i] in (1, 2, 3):
+            # NOTE: Currently we don't have strain tracking, so I had to set potentially_paralyzed to 0 in SIA_ABM & RI_ABM, otherwise those interventions would cause potential paralysis cases.
+            # TODO: revise when we have strain stracking
+            # TODO: remove the potential_paralysis attributes from RI & SIAs after we have strain tracking
+            # Any time after exposure, but not yet potentially paralyzed
             if potentially_paralyzed[i] == -1:  # after exposure, but not yet flagged
                 if paralysis_timer[i] <= 0:
                     if ipv_protected[i] == 0:
@@ -876,13 +880,13 @@ def count_SEIRP_kernel(node_id, disease_state, strain, potentially_paralyzed, pa
             st = strain[i]
             tid = nb.get_thread_id()
 
-            if ds == 0:
+            if ds == 0: # Susceptible
                 S[tid, nd] += 1
-            elif ds == 1:
+            elif ds == 1: # Exposed
                 Ebs[tid, nd, st] += 1
-            elif ds == 2:
+            elif ds == 2: # Infected
                 Ibs[tid, nd, st] += 1
-            elif ds == 3:
+            elif ds == 3: # Recovered
                 R[tid, nd] += 1
 
             if potentially_paralyzed[i] == 1:
