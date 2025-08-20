@@ -6,6 +6,7 @@ import os
 import re
 from collections import defaultdict
 from datetime import timedelta
+from pathlib import Path
 from time import perf_counter_ns
 from zoneinfo import ZoneInfo  # Python 3.9+
 
@@ -624,31 +625,7 @@ def get_seasonality(sim):
     return 1 + sim.pars["seasonal_amplitude"] * np.cos(2 * np.pi * (doy - sim.pars["seasonal_peak_doy"]) / days_in_year)
 
 
-def save_sim_results(data, filename="simulation_results.csv", summary_config=None):
-    """
-    Save simulation results to a CSV file, optionally applying temporal and regional groupings.
-
-    Parameters:
-    -----------
-    data : sim object
-        A sim object containing results arrays
-    filename : str
-        The name of the CSV file to save
-    summary_config : dict, optional
-        Configuration for temporal and regional groupings to apply to the data
-
-    Returns:
-    --------
-    pd.DataFrame
-        The processed DataFrame (useful for further analysis)
-
-    Example:
-    --------
-    # For simulation results:
-    save_sim_results(sim, "results.csv", summary_config=config["summary_config"])
-
-    """
-
+def _save_sim_results_old(data, filename="output/simulation_results_old.csv", summary_config=None):
     sim = data
     timesteps = sim.nt
     datevec = sim.datevec
@@ -707,6 +684,105 @@ def save_sim_results(data, filename="simulation_results.csv", summary_config=Non
     df.to_csv(filename, index=False)
     print(f"Results saved to {filename}")
 
+    return df
+
+
+def save_sim_results(sim, filename="simulation_results.h5", summary_config=None):
+    """
+    Save simulation results to a CSV file, optionally applying temporal and regional groupings.
+    JUST LEAVING THIS HERE UNTIL RESEARCH IS 100% HAPPY NEW FUNCTION IS VALID :)
+
+    Parameters:
+    -----------
+    data : sim object
+        A sim object containing results arrays
+    filename : str
+        The name of the CSV file to save
+    summary_config : dict, optional
+        Configuration for temporal and regional groupings to apply to the data
+
+    Returns:
+    --------
+    pd.DataFrame
+        The processed DataFrame (useful for further analysis)
+
+    Example:
+    --------
+    # For simulation results:
+    save_sim_results(sim, "results.csv", summary_config=config["summary_config"])
+
+    """
+    # May want to run this as well as a test to comapre outputs. Then remove.
+    # _save_sim_results_old( data=sim, summary_config=summary_config )
+    timesteps = sim.nt
+    datevec = sim.datevec
+    nodes = len(sim.nodes)
+    results = sim.results
+    node_lookup = sim.pars.node_lookup
+
+    # Precompute size
+    total_rows = timesteps * nodes
+
+    # Preallocate arrays
+    data = {
+        "timestep": np.repeat(np.arange(timesteps), nodes),
+        "date": np.repeat(np.asarray(datevec), nodes),
+        "node": np.tile(np.arange(nodes), timesteps),
+        "dot_name": np.empty(
+            total_rows, dtype=object
+        ),  # Initialized as object for compatibility; converted to pandas 'category' type later to reduce memory usage
+        "S": results.S.flatten(),
+        "E": results.E.flatten(),
+        "I": results.I.flatten(),
+        "R": results.R.flatten(),
+        "P": results.paralyzed.flatten(),
+        "births": results.births.flatten(),
+        "deaths": results.deaths.flatten(),
+        "new_exposed": results.new_exposed.flatten(),
+        "potentially_paralyzed": results.potentially_paralyzed.flatten(),
+        "new_potentially_paralyzed": results.new_potentially_paralyzed.flatten(),
+        "new_paralyzed": results.new_paralyzed.flatten(),
+    }
+
+    # Vectorized dot_name fill
+    dot_name_lookup = np.array([node_lookup.get(n, {}).get("dot_name", "UNKNOWN") for n in range(nodes)], dtype=object)
+    data["dot_name"] = np.tile(dot_name_lookup, timesteps)
+
+    df = pd.DataFrame(data)
+
+    # Optional: Convert dot_name to categorical to reduce memory
+    df["dot_name"] = df["dot_name"].astype("category")
+
+    # Apply grouping logic if any
+    if summary_config is not None:
+        if "date" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["date"]):
+            df["date"] = pd.to_datetime(df["date"])
+
+        if "time_periods" in summary_config:
+            df = add_temporal_groupings(df, summary_config["time_periods"])
+
+        region_groupings = summary_config.get("region_groupings", None)
+        grouping_level = summary_config.get("grouping_level", None)
+
+        if region_groupings is not None and grouping_level is not None:
+            df = add_regional_groupings(df, region_groupings, grouping_level)
+        elif region_groupings is not None:
+            df = add_regional_groupings(df, region_groupings, grouping_level="adm0")
+        elif grouping_level is not None:
+            df = add_regional_groupings(df, grouping_level=grouping_level)
+        else:
+            # fallback: always apply grouping on dot_name
+            df = add_regional_groupings(df, grouping_level="dot_name")
+    # Save to HDF5 or CSV
+    if Path(filename).suffix == ".h5":
+        if "date" in df.columns and df["date"].dtype == "object":
+            # Convert to datetime64[ns] if it's a list of date objects
+            df["date"] = pd.to_datetime(df["date"])
+        df.to_hdf(filename, key="results", mode="w", format="table", complevel=5)
+    else:  # just going to assume it's CSV
+        df.to_csv(filename, index=False)
+
+    print(f"Results saved to {filename}")
     return df
 
 

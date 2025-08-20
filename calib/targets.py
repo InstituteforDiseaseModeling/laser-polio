@@ -278,7 +278,10 @@ def calc_targets_regional(filename, model_config_path=None, is_actual_data=True)
     """
 
     # Load the data & config
-    df = pd.read_csv(filename)
+    if is_actual_data:
+        df = pd.read_csv(filename)
+    else:
+        df = pd.read_hdf(filename)
     with open(model_config_path) as f:
         model_config = yaml.safe_load(f)
 

@@ -439,7 +439,7 @@ def run_sim(
             if summary_config is None:
                 summary_config = {}
             summary_config["admin_level"] = admin_level  # This facilitates grouping by admin level if == 0
-            lp.save_sim_results(sim, filename=Path(results_path) / "simulation_results.csv", summary_config=summary_config)
+            lp.save_sim_results(sim, filename=Path(results_path) / "simulation_results.h5", summary_config=summary_config)
         if save_final_pop:
             sim.people.save_snapshot(results_path / "final_pop.h5", sim.results.R[:], sim.pars)
 
