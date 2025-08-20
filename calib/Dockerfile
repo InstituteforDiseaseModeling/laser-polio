@@ -26,5 +26,11 @@ RUN pip3 install pipdeptree && pipdeptree -p laser-polio > /app/laser_polio_deps
 # Final cleanup to reduce image size
 RUN pip3 cache purge
 
+# Run a real, minimal simulation
+RUN python3 -c "\
+from laser_polio.run_sim import run_sim; \
+run_sim(regions=['ZAMFARA'], start_year=2020, n_days=1, init_prev=0.001, r0=10, \
+        background_seeding=False, use_pim_scalars=False, run=True, save_data=False, verbose=0)"
+
 # Entrypoint
 ENTRYPOINT ["python3", "calib/calibrate.py"]
