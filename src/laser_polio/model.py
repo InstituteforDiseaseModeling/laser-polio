@@ -880,13 +880,13 @@ def count_SEIRP_kernel(node_id, disease_state, strain, potentially_paralyzed, pa
             st = strain[i]
             tid = nb.get_thread_id()
 
-            if ds == 0: # Susceptible
+            if ds == 0:  # Susceptible
                 S[tid, nd] += 1
-            elif ds == 1: # Exposed
+            elif ds == 1:  # Exposed
                 Ebs[tid, nd, st] += 1
-            elif ds == 2: # Infected
+            elif ds == 2:  # Infected
                 Ibs[tid, nd, st] += 1
-            elif ds == 3: # Recovered
+            elif ds == 3:  # Recovered
                 R[tid, nd] += 1
 
             if potentially_paralyzed[i] == 1:
