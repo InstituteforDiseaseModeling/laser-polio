@@ -625,7 +625,95 @@ def get_seasonality(sim):
     return 1 + sim.pars["seasonal_amplitude"] * np.cos(2 * np.pi * (doy - sim.pars["seasonal_peak_doy"]) / days_in_year)
 
 
+def _save_sim_results_old(data, filename="output/simulation_results_old.csv", summary_config=None):
+    sim = data
+    timesteps = sim.nt
+    datevec = sim.datevec
+    nodes = len(sim.nodes)
+    results = sim.results
+    node_lookup = sim.pars.node_lookup
+
+    # Create DataFrame from simulation results
+    rows = []
+    for t in range(timesteps):
+        for n in range(nodes):
+            dot_name = node_lookup.get(n, {}).get("dot_name", "UNKNOWN")
+            rows.append(
+                {
+                    "timestep": t,
+                    "date": datevec[t],
+                    "node": n,
+                    "dot_name": dot_name,
+                    "S": results.S[t, n],
+                    "E": results.E[t, n],
+                    "I": results.I[t, n],
+                    "R": results.R[t, n],
+                    "P": results.paralyzed[t, n],
+                    "births": results.births[t, n],
+                    "deaths": results.deaths[t, n],
+                    "new_exposed": results.new_exposed[t, n],
+                    "potentially_paralyzed": results.potentially_paralyzed[t, n],
+                    "new_potentially_paralyzed": results.new_potentially_paralyzed[t, n],
+                    "new_paralyzed": results.new_paralyzed[t, n],
+                }
+            )
+
+    df = pd.DataFrame(rows)
+
+    # Apply temporal and regional groupings if summary_config provided
+    if summary_config is not None:
+        # Ensure date column is datetime
+        if "date" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["date"]):
+            df["date"] = pd.to_datetime(df["date"])
+
+        # Apply temporal groupings
+        if "time_periods" in summary_config:
+            df = add_temporal_groupings(df, summary_config["time_periods"])
+
+        # Apply regional groupings
+        if "region_groupings" in summary_config and "grouping_level" in summary_config:
+            df = add_regional_groupings(df, summary_config["region_groupings"], grouping_level=summary_config["grouping_level"])
+        elif "region_groupings" in summary_config:
+            df = add_regional_groupings(df, summary_config["region_groupings"], grouping_level="adm0")
+        elif "grouping_level" in summary_config:
+            df = add_regional_groupings(df, grouping_level=summary_config["grouping_level"])
+        else:
+            df = add_regional_groupings(df, grouping_level="dot_name")  # Default to dot_name
+
+    # Save to CSV
+    df.to_csv(filename, index=False)
+    print(f"Results saved to {filename}")
+
+    return df
+
+
 def save_sim_results(sim, filename="simulation_results.h5", summary_config=None):
+    """
+    Save simulation results to a CSV file, optionally applying temporal and regional groupings.
+    JUST LEAVING THIS HERE UNTIL RESEARCH IS 100% HAPPY NEW FUNCTION IS VALID :)
+
+    Parameters:
+    -----------
+    data : sim object
+        A sim object containing results arrays
+    filename : str
+        The name of the CSV file to save
+    summary_config : dict, optional
+        Configuration for temporal and regional groupings to apply to the data
+
+    Returns:
+    --------
+    pd.DataFrame
+        The processed DataFrame (useful for further analysis)
+
+    Example:
+    --------
+    # For simulation results:
+    save_sim_results(sim, "results.csv", summary_config=config["summary_config"])
+
+    """
+    # May want to run this as well as a test to comapre outputs. Then remove.
+    # _save_sim_results_old( data=sim, summary_config=summary_config )
     timesteps = sim.nt
     datevec = sim.datevec
     nodes = len(sim.nodes)
@@ -673,11 +761,18 @@ def save_sim_results(sim, filename="simulation_results.h5", summary_config=None)
         if "time_periods" in summary_config:
             df = add_temporal_groupings(df, summary_config["time_periods"])
 
-        if "region_groupings" in summary_config or "grouping_level" in summary_config:
-            region_groupings = summary_config.get("region_groupings", None)
-            grouping_level = summary_config.get("grouping_level", "dot_name")
-            df = add_regional_groupings(df, region_groupings, grouping_level)
+        region_groupings = summary_config.get("region_groupings", None)
+        grouping_level = summary_config.get("grouping_level", None)
 
+        if region_groupings is not None and grouping_level is not None:
+            df = add_regional_groupings(df, region_groupings, grouping_level)
+        elif region_groupings is not None:
+            df = add_regional_groupings(df, region_groupings, grouping_level="adm0")
+        elif grouping_level is not None:
+            df = add_regional_groupings(df, grouping_level=grouping_level)
+        else:
+            # fallback: always apply grouping on dot_name
+            df = add_regional_groupings(df, grouping_level="dot_name")
     # Save to HDF5 or CSV
     if Path(filename).suffix == ".h5":
         if "date" in df.columns and df["date"].dtype == "object":
