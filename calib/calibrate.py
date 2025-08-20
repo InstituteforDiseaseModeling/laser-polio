@@ -17,11 +17,16 @@ import laser_polio as lp
 
 # ------------------- USER CONFIGS -------------------
 
-# Goal: Go back to 4 pars
-job_name = "lpsk5"
-study_name = "calib_nigeria_7y_2017_underwt_region_groupings_20250814"
-model_config = "config_nigeria_7y_2017_region_groupings.yaml"
-calib_config = "r0_k_ssn_wts.yaml"
+# Synthetic calibration
+study_name = "calib_synthetic_20250819"
+model_config = "synthetic_model_config.yaml"
+calib_config = "synthetic_calib_config.yaml"
+
+# # Goal: Go back to 4 pars
+# job_name = "lpsk5"
+# study_name = "calib_nigeria_7y_2017_underwt_region_groupings_20250814"
+# model_config = "config_nigeria_7y_2017_region_groupings.yaml"
+# calib_config = "r0_k_ssn_wts.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 2
@@ -36,7 +41,7 @@ if os.getenv("POLIO_ROOT"):
     lp.root = Path(os.getenv("POLIO_ROOT"))
 
 
-def resolve_paths(study_name, model_config, calib_config, results_path=None, actual_data_file=None):
+def resolve_paths(study_name, model_config, calib_config, actual_data_file, results_path=None):
     """
     Build composite paths
     """
@@ -63,7 +68,11 @@ def resolve_paths(study_name, model_config, calib_config, results_path=None, act
 
 def main(study_name, model_config, calib_config, fit_function, n_replicates, n_trials, results_path, actual_data_file, dry_run):
     model_config, calib_config, results_path, actual_data_file = resolve_paths(
-        study_name, model_config, calib_config, results_path, actual_data_file
+        study_name,
+        model_config,
+        calib_config,
+        actual_data_file,
+        results_path,
     )
 
     print(f"🔍 Running calibration for study '{study_name}'...")
