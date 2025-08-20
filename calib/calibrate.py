@@ -21,7 +21,6 @@ import laser_polio as lp
 study_name = "calib_synthetic_20250819"
 model_config = "synthetic_model_config.yaml"
 calib_config = "synthetic_calib_config.yaml"
-actual_data_file = "/Users/steve.kroiss/github/laser-polio/calib/synth_calib/results/synth_data.h5"
 
 # # Goal: Go back to 4 pars
 # job_name = "lpsk5"
@@ -121,10 +120,9 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
 @click.option("--n-replicates", default=n_replicates, show_default=True, type=int)
 @click.option("--n-trials", default=n_trials, show_default=True, type=int)
 @click.option("--dry-run", default=False, show_default=True, type=bool)
-@click.option("--actual-data-file", default=actual_data_file, show_default=True)
 def cli(**kwargs):
     # 2 params have None to trigger default behavior. None is not real value.
-    main(results_path=None, **kwargs)
+    main(results_path=None, actual_data_file=None, **kwargs)
 
 
 if __name__ == "__main__":
