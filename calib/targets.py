@@ -269,6 +269,7 @@ def calc_targets_regional(filename, model_config_path=None, is_actual_data=True)
     """Load simulation results and extract target features for comparison.
 
     Targets are:
+    - cases_total: Total infected
     - cases_by_period: Total infected by time period
     - cases_by_month: Monthly timeseries of total infected
     - cases_by_region: Regional cases
@@ -301,6 +302,9 @@ def calc_targets_regional(filename, model_config_path=None, is_actual_data=True)
         df = df[df["date"] <= max_date]
 
     targets = {}
+
+    # Total cases
+    targets["cases_total"] = df[case_col].sum() * scale_factor
 
     # Total cases by time period
     cases_by_period = df.groupby("time_period", observed=True)[case_col].sum() * scale_factor
