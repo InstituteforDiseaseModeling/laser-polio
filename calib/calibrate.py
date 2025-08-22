@@ -17,9 +17,13 @@ import laser_polio as lp
 
 # ------------------- USER CONFIGS -------------------
 
-study_name = "calib_nigeria_sweep_ssnamp_20250820"
-model_config = "config_nigeria_7y_2017_r0_spd_radk_mmf.yaml"
-calib_config = "ssnamp.yaml"
+# study_name = "calib_zamfara_20250822"
+# model_config = "config_zamfara.yaml"
+# calib_config = "r0.yaml"
+
+study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_dm_fix_20250822"
+model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac.yaml"
+calib_config = "r0_k_ssn_wts_maxmigrfrac.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 2

@@ -5,29 +5,17 @@ import yaml
 
 # ------------------- USER CONFIGS -------------------
 
-# # Goal: Start with 4 pars
-# job_name = "lpsk5"
-# study_name = "calib_nigeria_7y_2017_underwt_region_groupings_20250814"
-# model_config = "config_nigeria_7y_2017_region_groupings.yaml"
-# calib_config = "r0_k_ssn_wts.yaml"
-
 # # Goal: switch to radiation_k_log10 & add max_migr_frac
-# job_name = "lpsk6"
-# study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_20250818"
-# model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac.yaml"
-# calib_config = "r0_k_ssn_wts_maxmigrfrac.yaml"
+job_name = "lpsk1"
+study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_dm_fix_20250822"
+model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac.yaml"
+calib_config = "r0_k_ssn_wts_maxmigrfrac.yaml"
 
-# # Goal: switch to radiation_k_log10 & add max_migr_frac, but set seasonal_peak_doy based on last calib
-# job_name = "lpsk8"
-# study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_setssnpeakdoy_20250818_forreal"
-# model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac_setssnpeakdoy.yaml"
-# calib_config = "r0_k_ssnamp_wts_maxmigrfrac.yaml"
-
-# Goal: Use the best pars from calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_20250818 & sweep over seasonal_amplitude
-job_name = "lpsk9"
-study_name = "calib_nigeria_sweep_ssnamp_20250820"
-model_config = "config_nigeria_7y_2017_region_r0_spd_radk_mmf.yaml"
-calib_config = "ssnamp.yaml"
+# # Goal: Use the best pars from calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_20250818 & sweep over seasonal_amplitude
+# job_name = "lpsk9"
+# study_name = "calib_nigeria_sweep_ssnamp_20250820"
+# model_config = "config_nigeria_7y_2017_region_r0_spd_radk_mmf.yaml"
+# calib_config = "ssnamp.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 1  # Number of trials to run per pod
