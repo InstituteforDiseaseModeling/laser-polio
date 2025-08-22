@@ -137,17 +137,18 @@ def test_ri_vx_prob(n_reps=10):
 
 def test_ri_no_effect_on_non_susceptibles():
     """Ensure RI does not affect infected or recovered individuals."""
-    init_pop = np.array([10, 10])
+    init_pop = np.array([1000, 1000])
     r0 = 0
     vx_prob_ri = 1.0
     sim = setup_sim(init_pop=init_pop, r0=r0, vx_prob_ri=vx_prob_ri)
-    sim.people.ri_timer[:20] = 0
-    sim.people.disease_state[:5] = 1  # Exposed
-    sim.people.disease_state[5:10] = 2  # Infected
-    sim.people.disease_state[10:15] = 3  # Recovered
+    sim.people.ri_timer[:2000] = 0
+    sim.people.disease_state[:500] = 1  # Exposed
+    sim.people.disease_state[500:1000] = 2  # Infected
+    sim.people.disease_state[1000:1500] = 3  # Recovered
+    # This test is crashing because that capacity=population but we try to add at least one agent. Seems like we are birthing babies unexpecedly?
     sim.run()
-    assert np.sum(sim.results.ri_vaccinated) == 20, "All individuals should've been vaccinated."
-    assert np.sum(sim.results.new_exposed) == 5, "Only the 5 susceptible individuals should've become exposed via RI."
+    assert np.sum(sim.results.ri_vaccinated) == 2000, "All individuals should've been vaccinated."
+    assert np.sum(sim.results.new_exposed) == 500, "Only the 5 susceptible individuals should've become exposed via RI."
 
 
 # --- SIA_ABM Tests ---
