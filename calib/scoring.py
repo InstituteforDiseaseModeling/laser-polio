@@ -250,10 +250,14 @@ def compute_nll_dirichlet(actual, predicted, weights=None):
             else:
                 # Dirichlet-multinomial for vectors/matrices (posterior-predictive with +1)
                 x = v_obs.astype(int)
-                n = x.sum(axis=1)
-                alpha = v_sim + 1.0
+                n = x.sum()
+                if n == 0:
+                    return 0.0  # P(X=0|DM) = 1 ⇒ logp = 0
+                p = v_sim / v_sim.sum()
+                rho = 1.0
+                tau = rho * n
+                alpha = tau * p
                 logp = sps.dirichlet_multinomial.logpmf(x=x, n=n, alpha=alpha)
-
             weight = float(weights.get(key, 1.0))
             neg_ll = -1.0 * weight * np.sum(logp)
             log_likelihoods[key] = float(neg_ll)
