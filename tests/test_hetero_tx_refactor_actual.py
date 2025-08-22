@@ -2,7 +2,6 @@ import time
 import warnings
 
 import numpy as np
-import pytest
 import scipy.stats as stats
 from laser_core.propertyset import PropertySet
 
@@ -33,9 +32,7 @@ def populate_heterogeneous_values_reference_slow(start, end, acq_risk_out, infec
 
         if pars.individual_heterogeneity:
             acq_risk_out[batch_start:batch_end] = np.exp(mu_ln + sigma_ln * z_corr[:, 0])
-            infectivity_out[batch_start:batch_end] = stats.gamma.ppf(
-                stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma
-            )
+            infectivity_out[batch_start:batch_end] = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)
         else:
             acq_risk_out[batch_start:batch_end] = 1.0
             infectivity_out[batch_start:batch_end] = mean_gamma
@@ -82,12 +79,8 @@ def test_hetero_population_runtime_comparison():
 
     # Compare percentiles
     for p in [10, 50, 90]:
-        np.testing.assert_allclose(
-            np.percentile(acq_fast, p), np.percentile(acq_slow, p), rtol=0.02
-        )
-        np.testing.assert_allclose(
-            np.percentile(inf_fast, p), np.percentile(inf_slow, p), rtol=0.02
-        )
+        np.testing.assert_allclose(np.percentile(acq_fast, p), np.percentile(acq_slow, p), rtol=0.02)
+        np.testing.assert_allclose(np.percentile(inf_fast, p), np.percentile(inf_slow, p), rtol=0.02)
 
     # Compare copula: correlation
     corr_slow = np.corrcoef(acq_slow, inf_slow)[0, 1]
@@ -96,7 +89,7 @@ def test_hetero_population_runtime_comparison():
 
     # Optional: warn if speedup too low
     if speedup < 4.0:
-        warnings.warn(f"Speedup lower than expected: {speedup:.2f}x", UserWarning)
+        warnings.warn(f"Speedup lower than expected: {speedup:.2f}x", UserWarning, stacklevel=2)
 
 
 def test_large_population_no_crash():
