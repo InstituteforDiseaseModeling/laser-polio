@@ -94,6 +94,21 @@ def dm_logp(x_counts, pred_counts, eps=1e-12):
     return float(sps.dirichlet_multinomial.logpmf(x=x, n=n, alpha=alpha))
 
 
+def dm_logp_fixed_tau(x_counts, pred_counts, rho=1.0, eps=1e-12):
+    """
+    Calculate log likelihood using Dirichlet-multinomial distribution with tau based on observed total.
+    """
+    x = np.asarray(x_counts, dtype=int)
+    n = int(x.sum())
+    if n == 0:
+        return 0.0  # P(X=0|DM) = 1 ⇒ logp = 0
+    p = np.clip(np.asarray(pred_counts, dtype=float), eps, None)
+    p /= np.sum(p)
+    tau = rho * n
+    alpha = tau * p  # Tau tied to observed total which is constant across sims
+    return float(sps.dirichlet_multinomial.logpmf(x=x, n=n, alpha=alpha))
+
+
 # OBJECTIVE 2: Total magnitude
 def magnitude_score_total(x_counts, pred_counts):
     """
@@ -132,10 +147,10 @@ def magnitude_score_positions(x_counts, pred_counts, eps=1e-12):
 
 
 logps_shape = {name: dm_logp(actual, yhat) for name, yhat in preds.items()}
-logps_mag = {name: magnitude_score_positions(actual, yhat) for name, yhat in preds.items()}
+logps_shape_fixed_tau = {name: dm_logp_fixed_tau(actual, yhat) for name, yhat in preds.items()}
 logps_mag_total = {name: magnitude_score_total(actual, yhat) for name, yhat in preds.items()}
-logps_shape_mag = {name: logps_shape[name] + logps_mag[name] for name in preds.keys()}
 logps_shape_mag_total = {name: logps_shape[name] + logps_mag_total[name] for name in preds.keys()}
+logps_shape_fixed_tau_mag_total = {name: logps_shape_fixed_tau[name] + logps_mag_total[name] for name in preds.keys()}
 
 
 # ------------------------------------------------------------
@@ -153,16 +168,20 @@ results = {}
 for name, pred in preds.items():
     results[name] = {
         "shape_dm": dm_logp(actual, pred),
+        "shape_dm_fixed_tau": dm_logp_fixed_tau(actual, pred),
         "mag_total": magnitude_score_total(actual, pred),
         "dm_mag_total": dm_logp(actual, pred) + magnitude_score_total(actual, pred),
+        "dm_mag_total_fixed_tau": dm_logp_fixed_tau(actual, pred) + magnitude_score_total(actual, pred),
     }
 
 # Display results in a nice table
-print(f"{'Prediction':<20} {'Shape(DM)':<12} {'Mag(Total)':<12} {'DM + Mag(Total)':<12}")
+print(f"{'Prediction':<20} {'DM(current)':<12} {'DM(fixed tau)':<12} {'Mag(Total)':<12} {'DM(cur) + Mag':<12} {'DM(fixed) + Mag':<12}")
 print("-" * 80)
 for name in preds.keys():
     r = results[name]
-    print(f"{name:<20} {r['shape_dm']:<12.4f} {r['mag_total']:<12.4f} {r['dm_mag_total']:<12.4f}")
+    print(
+        f"{name:<20} {r['shape_dm']:<12.4f} {r['shape_dm_fixed_tau']:<12.4f} {r['mag_total']:<12.4f} {r['dm_mag_total']:<12.4f} {r['dm_mag_total_fixed_tau']:<12.4f}"
+    )
 
 
 # # Calculate all scores
