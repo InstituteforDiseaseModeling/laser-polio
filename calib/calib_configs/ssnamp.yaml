@@ -1,0 +1,15 @@
+parameters:
+  seasonal_amplitude:
+    low: 0.0
+    high: 1.0
+
+metadata:
+  scoring_fn: compute_nll_dirichlet
+  target_fn: calc_targets_regional
+  weights:
+    cases_by_period: 3.0
+    cases_by_month: 1.0
+    cases_by_region: 1.0
+    cases_by_region_period: 1.0
+    cases_by_region_month: 0.0
+    case_bins_by_region: 0.2

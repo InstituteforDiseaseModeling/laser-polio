@@ -17,17 +17,23 @@ import yaml
 # model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac.yaml"
 # calib_config = "r0_k_ssn_wts_maxmigrfrac.yaml"
 
-# Goal: switch to radiation_k_log10 & add max_migr_frac, but set seasonal_peak_doy based on last calib
-job_name = "lpsk8"
-study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_setssnpeakdoy_20250818_forreal"
-model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac_setssnpeakdoy.yaml"
-calib_config = "r0_k_ssnamp_wts_maxmigrfrac.yaml"
+# # Goal: switch to radiation_k_log10 & add max_migr_frac, but set seasonal_peak_doy based on last calib
+# job_name = "lpsk8"
+# study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_setssnpeakdoy_20250818_forreal"
+# model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac_setssnpeakdoy.yaml"
+# calib_config = "r0_k_ssnamp_wts_maxmigrfrac.yaml"
+
+# Goal: Use the best pars from calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_20250818 & sweep over seasonal_amplitude
+job_name = "lpsk9"
+study_name = "calib_nigeria_sweep_ssnamp_20250820"
+model_config = "config_nigeria_7y_2017_region_r0_spd_radk_mmf.yaml"
+calib_config = "ssnamp.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 1  # Number of trials to run per pod
 n_replicates = 1  # Number of replicates to run for each trial
 parallelism = 200  # The number of pods (i.e., jobs) to run in parallel
-completions = 5000  # The total number of pods (i.e., jobs) that need to successfully complete before the job is considered "done"
+completions = 1000  # The total number of pods (i.e., jobs) that need to successfully complete before the job is considered "done"
 
 # ---------------------------------------------------
 

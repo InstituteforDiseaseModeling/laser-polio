@@ -7,8 +7,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numba as nb
 import numpy as np
-import scipy.stats as stats
-from scipy import special  # ndtr (normal CDF) is fast C-ufunc
 import sciris as sc
 from alive_progress import alive_bar
 from laser_core.demographics.kmestimator import KaplanMeierEstimator
@@ -22,6 +20,7 @@ from laser_core.migration import row_normalizer
 from laser_core.propertyset import PropertySet
 from laser_core.random import seed as set_seed
 from laser_core.utils import calc_capacity
+from scipy import special  # ndtr (normal CDF) is fast C-ufunc
 from tqdm import tqdm
 
 import laser_polio as lp
@@ -836,6 +835,7 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
         # generate TWO independent standard normals
         z1 = rng.standard_normal(b_n)              # for acquisition risk
         z2i = rng.standard_normal(b_n)             # independent
+
         # correlate z2 with z1: z2 = rho*z1 + sqrt(1-rho^2)*z2i
         z2 = rho * z1 + sqrt1mr2 * z2i
 
@@ -856,6 +856,7 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
         else:
             acq_risk_out[sl] = 1.0
             infectivity_out[sl] = mean_gamma
+
 
 def count_SEIRP(node_id, disease_state, strain, potentially_paralyzed, paralyzed, n_nodes: int, n_strains: int, n_people: int):
     """
