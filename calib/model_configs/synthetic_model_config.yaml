@@ -29,7 +29,7 @@ seasonal_amplitude: 0.1
 seasonal_peak_doy: 182
 use_pim_scalars: false
 results_path: "calib/synth_calib/results"
-actual_data: "/Users/steve.kroiss/github/laser-polio/calib/synth_calib/results/synth_data.h5"
+actual_data: "calib/synth_calib/results/synth_data.h5"
 save_plots: false
 save_data: true
 summary_config:
