@@ -22,12 +22,6 @@ study_name = "calib_synthetic_20250819"
 model_config = "synthetic_model_config.yaml"
 calib_config = "synthetic_calib_config.yaml"
 
-# # Goal: Go back to 4 pars
-# job_name = "lpsk5"
-# study_name = "calib_nigeria_7y_2017_underwt_region_groupings_20250814"
-# model_config = "config_nigeria_7y_2017_region_groupings.yaml"
-# calib_config = "r0_k_ssn_wts.yaml"
-
 fit_function = "log_likelihood"
 n_trials = 2
 n_replicates = 1  # Number of replicates to run for each trial

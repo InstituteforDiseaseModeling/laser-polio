@@ -39,7 +39,6 @@ default_pars = PropertySet(
         "risk_mult_var": 4.0,  # Lognormal variance for the individual-level risk multiplier (risk of acquisition multiplier; mean = 1.0)
         "corr_risk_inf": 0.8,  # Correlation between individual risk multiplier and individual infectivity (daily infectivity, mean = 14/24)
         "individual_heterogeneity": True,  # Whether to use individual heterogeneity in acquisition and infectivity or set to mean values
-        "infection_method": "fast",  # Options: "classic" or "fast"
         "dur_exp": lp.normal(mean=3, std=1),  # Duration of the exposed state
         "dur_inf": lp.gamma(shape=4.51, scale=5.32),  # Duration of the infectious state
         "t_to_paralysis": lp.lognormal(

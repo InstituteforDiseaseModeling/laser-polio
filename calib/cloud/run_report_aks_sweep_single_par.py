@@ -21,7 +21,7 @@ import optuna
 # ------------------- USER CONFIGS -------------------
 USER = {
     "study_name": None,  # If None, use cloud_calib_config.study_name
-    "sweep_param": "seasonal_amplitude",
+    "sweep_param": "seasonal_peak_doy",
     "n_bins": 3,  # Number of bins across the sweep param
     "n_per_bin": 10,  # Number of trials to plot per bin
     "output_root": None,  # If None -> results/<study_name>/sweep_<param>/
