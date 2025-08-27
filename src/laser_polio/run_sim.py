@@ -73,7 +73,7 @@ def run_sim(
     save_plots = configs.pop("save_plots", False)
     save_data = configs.pop("save_data", False)
     plot_pars = configs.pop("plot_pars", plot_pars)
-    init_pop_file = configs.pop("init_pop_file", init_pop_file)
+    init_pop_file = configs.pop("init_pop_filsse", init_pop_file)
     background_seeding = configs.pop("background_seeding", False)
     background_seeding_freq = configs.pop("background_seeding_freq", 30)
     background_seeding_node_frac = configs.pop("background_seeding_node_frac", 0.3)
@@ -85,6 +85,7 @@ def run_sim(
     r0_scalar_wt_center = configs.pop("r0_scalar_wt_center", 0.22)
     sia_re_center = configs.pop("sia_re_center", 0.5)
     sia_re_scale = configs.pop("sia_re_scale", 1.0)
+    ipv_vx = configs.pop("ipv_vx", True)  # If True, backcalculate IPV protectionss
 
     if os.getenv("POLIO_ROOT"):
         lp.root = Path(os.getenv("POLIO_ROOT"))
@@ -183,13 +184,9 @@ def run_sim(
     init_immun = pd.read_hdf(lp.root / "data/init_immunity_0.5coverage_january.h5", key="immunity")
     init_immun = init_immun.set_index("dot_name").loc[dot_names]
     init_immun = init_immun[init_immun["period"] == start_year]
-    # Apply scalar multiplier to immunity values, clipping to [0.0, 1.0]
-    immunity_cols = [col for col in init_immun.columns if col.startswith("immunity_")]
-    init_immun.loc[:, immunity_cols] = init_immun[immunity_cols] * init_immun_scalar
     # Set immunity for 15+ to 1.0
     init_immun.loc[:, "immunity_180_1200"] = 1.0
-    # Clip immunity values to [0.0, 1.0]
-    init_immun[immunity_cols] = init_immun[immunity_cols].clip(lower=0.0, upper=1.0)
+
     # Wide → Long
     init_immun_long = init_immun.reset_index().melt(
         id_vars="dot_name",
@@ -251,8 +248,8 @@ def run_sim(
     # Sum by dot_name
     immun_summary = sus_by_age_node.groupby("dot_name")[["n_immune", "n_susceptible"]].sum()
     # Account for rounding errors & handle them in the oldest age bin
-    pop_diff = pop - immun_summary["n_immune"] - immun_summary["n_susceptible"]
-    sus_by_age_node.loc[sus_by_age_node["age_max_months_immun"] == 1201, "n_immune"] += pop_diff.values
+    pop_diff = pop - immun_summary["n_immune"].values - immun_summary["n_susceptible"].values
+    sus_by_age_node.loc[sus_by_age_node["age_max_months_immun"] == 1201, "n_immune"] += pop_diff
     # Re-calculate the immune & susceptible counts
     immun_summary = sus_by_age_node.groupby("dot_name")[["n_immune", "n_susceptible"]].sum()
     # Convert age_min_months_immun to years
@@ -262,6 +259,15 @@ def run_sim(
     # Drop age_min_months_immun and age_max_months_immun
     sus_by_age_node = sus_by_age_node.drop(columns=["age_min_months_immun", "age_max_months_immun"])
     sus_summary = sus_by_age_node.groupby("dot_name")["n_susceptible"].sum().astype(int)
+
+    # Apply scalar multiplier to immunity values, clipping to [0.0, 1.0]
+    if init_immun_scalar != 1.0:
+        tot_pop = sus_by_age_node["n_susceptible"] + sus_by_age_node["n_immune"]
+        prop_immune = sus_by_age_node["n_immune"] / tot_pop
+        scaled_prop_immune = (prop_immune * init_immun_scalar).clip(lower=0.0, upper=1.0)
+        sus_by_age_node["n_immune"] = (tot_pop * scaled_prop_immune).astype(int)
+        sus_by_age_node["n_susceptible"] = (tot_pop * (1 - scaled_prop_immune)).astype(int)
+
     # Sanity checks
     assert np.all(age_merged["immune_frac"] <= 1.0), "Immunity fraction exceeds 1.0"
     assert np.all(age_merged["immune_frac"] >= 0.0), "Negative immunity fraction"
@@ -284,7 +290,7 @@ def run_sim(
     # Initialize IPV protection column
     sus_by_age_node["n_ipv_protected"] = 0
     # Check if IPV parameters are available
-    if ri_ipv is not None and len(ri_ipv) > 0:
+    if ipv_vx and ri_ipv is not None and len(ri_ipv) > 0:
         # IPV eligibility threshold (must be born after ipv_start_year) + 98 days (roughly the timing of 2nd dose of RI IPV (+ 3rd dose of OPV))
         # Convert to years for comparison with age bins
         ipv_start_year = config.get("ipv_start_year", 2015)  # Default IPV start year is 2015
