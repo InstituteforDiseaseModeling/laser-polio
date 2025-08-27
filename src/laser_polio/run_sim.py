@@ -73,7 +73,7 @@ def run_sim(
     save_plots = configs.pop("save_plots", False)
     save_data = configs.pop("save_data", False)
     plot_pars = configs.pop("plot_pars", plot_pars)
-    init_pop_file = configs.pop("init_pop_filsse", init_pop_file)
+    init_pop_file = configs.pop("init_pop_file", init_pop_file)
     background_seeding = configs.pop("background_seeding", False)
     background_seeding_freq = configs.pop("background_seeding_freq", 30)
     background_seeding_node_frac = configs.pop("background_seeding_node_frac", 0.3)
