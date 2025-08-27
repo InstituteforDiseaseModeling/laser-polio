@@ -85,7 +85,7 @@ def run_sim(
     r0_scalar_wt_center = configs.pop("r0_scalar_wt_center", 0.22)
     sia_re_center = configs.pop("sia_re_center", 0.5)
     sia_re_scale = configs.pop("sia_re_scale", 1.0)
-    ipv_vx = configs.pop("ipv_vx", True)  # If True, backcalculate IPV protectionss
+    ipv_vx = configs.pop("ipv_vx", True)  # If True, backcalculate IPV protections
 
     if os.getenv("POLIO_ROOT"):
         lp.root = Path(os.getenv("POLIO_ROOT"))
