@@ -77,7 +77,7 @@ records = []
 for r0 in r0_values:
     print(f"\nSweeping r0 = {r0:.2f}")
 
-    for heterogeneity in heterogenetity_values:
+    for heterogeneity in heterogeneity_values:
         label = f"{'Hetero' if heterogeneity else 'NoHetero'}"
         print(f" → Config: {label}")
 
