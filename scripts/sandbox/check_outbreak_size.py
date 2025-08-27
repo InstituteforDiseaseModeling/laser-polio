@@ -12,20 +12,34 @@ import laser_polio as lp
 
 # Based on: https://github.com/InstituteforDiseaseModeling/laser-generic/blob/main/notebooks/04_SIR_nobirths_outbreak_size.ipynb
 
+
+# TODO:
+# - [X] Adjust init_immun_scalar to ensure that entire population is susceptible
+# - [X] Make adjustments so that r0_scalars = 1.0
+# - [X] Why is the vx_prob_ipv not 0 or None?
+# - [X] Why is the sia_schedule not None?
+# - [X] Why is init_immun still a par and what does it do?
+
+
 ###################################
 ######### USER PARAMETERS #########
 
 regions = ["ZAMFARA:ANKA"]
 start_year = 2019
 n_days = 365 * 2
-pop_scale = 1 / 1
 init_region = "ANKA"
-results_path = "results/check_outbreak_size"
+results_path = "results/check_outbreak_size_20250825"
 n_reps = 1
 # r0_values = np.linspace(1, 2, 2)
 r0_values = np.linspace(0, 10, 15)
+heterogenetity_values = [True, False]
 init_pop = 1e6
+pop_scale = 1e6 / 257347
 init_prev = 20 / init_pop
+init_immun_scalar = 0.0  # ensure that entire population is susceptible
+r0_scalar_wt_slope = 0.0  # ensures that r0_scalars = 1.0
+r0_scalar_wt_intercept = 0.5  # ensures that r0_scalars = 1.0
+ipv_vx = False
 S0 = 1.0
 
 ######### END OF USER PARS ########
@@ -35,11 +49,11 @@ os.makedirs(results_path, exist_ok=True)
 
 
 # Calculate the expected final size using the Kermack-McKendrick model
-def KM_limit(z, R0, S0, I0):
-    if R0 * S0 < 1:
+def KM_limit(z, r0, S0, I0):
+    if r0 * S0 < 1:
         return 0
     else:
-        return z - S0 * (1 - np.exp(-R0 * (z + I0)))
+        return z - S0 * (1 - np.exp(-r0 * (z + I0)))
 
 
 # Expected
@@ -48,22 +62,23 @@ inf_mean = 24
 init_inf = 20
 # R0s = np.concatenate((np.linspace(0.2, 1.0, 5), np.linspace(1.5, 10.0, 25)))
 S0s = [1.0]
-output = pd.DataFrame(list(itertools.product(r0_values, S0s)), columns=["R0", "S0"])
+output = pd.DataFrame(list(itertools.product(r0_values, S0s)), columns=["r0", "S0"])
 output["I_inf_exp"] = [
-    fsolve(KM_limit, 0.5 * (R0 * S0 >= 1), args=(R0, S0, init_inf / population))[0]
-    for R0, S0 in zip(output["R0"], output["S0"], strict=False)
+    fsolve(KM_limit, 0.5 * (r0 * S0 >= 1), args=(r0, S0, init_inf / population))[0]
+    for r0, S0 in zip(output["r0"], output["S0"], strict=False)
 ]
 output["S_inf_exp"] = output["S0"] - output["I_inf_exp"]
 
 
 # Simulated
-I_series_store = {}  # Key: (heterogeneity, infect_method, r0), Value: 1D array of I over time
+I_series_store = {}  # Key: (heterogeneity, r0), Value: 1D array of I over time
+new_exposed_store = {}  # Key: (heterogeneity, r0), Value: 1D array of new exposed over time
 records = []
 for r0 in r0_values:
-    print(f"\nSweeping R0 = {r0:.2f}")
+    print(f"\nSweeping r0 = {r0:.2f}")
 
-    for heterogeneity, infect_method in itertools.product([True, False], ["classic", "fast"]):
-        label = f"{'Hetero' if heterogeneity else 'NoHetero'}-{infect_method}"
+    for heterogeneity in heterogenetity_values:
+        label = f"{'Hetero' if heterogeneity else 'NoHetero'}"
         print(f" → Config: {label}")
 
         for rep in range(n_reps):
@@ -87,70 +102,77 @@ for r0 in r0_values:
                 seed=rep,
                 dur_exp=lp.constant(value=2),
                 individual_heterogeneity=heterogeneity,
-                infection_method=infect_method,
+                init_immun_scalar=init_immun_scalar,
+                r0_scalar_wt_slope=r0_scalar_wt_slope,
+                r0_scalar_wt_intercept=r0_scalar_wt_intercept,
+                ipv_vx=ipv_vx,
+                verbose=0,
             )
-
+            # TODO: why last non-zero R?
             last_non_zero_R = np.where(sim.results.R[:, 0] > 0)[0][-1]
             final_R = np.sum(sim.results.R[last_non_zero_R])
 
             # Save the results
-            I_series_store[(heterogeneity, infect_method, r0)] = np.sum(sim.results.I, axis=1)
+            I_series_store[(heterogeneity, r0)] = np.sum(sim.results.I, axis=1)
+            new_exposed = np.sum(sim.results.new_exposed, axis=1)
+            new_exposed_store[(heterogeneity, r0)] = new_exposed
             records.append(
                 {
                     "r0": r0,
                     "heterogeneity": heterogeneity,
-                    "infect_method": infect_method,
                     "init_prev": init_prev,
                     "rep": rep,
                     "final_recovered": final_R,
+                    "total_new_exposed": new_exposed.sum(),
                 }
             )
 
 
 # Convert records to DataFrame
-df_results = pd.DataFrame.from_records(records)
-df_results["prop_infected"] = df_results["final_recovered"] / init_pop
-df_results.to_csv(results_path + "/prop_infected.csv", index=False)
-grouped = df_results.groupby(["r0", "heterogeneity", "infect_method"])["prop_infected"].mean().reset_index()
-merged = grouped.merge(output[["R0", "I_inf_exp"]], left_on="r0", right_on="R0", how="inner")
+df = pd.DataFrame.from_records(records)
+df["prop_infected"] = df["total_new_exposed"] / init_pop
+df.to_csv(results_path + "/prop_infected.csv", index=False)
+grouped = df.groupby(["r0", "heterogeneity"])["prop_infected"].mean().reset_index()
+merged = grouped.merge(output[["r0", "I_inf_exp"]], left_on="r0", right_on="r0", how="inner")
 merged["delta"] = merged["prop_infected"] - merged["I_inf_exp"]
 
 
 # ----- Plotting -----#
 
 styles = {
-    (True, "classic"): ("Hetero + Classic", "tab:green", "solid"),
-    (True, "fast"): ("Hetero + Fast", "tab:green", "dashed"),
-    (False, "classic"): ("NoHetero + Classic", "tab:blue", "solid"),
-    (False, "fast"): ("NoHetero + Fast", "tab:blue", "dashed"),
+    (True): ("Hetero", "tab:green", "solid"),
+    (False): ("NoHetero", "tab:blue", "solid"),
 }
 
 
 # Plot the Infection time series
 target_r0 = 3.0
+timeseries_path = Path(results_path) / "timeseries_of_new_exposed"
+os.makedirs(timeseries_path, exist_ok=True)
 for r0 in r0_values:
     plt.figure(figsize=(10, 6))
-    for (hetero, method), (label, color, style) in styles.items():
-        key = (hetero, method, r0)
+    for (hetero), (label, color, style) in styles.items():
+        key = (hetero, r0)
         if key in I_series_store:
             I_t = I_series_store[key]
             plt.plot(I_t, label=label, color=color, linestyle=style)
-    plt.title(f"Infected Over Time at R0 = {r0}")
+    plt.title(f"Infected Over Time at r0 = {r0}")
     plt.xlabel("Time (Timesteps)")
-    plt.ylabel("Infectious Individuals")
+    plt.ylabel("New Exposed")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(Path(results_path) / f"infection_time_series_r0_{r0}.png")
+    plt.savefig(timeseries_path / f"infection_time_series_r0_{r0}.png")
     # plt.show()
+    plt.close()
 
 
-# Plot the proportion infected vs R0
+# Plot the proportion infected vs r0
 plt.figure(figsize=(10, 6))
-for (hetero, method), (label, color, style) in styles.items():
-    subset = grouped[(grouped["heterogeneity"] == hetero) & (grouped["infect_method"] == method)]
+for (hetero), (label, color, style) in styles.items():
+    subset = grouped[(grouped["heterogeneity"] == hetero)]
     plt.plot(subset["r0"], subset["prop_infected"], label=label, color=color, linestyle=style)
-plt.plot(output["R0"], output["I_inf_exp"], "k--", label="Expected (KM)")
+plt.plot(output["r0"], output["I_inf_exp"], "k--", label="Expected (KM)")
 plt.axhline(0, color="gray", linestyle="--", linewidth=0.5)
 plt.legend()
 plt.xlabel(r"$R_0$")
@@ -161,14 +183,14 @@ plt.grid(True)
 plt.tight_layout()
 plt.savefig(Path(results_path) / "prop_infected_vs_r0_all_configs.png")
 # plt.show()
+plt.close()
 
 
 # Plot the difference between expected and simulated
 plt.figure(figsize=(10, 6))
-for (hetero, method), (label, color, style) in styles.items():
-    subset = merged[(merged["heterogeneity"] == hetero) & (merged["infect_method"] == method)]
+for (hetero), (label, color, style) in styles.items():
+    subset = merged[(merged["heterogeneity"] == hetero)]
     plt.plot(subset["r0"], subset["delta"], label=label, color=color, linestyle=style)
-
 plt.axhline(0, color="gray", linestyle="--")
 plt.xlabel(r"$R_0$")
 plt.ylabel("Observed - Expected (Proportion Infected)")
@@ -178,6 +200,6 @@ plt.legend()
 plt.tight_layout()
 plt.savefig(Path(results_path) / "diff_vs_r0_all_configs.png")
 # plt.show()
-
+plt.close()
 
 sc.printcyan("Done.")
