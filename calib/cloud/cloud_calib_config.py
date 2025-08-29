@@ -17,10 +17,16 @@ import yaml
 # model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac.yaml"
 # calib_config = "r0_k_ssn_wts_maxmigrfrac_lowerr0.yaml"
 
-# Goal: try a lower r0 & allow for zero-inflation
-job_name = "lpsk3"
-study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_dmfix_lowerr0_zi_targetfix_20250826"
-model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac.yaml"
+# # Goal: try a lower r0 & allow for zero-inflation
+# job_name = "lpsk3"
+# study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_dmfix_lowerr0_zi_targetfix_20250826"
+# model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac.yaml"
+# calib_config = "r0_k_ssn_wts_maxmigrfrac_lowerr0_zi.yaml"
+
+# Goal: calib at adm01 instead of regional level
+job_name = "lpsk4"
+study_name = "calib_nigeria_7y_2017_underwt_adm01_maxmigrfrac_dmfix_lowerr0_zi_targetfix_20250827"
+model_config = "config_nigeria_7y_2017_adm01_sansmaxmigrfrac.yaml"
 calib_config = "r0_k_ssn_wts_maxmigrfrac_lowerr0_zi.yaml"
 
 fit_function = "log_likelihood"
