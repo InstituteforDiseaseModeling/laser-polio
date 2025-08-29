@@ -19,9 +19,10 @@ import yaml
 
 # Goal: try a lower r0 & allow for zero-inflation
 job_name = "lpsk3"
-study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_dm_fix_lowerr0_zi_20250825"
-model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac.yaml"
-calib_config = "r0_k_ssn_wts_maxmigrfrac_lowerr0_zi.yaml"
+#study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_dm_fix_lowerr0_zi_20250825"
+study_name = "synth_sa_branch_casesweight_fixeddm"
+model_config = "synthetic_model_config.yaml"
+calib_config = "synthetic_calib_config.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 1  # Number of trials to run per pod
@@ -35,6 +36,8 @@ completions = 5000  # The total number of pods (i.e., jobs) that need to success
 namespace = "default"
 image = "idm-docker-staging.packages.idmod.org/laser/laser-polio:latest"
 
+storage_url="sqlite:///example.db"
+"""
 # Define the path to the YAML file with the storage URL from the docs
 storage_path = Path("calib/cloud/local_storage.yaml")
 
@@ -47,3 +50,4 @@ if storage_path.exists():
 print(f"Storage URL: {storage_url}")
 if storage_url is None:
     raise RuntimeError("Missing STORAGE_URL in local_storage.yaml")
+"""

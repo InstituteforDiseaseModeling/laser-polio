@@ -1,7 +1,7 @@
 parameters:
   r0:
-    low: 5.0
-    high: 20.0
+    low: 0.5
+    high: 10.0
 #  seasonal_amplitude:
 #    low: 0.0
 #    high: 0.4
@@ -19,3 +19,4 @@ metadata:
     cases_by_region_period: 1.0
     cases_by_region_month: 0.0
     case_bins_by_region: 0.2
+    cases_total: 5.0

@@ -1,11 +1,35 @@
 from datetime import datetime
 from datetime import timedelta
-
+import matplotlib.pyplot as plt
 import numpy as np
-
+import itertools
 from laser_polio.utils import get_seasonality
 
+def visualize_seasonality_response():
+    """Visualize sensitivity of get_seasonality() to both amplitude and peak day."""
 
+    amplitudes = np.linspace(0.0, 1.0, 6)  # e.g., 0.0 to 1.0 in 6 steps
+    peak_days = np.arange(0, 366, 60)      # every 2 months or so
+    day_range = np.arange(364)             # simulation days
+
+    fig, axs = plt.subplots(len(amplitudes), len(peak_days), figsize=(18, 12), sharex=True, sharey=True)
+    fig.suptitle("Seasonality patterns across amplitudes and peak days", fontsize=16)
+
+    for i, amp in enumerate(amplitudes):
+        for j, peak in enumerate(peak_days):
+            seasonality = calculate_full_year_seasonality(amp, peak)
+            ax = axs[i, j]
+            ax.plot(day_range, seasonality, color="blue")
+            ax.set_title(f"A={amp:.2f}, Peak={peak}")
+            ax.set_ylim(0, 2)
+            ax.tick_params(labelsize=6)
+            if i == len(amplitudes) - 1:
+                ax.set_xlabel("Day of year", fontsize=8)
+            if j == 0:
+                ax.set_ylabel("Seasonality", fontsize=8)
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.show()
 class MockSim:
     def __init__(self, seasonal_amplitude, seasonal_peak_doy):
         self.pars = {"seasonal_amplitude": seasonal_amplitude, "seasonal_peak_doy": seasonal_peak_doy}
@@ -127,4 +151,7 @@ if __name__ == "__main__":
     test_seasonality_amplitude()
     test_seasonality_symmetry()
     test_edge_cases()
+    # looks like we don't need to put this behind any conditional since if you run with pytest, it doesn't let it show anyway.
+    # Just run script "normally" to get this nice visual verification.
+    visualize_seasonality_response()
     print("All seasonality tests passed!")

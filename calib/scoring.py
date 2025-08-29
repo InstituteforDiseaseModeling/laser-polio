@@ -111,6 +111,98 @@ def compute_log_likelihood_fit(
     log_likelihoods["total_log_likelihood"] = sum(log_likelihoods.values())
     return log_likelihoods
 
+def _to_matrix(obj):
+    """
+    Convert obj into a 2D array and (row_labels, col_labels).
+    - scalar                   -> (1,1), rows=[None], cols=[None]
+    - list/1D array            -> (1,K), rows=[None], cols=[0..K-1]
+    - dict (1-level)           -> (1,K), rows=[None], cols=sorted(keys)
+    - dict of dict/list (2-lvl)-> (R,C), rows=sorted(outer), cols=sorted(union inner)
+    """
+    # scalar
+    if not isinstance(obj, (dict, list, tuple, np.ndarray)):
+        return np.array([[float(obj)]]), [None], [None]
+
+    # list/array
+    if not isinstance(obj, dict):
+        arr = np.asarray(obj, dtype=float).reshape(1, -1)
+        return arr, [None], list(range(arr.shape[1]))
+
+    # empty dict -> empty row
+    if len(obj) == 0:
+        return np.zeros((1, 0), dtype=float), [None], []
+
+    values = list(obj.values())
+
+    # dict of dict/list -> matrix
+    if isinstance(values[0], (dict, list, tuple, np.ndarray)):
+        row_labels = sorted(obj.keys())
+        # Collect the set of inner keys from each row of the observed data to determine the union of all possible column labels (i.e., the column structure)
+        inner_sets_obs = []
+        for r in row_labels:
+            v = obj[r]
+            if isinstance(v, dict):
+                inner_sets_obs.append(set(v.keys()))
+            else:
+                inner_sets_obs.append(set(range(len(v))))
+        col_labels = sorted(set().union(*inner_sets_obs))
+        R, C = len(row_labels), len(col_labels)
+        M = np.zeros((R, C), dtype=float)
+        for i, r in enumerate(row_labels):
+            v = obj[r]
+            if isinstance(v, dict):
+                for j, c in enumerate(col_labels):
+                    M[i, j] = float(v.get(c, 0.0))
+            else:
+                v_list = list(v)
+                for j, c in enumerate(col_labels):
+                    if isinstance(c, int) and 0 <= c < len(v_list):
+                        M[i, j] = float(v_list[c])
+        return M, row_labels, col_labels
+
+    # dict (1-level) -> single row vector by sorted keys
+    col_labels = sorted(obj.keys())
+    row = [float(obj[k]) for k in col_labels]
+    return np.asarray([row], dtype=float), [None], col_labels
+
+def _align_pred(pred, row_labels, col_labels):
+    """
+    Align prediction into the same (R,C) shape as observed.
+    Missing entries are treated as 0.0 (simple, explicit).
+    """
+    # scalar
+    if row_labels == [None] and col_labels == [None]:
+        try:
+            return np.array([[float(pred)]], dtype=float)
+        except Exception:
+            return np.array([[0.0]], dtype=float)
+
+    # vector
+    if row_labels == [None]:
+        if isinstance(pred, dict):
+            return np.array([[float(pred.get(c, 0.0)) for c in col_labels]], dtype=float)
+        v = np.asarray(pred, dtype=float).reshape(1, -1)
+        out = np.zeros((1, len(col_labels)), dtype=float)
+        for j, c in enumerate(col_labels):
+            if isinstance(c, int) and c < v.shape[1]:
+                out[0, j] = v[0, c]
+        return out
+
+    # matrix
+    R, C = len(row_labels), len(col_labels)
+    out = np.zeros((R, C), dtype=float)
+    if isinstance(pred, dict):
+        for i, r in enumerate(row_labels):
+            sub = pred.get(r, {})
+            if isinstance(sub, dict):
+                for j, c in enumerate(col_labels):
+                    out[i, j] = float(sub.get(c, 0.0))
+            else:
+                sub_list = sub
+                for j, c in enumerate(col_labels):
+                    if isinstance(c, int) and 0 <= c < len(sub_list):
+                        out[i, j] = float(sub_list[c])
+    return out
 
 def compute_nll_dirichlet(actual, predicted, weights=None):
     """
@@ -139,98 +231,7 @@ def compute_nll_dirichlet(actual, predicted, weights=None):
     log_likelihoods: dict[str, float] = {}
     weights = weights or {}
 
-    def _to_matrix(obj):
-        """
-        Convert obj into a 2D array and (row_labels, col_labels).
-        - scalar                   -> (1,1), rows=[None], cols=[None]
-        - list/1D array            -> (1,K), rows=[None], cols=[0..K-1]
-        - dict (1-level)           -> (1,K), rows=[None], cols=sorted(keys)
-        - dict of dict/list (2-lvl)-> (R,C), rows=sorted(outer), cols=sorted(union inner)
-        """
-        # scalar
-        if not isinstance(obj, (dict, list, tuple, np.ndarray)):
-            return np.array([[float(obj)]]), [None], [None]
 
-        # list/array
-        if not isinstance(obj, dict):
-            arr = np.asarray(obj, dtype=float).reshape(1, -1)
-            return arr, [None], list(range(arr.shape[1]))
-
-        # empty dict -> empty row
-        if len(obj) == 0:
-            return np.zeros((1, 0), dtype=float), [None], []
-
-        values = list(obj.values())
-
-        # dict of dict/list -> matrix
-        if isinstance(values[0], (dict, list, tuple, np.ndarray)):
-            row_labels = sorted(obj.keys())
-            # Collect the set of inner keys from each row of the observed data to determine the union of all possible column labels (i.e., the column structure)
-            inner_sets_obs = []
-            for r in row_labels:
-                v = obj[r]
-                if isinstance(v, dict):
-                    inner_sets_obs.append(set(v.keys()))
-                else:
-                    inner_sets_obs.append(set(range(len(v))))
-            col_labels = sorted(set().union(*inner_sets_obs))
-            R, C = len(row_labels), len(col_labels)
-            M = np.zeros((R, C), dtype=float)
-            for i, r in enumerate(row_labels):
-                v = obj[r]
-                if isinstance(v, dict):
-                    for j, c in enumerate(col_labels):
-                        M[i, j] = float(v.get(c, 0.0))
-                else:
-                    v_list = list(v)
-                    for j, c in enumerate(col_labels):
-                        if isinstance(c, int) and 0 <= c < len(v_list):
-                            M[i, j] = float(v_list[c])
-            return M, row_labels, col_labels
-
-        # dict (1-level) -> single row vector by sorted keys
-        col_labels = sorted(obj.keys())
-        row = [float(obj[k]) for k in col_labels]
-        return np.asarray([row], dtype=float), [None], col_labels
-
-    def _align_pred(pred, row_labels, col_labels):
-        """
-        Align prediction into the same (R,C) shape as observed.
-        Missing entries are treated as 0.0 (simple, explicit).
-        """
-        # scalar
-        if row_labels == [None] and col_labels == [None]:
-            try:
-                return np.array([[float(pred)]], dtype=float)
-            except Exception:
-                return np.array([[0.0]], dtype=float)
-
-        # vector
-        if row_labels == [None]:
-            if isinstance(pred, dict):
-                return np.array([[float(pred.get(c, 0.0)) for c in col_labels]], dtype=float)
-            v = np.asarray(pred, dtype=float).reshape(1, -1)
-            out = np.zeros((1, len(col_labels)), dtype=float)
-            for j, c in enumerate(col_labels):
-                if isinstance(c, int) and c < v.shape[1]:
-                    out[0, j] = v[0, c]
-            return out
-
-        # matrix
-        R, C = len(row_labels), len(col_labels)
-        out = np.zeros((R, C), dtype=float)
-        if isinstance(pred, dict):
-            for i, r in enumerate(row_labels):
-                sub = pred.get(r, {})
-                if isinstance(sub, dict):
-                    for j, c in enumerate(col_labels):
-                        out[i, j] = float(sub.get(c, 0.0))
-                else:
-                    sub_list = sub
-                    for j, c in enumerate(col_labels):
-                        if isinstance(c, int) and 0 <= c < len(sub_list):
-                            out[i, j] = float(sub_list[c])
-        return out
 
     def dm_rowwise(v_obs, v_sim, rho=1.0, eps=1e-12, average=False):
         v_obs = np.asarray(v_obs, int)
@@ -291,3 +292,4 @@ def compute_nll_dirichlet(actual, predicted, weights=None):
 
     log_likelihoods["total_log_likelihood"] = float(sum(log_likelihoods.values()))
     return log_likelihoods
+
