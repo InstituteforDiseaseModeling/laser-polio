@@ -30,6 +30,8 @@ It is based on the notebook: https://github.com/InstituteforDiseaseModeling/lase
 ###################################
 ######### USER PARAMETERS #########
 
+r0_values = np.linspace(1, 10, 15)  # Sweep over R0 values
+heterogeneity_values = [True, False]  # Sweep over heterogeneity
 regions = ["ZAMFARA:ANKA"]
 n_days = 365 * 2
 init_pop = 1e6
@@ -40,8 +42,10 @@ init_immun_scalar = 0.0  # ensure that entire population is susceptible
 ipv_vx = False
 r0_scalar_wt_slope = 0.0  # ensures that r0_scalars = 1.0
 r0_scalar_wt_intercept = 0.5  # ensures that r0_scalars = 1.0
-r0_values = np.linspace(0, 10, 15)
-heterogeneity_values = [True, False]
+seasonal_amplitude = 0.0  # no seasonality
+cbr = np.array([0])  # no births or deaths
+vx_prob_ri = None  # no routine immunization
+vx_prob_sia = None  # no SIA
 n_reps = 1
 results_path = "results/tests_scientific/outbreak_size"
 
@@ -99,13 +103,12 @@ for r0 in r0_values:
                 save_data=False,
                 init_pop=init_pop,
                 r0=r0,
-                init_immun=[0.0],
-                seasonal_amplitude=0.0,
-                cbr=np.array([0]),
-                vx_prob_ri=None,
-                vx_prob_sia=None,
+                seasonal_amplitude=seasonal_amplitude,
+                cbr=cbr,
+                vx_prob_ri=vx_prob_ri,
+                vx_prob_sia=vx_prob_sia,
                 seed=rep,
-                dur_exp=lp.constant(value=0),
+                # dur_exp=lp.constant(value=0),
                 individual_heterogeneity=heterogeneity,
                 init_immun_scalar=init_immun_scalar,
                 r0_scalar_wt_slope=r0_scalar_wt_slope,
