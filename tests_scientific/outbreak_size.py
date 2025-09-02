@@ -113,15 +113,10 @@ for r0 in r0_values:
                 ipv_vx=ipv_vx,
                 verbose=0,
             )
-            # Find the last time point where the number of recovered individuals (R) is nonzero.
-            # This is used to estimate the final outbreak size, as R may plateau or fluctuate,
-            # and we want to capture the total number of recoveries after all infections have resolved.
-            last_non_zero_R = np.where(sim.results.R[:, 0] > 0)[0][-1]
-            final_R = np.sum(sim.results.R[last_non_zero_R])
 
             # Save the results
-            I_series_store[(heterogeneity, r0)] = np.sum(sim.results.I, axis=1)
-            new_exposed = np.sum(sim.results.new_exposed, axis=1)
+            I_series_store[(heterogeneity, r0)] = sim.results.I_by_strain[:, 0, 0]  # all times, single node, VDPV2 strain
+            new_exposed = sim.results.new_exposed_by_strain[:, 0, 0]  # all times, single node, VDPV2 strain
             new_exposed_store[(heterogeneity, r0)] = new_exposed
             records.append(
                 {
@@ -129,7 +124,6 @@ for r0 in r0_values:
                     "heterogeneity": heterogeneity,
                     "init_prev": init_prev,
                     "rep": rep,
-                    "final_recovered": final_R,
                     "total_new_exposed": new_exposed.sum(),
                 }
             )
