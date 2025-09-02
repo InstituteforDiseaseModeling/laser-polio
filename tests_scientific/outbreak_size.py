@@ -113,7 +113,9 @@ for r0 in r0_values:
                 ipv_vx=ipv_vx,
                 verbose=0,
             )
-            # TODO: why last non-zero R?
+            # Find the last time point where the number of recovered individuals (R) is nonzero.
+            # This is used to estimate the final outbreak size, as R may plateau or fluctuate,
+            # and we want to capture the total number of recoveries after all infections have resolved.
             last_non_zero_R = np.where(sim.results.R[:, 0] > 0)[0][-1]
             final_R = np.sum(sim.results.R[last_non_zero_R])
 
