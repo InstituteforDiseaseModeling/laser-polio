@@ -10,37 +10,41 @@ from scipy.optimize import fsolve
 
 import laser_polio as lp
 
-# Based on: https://github.com/InstituteforDiseaseModeling/laser-generic/blob/main/notebooks/04_SIR_nobirths_outbreak_size.ipynb
+"""
+This tests the outbreak size (total number of infections) across different R0 values. 
+The goal is for our model to match expectations from a simple SIR model (i.e., the Kermack-McKendrick model). 
 
+The key assumptions are: 
+- Disease states are SIR (i.e., no exposed state), but the exposed state is core to our model so here we give it a duration of 0.
+- A fully susceptible population
+- No vital rates (births, deaths, etc.)
+- No seasonal variation
+- No vaccination
+- No migration (i.e., a single node)
+- No heterogeneity
 
-# TODO:
-# - [X] Adjust init_immun_scalar to ensure that entire population is susceptible
-# - [X] Make adjustments so that r0_scalars = 1.0
-# - [X] Why is the vx_prob_ipv not 0 or None?
-# - [X] Why is the sia_schedule not None?
-# - [X] Why is init_immun still a par and what does it do?
+It is based on the notebook: https://github.com/InstituteforDiseaseModeling/laser-generic/blob/main/notebooks/04_SIR_nobirths_outbreak_size.ipynb
+"""
 
 
 ###################################
 ######### USER PARAMETERS #########
 
 regions = ["ZAMFARA:ANKA"]
-start_year = 2019
 n_days = 365 * 2
-init_region = "ANKA"
-results_path = "results/check_outbreak_size_20250825"
-n_reps = 1
-# r0_values = np.linspace(1, 2, 2)
-r0_values = np.linspace(0, 10, 15)
-heterogeneity_values = [True, False]
 init_pop = 1e6
-pop_scale = 1e6 / 257347
+pop_scale = 1e6 / 257347  # To scale up to 1e6
+init_region = "ANKA"
 init_prev = 20 / init_pop
 init_immun_scalar = 0.0  # ensure that entire population is susceptible
+ipv_vx = False
 r0_scalar_wt_slope = 0.0  # ensures that r0_scalars = 1.0
 r0_scalar_wt_intercept = 0.5  # ensures that r0_scalars = 1.0
-ipv_vx = False
-S0 = 1.0
+r0_values = np.linspace(0, 10, 15)
+heterogeneity_values = [True, False]
+n_reps = 1
+results_path = "results/tests_scientific/outbreak_size"
+
 
 ######### END OF USER PARS ########
 ###################################
@@ -48,7 +52,9 @@ S0 = 1.0
 os.makedirs(results_path, exist_ok=True)
 
 
-# Calculate the expected final size using the Kermack-McKendrick model
+# ----- Calculate the expected final size using the Kermack-McKendrick model -----#
+
+
 def KM_limit(z, r0, S0, I0):
     if r0 * S0 < 1:
         return 0
@@ -56,11 +62,10 @@ def KM_limit(z, r0, S0, I0):
         return z - S0 * (1 - np.exp(-r0 * (z + I0)))
 
 
-# Expected
 population = init_pop
 inf_mean = 24
 init_inf = 20
-# R0s = np.concatenate((np.linspace(0.2, 1.0, 5), np.linspace(1.5, 10.0, 25)))
+S0 = 1.0
 S0s = [1.0]
 output = pd.DataFrame(list(itertools.product(r0_values, S0s)), columns=["r0", "S0"])
 output["I_inf_exp"] = [
@@ -70,7 +75,8 @@ output["I_inf_exp"] = [
 output["S_inf_exp"] = output["S0"] - output["I_inf_exp"]
 
 
-# Simulated
+# ----- Use Laser-Polio to simulate the outbreak size -----#
+
 I_series_store = {}  # Key: (heterogeneity, r0), Value: 1D array of I over time
 new_exposed_store = {}  # Key: (heterogeneity, r0), Value: 1D array of new exposed over time
 records = []
@@ -84,7 +90,6 @@ for r0 in r0_values:
         for rep in range(n_reps):
             sim = lp.run_sim(
                 regions=regions,
-                start_year=start_year,
                 n_days=n_days,
                 pop_scale=pop_scale,
                 init_region=init_region,
@@ -100,7 +105,7 @@ for r0 in r0_values:
                 vx_prob_ri=None,
                 vx_prob_sia=None,
                 seed=rep,
-                dur_exp=lp.constant(value=2),
+                dur_exp=lp.constant(value=0),
                 individual_heterogeneity=heterogeneity,
                 init_immun_scalar=init_immun_scalar,
                 r0_scalar_wt_slope=r0_scalar_wt_slope,
