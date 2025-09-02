@@ -248,7 +248,7 @@ def run_sim(
     # Sum by dot_name
     immun_summary = sus_by_age_node.groupby("dot_name")[["n_immune", "n_susceptible"]].sum()
     # Account for rounding errors & handle them in the oldest age bin
-    pop_diff = pop - immun_summary["n_immune"].values - immun_summary["n_susceptible"].values
+    pop_diff = np.array(pop) - np.array(immun_summary["n_immune"].values) - np.array(immun_summary["n_susceptible"].values)
     sus_by_age_node.loc[sus_by_age_node["age_max_months_immun"] == 1201, "n_immune"] += pop_diff
     # Re-calculate the immune & susceptible counts
     immun_summary = sus_by_age_node.groupby("dot_name")[["n_immune", "n_susceptible"]].sum()
