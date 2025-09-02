@@ -414,10 +414,9 @@ def disease_state_step_kernel(
 
         # ---- Exposed to Infected Transition ----
         if disease_state[i] == 1:  # Exposed
-            # Decrement first because newly exposed were set after last disease-state step
-            exposure_timer[i] -= 1
             if exposure_timer[i] <= 0:
                 disease_state[i] = 2  # Become infected
+            exposure_timer[i] -= 1
 
         # ---- Infected to Recovered Transition ----
         if disease_state[i] == 2:  # Infected
@@ -722,6 +721,24 @@ class DiseaseState_ABM:
         )
         self.results.new_potentially_paralyzed[t, :] = new_potential
         self.results.new_paralyzed[t, :] = new_paralyzed
+
+        # Debugging
+        if self.verbose >= 3:
+            logger.info(f"DISEASE STATE STEP at time: {self.sim.t}")
+
+            # Who is exposed?
+            exposed = self.people.disease_state == 1
+            logger.info(f"Exposed IDs: {np.where(exposed)[0]}")
+            logger.info(f"Exposure timers: {self.people.exposure_timer[np.where(exposed)[0]]}")
+            unique_exposure_timers, counts_exposure_timers = np.unique(self.people.exposure_timer, return_counts=True)
+            logger.info(f"Unique exposure timers: {dict(zip(unique_exposure_timers, counts_exposure_timers, strict=False))}")
+
+            # Who is infected?
+            infected = self.people.disease_state == 2
+            logger.info(f"Infected IDs: {np.where(infected)[0]}")
+            logger.info(f"Infection timers: {self.people.infection_timer[np.where(infected)[0]]}")
+            unique_infection_timers, counts_infection_timers = np.unique(self.people.infection_timer, return_counts=True)
+            logger.info(f"Unique infection timers: {dict(zip(unique_infection_timers, counts_infection_timers, strict=False))}")
 
         # --- Seed infections from seed_schedule ---
         if t in self.seed_schedule:
