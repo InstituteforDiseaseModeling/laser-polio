@@ -153,7 +153,6 @@ styles = {
 
 
 # Plot the Infection time series
-target_r0 = 3.0
 timeseries_path = Path(results_path) / "timeseries_of_new_exposed"
 os.makedirs(timeseries_path, exist_ok=True)
 for r0 in r0_values:
