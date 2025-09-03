@@ -828,7 +828,8 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
     shape_gamma = 1
     scale_gamma = max(mean_gamma / shape_gamma, 1e-10)
 
-    rho = pars.corr_risk_inf
+    # Target Spearman rank correlation coefficient
+    rho = 2.0 * np.sin(np.pi * pars.corr_risk_inf / 6)  # Convert Pearson correlation coefficient to Spearman rank correlation coefficient
     cov_matrix = np.array([[1, rho], [rho, 1]])
     L = np.linalg.cholesky(cov_matrix)
 
