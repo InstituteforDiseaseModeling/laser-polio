@@ -108,7 +108,7 @@ for r0 in r0_values:
                 vx_prob_ri=vx_prob_ri,
                 vx_prob_sia=vx_prob_sia,
                 seed=rep,
-                # dur_exp=lp.constant(value=0),
+                dur_exp=lp.constant(value=0),
                 individual_heterogeneity=heterogeneity,
                 init_immun_scalar=init_immun_scalar,
                 r0_scalar_wt_slope=r0_scalar_wt_slope,
