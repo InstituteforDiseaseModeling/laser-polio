@@ -82,10 +82,14 @@ def test_progression_without_transmission():
     pars_1day = PropertySet(pars)
     pars["dur"] = 2
     pars_2days = PropertySet(pars)
+    pars["dur"] = 3
+    pars_3days = PropertySet(pars)
     sim_1day = lp.SEIR_ABM(pars_1day)
     sim_2days = lp.SEIR_ABM(pars_2days)
+    sim_3days = lp.SEIR_ABM(pars_3days)
     sim_1day.components = [lp.DiseaseState_ABM]
     sim_2days.components = [lp.DiseaseState_ABM]
+    sim_3days.components = [lp.DiseaseState_ABM]
 
     # Test the initalized counts
     init_pop = pars["init_pop"].sum()
@@ -96,18 +100,26 @@ def test_progression_without_transmission():
     sim_1day.people.disease_state[:init_pop] = 1  # Set all to Exposed
     sim_1day.run()  # Run for one day
     # Remember that results are not tallied in the DiseaseState_ABM component (results are tallied in Transmission_ABM) so we have to sum them up manually
-    assert np.sum(sim_1day.people.disease_state == 0) == 0  # No one should be Susceptible
-    assert np.sum(sim_1day.people.disease_state == 1) == 0  # No one should be Exposed
-    assert np.sum(sim_1day.people.disease_state == 2) == init_pop  # Everyone should be Infected
-    assert np.sum(sim_1day.people.disease_state == 3) == 0  # No one should be Recovered
+    assert np.sum(sim_1day.people.disease_state == 0) == 0, "No one should be Susceptible"
+    assert np.sum(sim_1day.people.disease_state == 1) == init_pop, "Everyone should be Exposed"
+    assert np.sum(sim_1day.people.disease_state == 2) == 0, "No one should be Infected"
+    assert np.sum(sim_1day.people.disease_state == 3) == 0, "No one should be Recovered"
 
     # Test a sim with two days
     sim_2days.people.disease_state[:init_pop] = 1  # Set all to Exposed
     sim_2days.run()  # Run for two days
-    assert np.sum(sim_2days.people.disease_state == 0) == 0  # No one should be Susceptible
-    assert np.sum(sim_2days.people.disease_state == 1) == 0  # No one should be Exposed
-    assert np.sum(sim_2days.people.disease_state == 2) == 0  # No one should be Infected
-    assert np.sum(sim_2days.people.disease_state == 3) == init_pop  # Everyone should be Recovered
+    assert np.sum(sim_2days.people.disease_state == 0) == 0, "No one should be Susceptible"
+    assert np.sum(sim_2days.people.disease_state == 1) == 0, "No one should be Exposed"
+    assert np.sum(sim_2days.people.disease_state == 2) == init_pop, "Everyone should be Infected"
+    assert np.sum(sim_2days.people.disease_state == 3) == 0, "No one should be Recovered"
+
+    # Test a sim with three days
+    sim_3days.people.disease_state[:init_pop] = 1  # Set all to Exposed
+    sim_3days.run()  # Run for three days
+    assert np.sum(sim_3days.people.disease_state == 0) == 0, "No one should be Susceptible"
+    assert np.sum(sim_3days.people.disease_state == 1) == 0, "No one should be Exposed"
+    assert np.sum(sim_3days.people.disease_state == 2) == 0, "No one should be Infected"
+    assert np.sum(sim_3days.people.disease_state == 3) == init_pop, "Everyone should be Recovered"
 
 
 # Test Disease Progression with transmission
@@ -196,8 +208,9 @@ def test_progression_with_transmission():
     n_e_t3 = sim.results.E[3].sum()
     n_i_t3 = sim.results.I[3].sum()
     n_r_t3 = sim.results.R[3].sum()
-    assert n_s_t3 == n_s_t2 - n_e_t3, "S's should be the same as yesterday minus those who became exposed"
-    assert n_i_t3 == n_e_t2, "I's should be equal to the number of E from yesterday"
+    assert n_s_t3 == n_s_t2, "Susceptible counts should be the same since no one should be infected"
+    assert n_e_t3 == n_e_t2, "Exposed counts should be the same since dur_exp = 2 & no one should be infected to make more E"
+    assert n_i_t3 == 0, "Infected counts should be 0 since dur_inf = 1 & exposed won't become infected until the next timestep"
     assert n_r_t3 == n_r_t2, "No one should be recovered since there were no infected on the previous day"
 
     # Check disease states at the end of day 4
@@ -205,19 +218,19 @@ def test_progression_with_transmission():
     n_e_t4 = sim.results.E[4].sum()
     n_i_t4 = sim.results.I[4].sum()
     n_r_t4 = sim.results.R[4].sum()
-    assert n_s_t4 == n_s_t3, "S's should be the same as yesterday since there shouldn't be any I to make new E"
-    assert n_e_t4 == n_e_t3, "E's should be the same as yesterday since there shouldn't be any I to make new E"
-    assert n_i_t4 == 0, "I's should be 0 since dur_inf = 1 & E won't become E until the next timestep"
-    assert n_r_t4 == n_r_t3 + n_i_t3, "R counts should be higher since I's should've become R"
+    assert n_s_t4 == n_s_t3 - n_e_t4, "S's should be the same as yesterday minus those who became exposed"
+    assert n_i_t4 == n_e_t3, "I's should be equal to the number of E from yesterday"
+    assert n_r_t4 == n_r_t3, "No one should be recovered since there were no infected on the previous day"
 
     # Check disease states at the end of day 5
     n_s_t5 = sim.results.S[5].sum()
     n_e_t5 = sim.results.E[5].sum()
     n_i_t5 = sim.results.I[5].sum()
     n_r_t5 = sim.results.R[5].sum()
-    assert n_s_t5 == n_s_t4 - n_e_t5, "S's should be the same as yesterday minus those who became exposed"
-    assert n_i_t5 == n_e_t4, "I's should be equal to the number of E from yesterday"
-    assert n_r_t5 == n_r_t4, "No one should be recovered since there were no infected on the previous day"
+    assert n_s_t5 == n_s_t4, "S's should be the same as yesterday since there shouldn't be any I to make new E"
+    assert n_e_t5 == n_e_t4, "E's should be the same as yesterday since there shouldn't be any I to make new E"
+    assert n_i_t5 == 0, "I's should be 0 since dur_inf = 1 & E won't become E until the next timestep"
+    assert n_r_t5 == n_r_t4 + n_i_t4, "R counts should be higher since I's should've become R"
 
     # Check disease states at the end of day 6
     n_s_t6 = sim.results.S[6].sum()
@@ -226,8 +239,8 @@ def test_progression_with_transmission():
     n_r_t6 = sim.results.R[6].sum()
     assert n_s_t6 == n_s_t5, "S's should be the same as yesterday since there shouldn't be any I to make new E"
     assert n_e_t6 == n_e_t5, "E's should be the same as yesterday since there shouldn't be any I to make new E"
-    assert n_i_t6 == 0, "I's should be 0 since dur_inf = 1 & E won't become E until the next timestep"
-    assert n_r_t6 == n_r_t5 + n_i_t5, "R counts should be higher since I's should've become R"
+    assert n_i_t6 == 0, "I's should be 0 since dur_inf = 1 & E won't become infected until the next timestep"
+    assert n_r_t6 == n_r_t5, "No one should be recovered since there were no infected on the previous day"
 
     # Check that the end state counts match what's recorded on day 6
     disease_state = sim.people.disease_state[: sim.people.count]
@@ -307,19 +320,19 @@ def test_disease_timers_with_trans_explicit():
     n_s_exp[0] = 1  # The susceptible (non-seeded infection) should start as S then become E on day 1 (super high r0)
     # E
     n_e_exp = zeros.copy()
-    n_e_exp[1 : (1 + dur_exp)] = (
+    n_e_exp[1 : (2 + dur_exp)] = (
         1  # The susceptible (non-seeded infection) should become E on day 1 (super high r0) then recover after dur_exp days
     )
     # I
     n_i_exp = zeros.copy()
     n_i_exp[0 : (dur_inf + 1)] += 1  # The seeded infection starts as I and recovers after dur_inf days (+1 for day 0)
-    n_i_exp[(1 + dur_exp) : (1 + dur_exp + dur_inf)] += (
+    n_i_exp[(2 + dur_exp) : (2 + dur_exp + dur_inf)] += (
         1  # new infection should become E on day 1 (super high r0) then recover after dur_inf days
     )
     # R
     n_r_exp = zeros.copy()
     n_r_exp[(1 + dur_inf) :] += 1  # seeded infection should recover after dur_inf days (+1 for day 0)
-    n_r_exp[(1 + dur_exp + dur_inf) :] += 1  # new infections should recover after dur_exp days
+    n_r_exp[(2 + dur_exp + dur_inf) :] += 1  # new infections should recover after dur_exp days
     # P
     n_p_exp = zeros.copy()
     n_p_exp[1 + t_to_paralysis] += 1  # The seeded infection should become P after t_to_paralysis days (+1 for day 0)
@@ -593,7 +606,7 @@ def test_potential_paralysis():
 
     regions = ["ZAMFARA"]
     start_year = 2018
-    n_days = 365
+    n_days = 365 * 2
     pop_scale = 1 / 1
     init_region = "ANKA"
     init_prev = 200
