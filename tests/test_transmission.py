@@ -597,11 +597,11 @@ def test_r0_with_heterogeneity():
 
 
 if __name__ == "__main__":
-    # test_trans_default()
-    # test_zero_trans()
-    # test_double_trans()
-    # test_linear_transmission()
-    # test_zero_inflation()
-    # test_r0_sans_heterogeneity()
+    test_trans_default()
+    test_zero_trans()
+    test_double_trans()
+    test_linear_transmission()
+    test_zero_inflation()
+    test_r0_sans_heterogeneity()
     test_r0_with_heterogeneity()
     print("All transmission tests passed!")
