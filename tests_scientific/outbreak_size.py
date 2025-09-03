@@ -161,7 +161,7 @@ for r0 in r0_values:
             plt.plot(I_t, label=label, color=color, linestyle=style)
     plt.title(f"Infected Over Time at r0 = {r0}")
     plt.xlabel("Time (Timesteps)")
-    plt.ylabel("New Exposed")
+    plt.ylabel("Infected Individuals")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
