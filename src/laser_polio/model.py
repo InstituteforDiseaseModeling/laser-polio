@@ -560,11 +560,11 @@ class DiseaseState_ABM:
         self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
 
         # Initialize all agents with an exposure_timer, infection_timer, and paralysis_timer
-        sim.people.add_scalar_property("exposure_timer", dtype=np.uint8, default=0)
+        sim.people.add_scalar_property("exposure_timer", dtype=np.int8, default=0)
         sim.people.exposure_timer[:] = self.pars.dur_exp(self.people.capacity)
-        sim.people.add_scalar_property("infection_timer", dtype=np.uint8, default=0)
+        sim.people.add_scalar_property("infection_timer", dtype=np.int8, default=0)
         sim.people.infection_timer[:] = self.pars.dur_inf(self.people.capacity)
-        sim.people.add_scalar_property("paralysis_timer", dtype=np.uint8, default=0)
+        sim.people.add_scalar_property("paralysis_timer", dtype=np.int8, default=0)
         sim.people.paralysis_timer[:] = self.pars.t_to_paralysis(self.people.capacity)
 
         pars = self.pars
