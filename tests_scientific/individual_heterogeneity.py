@@ -10,7 +10,7 @@ E.g., R0 = 14 should generate ~14 infections.
 
 Assumes:
 - No immunity
-- No heterogeneity
+- WITH heterogeneity
 - R0 spatial scalars are all 1.0
 - No seasonality
 - No births or deaths
