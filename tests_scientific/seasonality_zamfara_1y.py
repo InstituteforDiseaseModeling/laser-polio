@@ -23,7 +23,7 @@ max_migr_frac = 0.1
 vx_prob_ri = 0.0
 missed_frac = 0.1
 use_pim_scalars = False
-results_path = "results/tests_scientific/seasonality"
+results_path = "results/tests_scientific/seasonality_zamfara_1y"
 
 # No seed schedule for simplicity - just use init_prev
 seed_schedule = None
