@@ -58,7 +58,7 @@ def make_synth_df_from_results(sim):
                     "I": results.I[t, n],
                     "R": results.R[t, n],
                     "P": results.paralyzed[t, n],
-                    "new_exposed": results.new_exposed[t, n],
+                    "new_potentially_paralyzed": results.new_potentially_paralyzed[t, n],
                 }
             )
 
@@ -73,16 +73,16 @@ def make_synth_df_from_results(sim):
     df["month_start"] = df["date"].values.astype("datetime64[M]")  # fast way
 
     # Group by dot_name and month_start, then sum the P column
-    grouped = df.groupby(["dot_name", "month_start"])["new_exposed"].sum().reset_index()
+    grouped = df.groupby(["dot_name", "month_start"])["new_potentially_paralyzed"].sum().reset_index()
 
     # Divide by 2000 & convert to integers
-    grouped["new_exposed"] /= 2000
+    grouped["new_potentially_paralyzed"] /= 2000
 
     cases = []
-    for i in range(len(grouped["new_exposed"])):
-        expected = grouped["new_exposed"][i]
-        paralytic_cases = np.random.poisson(expected)
-        cases.append(paralytic_cases)
+    for i in range(len(grouped["new_potentially_paralyzed"])):
+        expected = grouped["new_potentially_paralyzed"][i]
+        paralyzed_cases = np.random.poisson(expected)
+        cases.append(paralyzed_cases)
     grouped["cases"] = cases
 
     return grouped
