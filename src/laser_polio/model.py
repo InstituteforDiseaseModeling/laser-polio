@@ -429,18 +429,19 @@ def disease_state_step_kernel(
         if disease_state[i] == 2:
             # Paralysis timer is parameterized as time from exposure to paralysis. During initialization, it's trimmed to be within the range of the exposure and infection timers.
             if paralysis_timer[i] <= 0:
-                if strain[i] == 0 and potentially_paralyzed[i] == -1:
-                    # If infected with a paralytic strain and not yet potentially paralyzed
-                    if ipv_protected[i] == 0:
-                        potentially_paralyzed[i] = 1
-                        was_potentially_paralyzed = True
-                        if np.random.random() < p_paralysis:
-                            paralyzed[i] = 1
-                            was_paralyzed = True
-                    else:
-                        # Explicitly set to 0 if ipv_protected
-                        potentially_paralyzed[i] = 0
-            paralysis_timer[i] -= 1
+                if strain[i] == 0:
+                    if potentially_paralyzed[i] == -1:
+                        # If infected with a paralytic strain and not yet potentially paralyzed
+                        if ipv_protected[i] == 0:
+                            potentially_paralyzed[i] = 1
+                            was_potentially_paralyzed = True
+                            if np.random.random() < p_paralysis:
+                                paralyzed[i] = 1
+                                was_paralyzed = True
+                        else:
+                            # Explicitly set to 0 if ipv_protected
+                            potentially_paralyzed[i] = 0
+                    paralysis_timer[i] -= 1  # Only decrement if it's a paralytic strain
 
         if was_potentially_paralyzed:
             local_new_potential[tid, nid] += 1
