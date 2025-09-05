@@ -1,8 +1,10 @@
-import numpy as np
-import pytest
-from scipy.stats import poisson, nbinom
 import sys
-sys.path.append( 'calib' )
+
+import numpy as np
+from scipy.stats import nbinom
+from scipy.stats import poisson
+
+sys.path.append("calib")
 
 from scoring import compute_log_likelihood_fit
 
@@ -67,8 +69,8 @@ def test_norm_by_n_false_matches_sum():
     out_mean = compute_log_likelihood_fit(actual, predicted, method="poisson", norm_by_n=True)
 
     lam = np.array([0.5, 1.0, 2.5], float)
-    exp_sum = -poisson.logpmf([0, 1, 2], lam).sum()        # not normalized
-    exp_mean = -poisson.logpmf([0, 1, 2], lam).sum() / 3   # normalized
+    exp_sum = -poisson.logpmf([0, 1, 2], lam).sum()  # not normalized
+    exp_mean = -poisson.logpmf([0, 1, 2], lam).sum() / 3  # normalized
 
     assert np.isclose(out_sum["c"], exp_sum)
     assert np.isclose(out_mean["c"], exp_mean)
@@ -100,5 +102,3 @@ def test_shape_mismatch_skips_key():
     assert "bad" not in out or out["bad"] == out.get("bad")  # may not exist if skipped
     assert np.isclose(out["good"], exp_good)
     assert np.isclose(out["total_log_likelihood"], exp_good)
-
-

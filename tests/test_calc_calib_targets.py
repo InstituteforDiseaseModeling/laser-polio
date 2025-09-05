@@ -1,20 +1,19 @@
 import sys
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import pytest
 import yaml
 
 # Make "calib/" importable (adjust if your project layout differs)
 sys.path.append("calib")
 
-from targets import (
-    calc_calib_targets,
-    calc_targets_temporal_regional_nodes,
-    calc_targets_regional,
-    calc_targets_simplified_temporal,
-    calc_calib_targets_paralysis,
-)
+from targets import calc_calib_targets
+from targets import calc_calib_targets_paralysis
+from targets import calc_targets_regional
+from targets import calc_targets_simplified_temporal
+from targets import calc_targets_temporal_regional_nodes
+
 import laser_polio as lp  # for monkeypatching find_latest_end_of_month when needed
 
 
@@ -61,10 +60,16 @@ def tiny_actual_df():
     """
     data = {
         "date": [
-            "2019-01-15", "2019-02-15", "2020-03-15", "2022-04-15",
-            "2019-01-15", "2020-03-15", "2022-04-15", "2019-02-15",
+            "2019-01-15",
+            "2019-02-15",
+            "2020-03-15",
+            "2022-04-15",
+            "2019-01-15",
+            "2020-03-15",
+            "2022-04-15",
+            "2019-02-15",
         ],
-        "node":  [0, 0, 1, 1, 2, 2, 3, 3],
+        "node": [0, 0, 1, 1, 2, 2, 3, 3],
         "region": ["REG_A", "REG_A", "REG_A", "REG_A", "REG_B", "REG_B", "REG_B", "REG_B"],
         # dot_name format: AFRO:<adm0>:<adm1>:<whatever>
         "dot_name": [
@@ -81,8 +86,14 @@ def tiny_actual_df():
         "P": [1, 2, 0, 3, 2, 0, 1, 4],
         # Optional: a ready-made "time_period" to use with calc_targets_regional
         "time_period": [
-            "2018-2019", "2018-2019", "2020-2021", "2022-2023",
-            "2018-2019", "2020-2021", "2022-2023", "2018-2019",
+            "2018-2019",
+            "2018-2019",
+            "2020-2021",
+            "2022-2023",
+            "2018-2019",
+            "2020-2021",
+            "2022-2023",
+            "2018-2019",
         ],
     }
     df = pd.DataFrame(data)
@@ -101,6 +112,7 @@ def tiny_sim_df():
 # --------------------------
 # Tests
 # --------------------------
+
 
 def test_calc_calib_targets(tmp_path):
     """
@@ -195,9 +207,7 @@ def test_calc_targets_temporal_regional_nodes_actual(tmp_path):
 
     df["month_period"] = df["date"].dt.to_period("M")
     months = df["month_period"].sort_values().unique()
-    exp_nodes_by_month = (
-        df.loc[has_case].groupby("month_period")["node"].nunique().sort_index().reindex(months, fill_value=0).values
-    )
+    exp_nodes_by_month = df.loc[has_case].groupby("month_period")["node"].nunique().sort_index().reindex(months, fill_value=0).values
     assert np.allclose(out["nodes_with_cases_timeseries"], exp_nodes_by_month)
 
 

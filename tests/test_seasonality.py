@@ -1,16 +1,18 @@
 from datetime import datetime
 from datetime import timedelta
+
 import matplotlib.pyplot as plt
 import numpy as np
-import itertools
+
 from laser_polio.utils import get_seasonality
+
 
 def visualize_seasonality_response():
     """Visualize sensitivity of get_seasonality() to both amplitude and peak day."""
 
     amplitudes = np.linspace(0.0, 1.0, 6)  # e.g., 0.0 to 1.0 in 6 steps
-    peak_days = np.arange(0, 366, 60)      # every 2 months or so
-    day_range = np.arange(364)             # simulation days
+    peak_days = np.arange(0, 366, 60)  # every 2 months or so
+    day_range = np.arange(364)  # simulation days
 
     fig, axs = plt.subplots(len(amplitudes), len(peak_days), figsize=(18, 12), sharex=True, sharey=True)
     fig.suptitle("Seasonality patterns across amplitudes and peak days", fontsize=16)
@@ -30,6 +32,8 @@ def visualize_seasonality_response():
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.show()
+
+
 class MockSim:
     def __init__(self, seasonal_amplitude, seasonal_peak_doy):
         self.pars = {"seasonal_amplitude": seasonal_amplitude, "seasonal_peak_doy": seasonal_peak_doy}

@@ -1,10 +1,12 @@
-import numpy as np
-from functools import partial
 import sys
-sys.path.append( "calib" ) # do not like
+
+import numpy as np
+
+sys.path.append("calib")  # do not like
 
 # If you’re using the debug version with logging:
 from scoring import compute_nll_dirichlet as compute_nll_dirichlet
+
 
 def triangle_counts(n=50, total=1000):
     # single-period triangle, scaled to integer-ish counts (round later if needed)
@@ -13,6 +15,7 @@ def triangle_counts(n=50, total=1000):
     tri = np.concatenate([up, down])
     tri = tri / tri.sum() * total
     return tri
+
 
 def test_perfect_match_poisson():
     actual = {"scalar": 7.0}
@@ -24,6 +27,7 @@ def test_perfect_match_poisson():
 
     print("[Poisson] same vs perturbed:", nll_same, nll_pert)
     assert nll_same <= nll_pert + 1e-9, "Exact Poisson match should not be worse than a perturbation."
+
 
 def test_perfect_match_vector_dm():
     # Use integer counts to avoid rounding artifacts inside the scorer
@@ -37,6 +41,7 @@ def test_perfect_match_vector_dm():
 
     print("[Vector DM] same vs perturbed:", nll_same, nll_pert)
     assert nll_same <= nll_pert + 1e-9, "Exact DM match (vector) should not be worse than a perturbation."
+
 
 def test_perfect_match_matrix_dm():
     # Two rows (outer keys), shared inner columns after union/sort
@@ -60,6 +65,7 @@ def test_perfect_match_matrix_dm():
     print("[Matrix DM] same vs perturbed:", nll_same, nll_pert)
     assert nll_same <= nll_pert + 1e-9, "Exact DM match (matrix) should not be worse than a perturbation."
 
+
 def test_perfect_match_triangle_dm():
     # Triangle wave as counts (DM path). Keep totals decent for resolution.
     tri = triangle_counts(n=50, total=5000)  # total counts ~5k
@@ -73,12 +79,14 @@ def test_perfect_match_triangle_dm():
     print("[Triangle DM] same vs scaled:", nll_same, nll_scaled)
     assert nll_same <= nll_scaled + 1e-9, "Exact DM match (triangle) should not be worse than scaled prediction."
 
+
 def run_all():
     test_perfect_match_poisson()
     test_perfect_match_vector_dm()
     test_perfect_match_matrix_dm()
     test_perfect_match_triangle_dm()
     print("Perfect-match tests: OK")
+
 
 if __name__ == "__main__":
     run_all()
