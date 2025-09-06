@@ -301,7 +301,8 @@ def test_disease_timers_with_trans_explicit():
     p_timers = sim.people.paralysis_timer[:]
     assert np.all(e_timers == dur_exp), "Exposure timers should be equal to dur_exp"
     assert np.all(i_timers == dur_inf), "Infection timers should be equal to dur_inf"
-    assert np.all(p_timers == t_to_paralysis), "Paralysis timers should be equal to t_to_paralysis"
+    assert np.all(p_timers >= e_timers), "Paralysis timers should be greater than or equal to exposure timers"
+    assert np.all(p_timers <= i_timers), "Paralysis timers should be less than or equal to infection timers"
 
     # Run the simulation for one timestep
     sim.run()
@@ -311,7 +312,7 @@ def test_disease_timers_with_trans_explicit():
     n_e = np.sum(sim.results.E, axis=1)
     n_i = np.sum(sim.results.I, axis=1)
     n_r = np.sum(sim.results.R, axis=1)
-    n_p = np.sum(sim.results.new_potentially_paralyzed, axis=1)
+    n_npp = np.sum(sim.results.new_potentially_paralyzed, axis=1)
 
     # Calc time to state changes
     zeros = np.zeros(sim.pars.dur + 1).astype(int)
@@ -335,15 +336,19 @@ def test_disease_timers_with_trans_explicit():
     n_r_exp[(2 + dur_exp + dur_inf) :] += 1  # new infections should recover after dur_exp days
     # P
     n_p_exp = zeros.copy()
-    n_p_exp[1 + t_to_paralysis] += 1  # The seeded infection should become P after t_to_paralysis days (+1 for day 0)
-    n_p_exp[2 + t_to_paralysis] += 1  # The new infection should become E on day 1 (super high r0) then become P after t_to_paralysis days
+    n_p_exp[1 + dur_inf] += (
+        1  # The seeded infection should become P after dur_inf (b/c t_to_paralysis gets clipped to be within the range of exposure and infection timers) days (+1 for day 0)
+    )
+    n_p_exp[2 + dur_exp + dur_inf] += (
+        1  # The new infection should become E on day 1 (super high r0) then become P after dur_exp + dur_inf days
+    )
 
     # Check that the results match the expected counts
     assert np.all(n_s == n_s_exp), "S counts should match expected counts"
     assert np.all(n_e == n_e_exp), "E counts should match expected counts"
     assert np.all(n_i == n_i_exp), "I counts should match expected counts"
     assert np.all(n_r == n_r_exp), "R counts should match expected counts"
-    assert np.all(n_p == n_p_exp), "P counts should match expected counts"
+    assert np.all(n_npp == n_p_exp), "P counts should match expected counts"
 
 
 # Test Paralysis Probability
@@ -481,10 +486,11 @@ def test_init_immun_scalar():
 def test_time_to_paralysis():
     sim = setup_sim()
     dist = sim.pars.t_to_paralysis(1000)
+    e_timer = sim.people.exposure_timer
     p_timer = sim.people.paralysis_timer
     assert np.isclose(dist.mean(), 12.5, atol=3)
     assert np.isclose(dist.std(), 3.5, atol=3)
-    assert np.isclose(p_timer.mean(), 12.5, atol=3)
+    assert np.isclose(p_timer.mean() + e_timer.mean(), 12.5, atol=3)
     assert np.isclose(p_timer.std(), 3.5, atol=3)
 
 
@@ -522,15 +528,17 @@ def test_paralysis_progression_manual():
     assert np.sum(sim.people.potentially_paralyzed[protected_idx] <= 0) == 4, (
         "SEIR people who are protected should not be potentially paralyzed"
     )
-    assert np.sum(sim.people.potentially_paralyzed[unprotected_idx] > 0) == 3, (
-        "EIR (not S) People who are not protected should be potentially paralyzed"
+    assert np.sum(sim.people.potentially_paralyzed[unprotected_idx] > 0) == 2, (
+        "People that move through the I stage (E & I; not S & R) who are not ipv protected should be potentially paralyzed"
     )
 
     assert np.sum(sim.people.paralyzed[protected_idx] <= 0) == 4, "SEIR people who are protected should not be paralyzed"
-    assert np.sum(sim.people.paralyzed[unprotected_idx] > 0) == 3, "EIR (not S) People who are not protected should be paralyzed"
+    assert np.sum(sim.people.paralyzed[unprotected_idx] > 0) == 2, (
+        "People that move through the I stage (E & I; not S & R) who are not ipv protected should be paralyzed"
+    )
 
-    assert np.sum(sim.results.potentially_paralyzed[-1]) == 3, "Should have 3 potentially paralyzed individuals"
-    assert np.sum(sim.results.paralyzed[-1]) == 3, "Should have 3 paralyzed individuals"
+    assert np.sum(sim.results.potentially_paralyzed[-1]) == 2, "Should have 3 potentially paralyzed individuals"
+    assert np.sum(sim.results.paralyzed[-1]) == 2, "Should have 3 paralyzed individuals"
 
 
 def test_paralysis_fraction_sans_ipv():
@@ -654,12 +662,26 @@ def test_potential_paralysis():
         use_pim_scalars=use_pim_scalars,
     )
 
+    assert len(np.unique(sim.people.strain[:])) > 1, "Should have at least 2 strains to test impacts of paralytic and non-paralytic strains"
+
     assert np.sum(sim.results.new_potentially_paralyzed) <= np.sum(sim.results.new_exposed), (
         "Potential paralysis should be less than or equal to new exposed"
     )
     assert np.isclose(np.sum(sim.results.new_potentially_paralyzed) / 2000, np.sum(sim.results.new_paralyzed), atol=17), (
         "Potential paralysis should be 1/2000 of new exposed"
     )
+
+    # Test that potential paralysis only occurs for paralytic strains
+    mask_paralytic = sim.people.strain[:] == 0
+    assert np.isin(sim.people.potentially_paralyzed[mask_paralytic], [-1, 0, 1]).all(), (
+        "Potential paralysis can occur for paralytic strains"
+    )
+    assert np.isin(sim.people.potentially_paralyzed[~mask_paralytic], [-1]).all(), (
+        "Potential paralysis should NOT occur for non-paralytic strains"
+    )
+
+    assert np.isin(sim.people.paralyzed[mask_paralytic], [0, 1]).all(), "Paralysis can occur for paralytic strains"
+    assert np.isin(sim.people.paralyzed[~mask_paralytic], [0]).all(), "Paralysis should NOT occur for non-paralytic strains"
 
 
 if __name__ == "__main__":
