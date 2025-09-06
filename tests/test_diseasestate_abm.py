@@ -537,8 +537,8 @@ def test_paralysis_progression_manual():
         "People that move through the I stage (E & I; not S & R) who are not ipv protected should be paralyzed"
     )
 
-    assert np.sum(sim.results.potentially_paralyzed[-1]) == 2, "Should have 3 potentially paralyzed individuals"
-    assert np.sum(sim.results.paralyzed[-1]) == 2, "Should have 3 paralyzed individuals"
+    assert np.sum(sim.results.potentially_paralyzed[-1]) == 2, "Should have 2 potentially paralyzed individuals"
+    assert np.sum(sim.results.paralyzed[-1]) == 2, "Should have 2 paralyzed individuals"
 
 
 def test_paralysis_fraction_sans_ipv():
