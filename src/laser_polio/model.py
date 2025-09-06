@@ -421,9 +421,15 @@ def disease_state_step_kernel(
                 disease_state[i] = 2  # Become infected
             exposure_timer[i] -= 1
 
-        # ---- Paralysis ----
+        # ---- Infected & paralysis ----
         if disease_state[i] == 2:
-            # Paralysis can only occur during the infected stage
+            # ---- Infected to Recovered Transition ----
+            if infection_timer[i] <= 0:
+                disease_state[i] = 3  # Become recovered
+            infection_timer[i] -= 1
+
+            # ---- Paralysis ----
+            # Paralysis can only occur during the infected stage & only for paralytic strains
             # Paralysis timer is parameterized as time from exposure to paralysis. During initialization, it's trimmed to be within the range of the exposure and infection timers.
             if strain[i] == 0:
                 if paralysis_timer[i] <= 0:
@@ -440,16 +446,10 @@ def disease_state_step_kernel(
                             potentially_paralyzed[i] = 0
                 paralysis_timer[i] -= 1  # Only decrement if it's a paralytic strain
 
-        if was_potentially_paralyzed:
-            local_new_potential[tid, nid] += 1
-        if was_paralyzed:
-            local_new_paralyzed[tid, nid] += 1
-
-        # ---- Infected to Recovered Transition ----
-        if disease_state[i] == 2:  # Infected
-            if infection_timer[i] <= 0:
-                disease_state[i] = 3  # Become recovered
-            infection_timer[i] -= 1
+            if was_potentially_paralyzed:
+                local_new_potential[tid, nid] += 1
+            if was_paralyzed:
+                local_new_paralyzed[tid, nid] += 1
 
     return
 
