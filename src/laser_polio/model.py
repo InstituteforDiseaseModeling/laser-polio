@@ -446,10 +446,10 @@ def disease_state_step_kernel(
                             potentially_paralyzed[i] = 0
                 paralysis_timer[i] -= 1  # Only decrement if it's a paralytic strain
 
-            if was_potentially_paralyzed:
-                local_new_potential[tid, nid] += 1
-            if was_paralyzed:
-                local_new_paralyzed[tid, nid] += 1
+                if was_potentially_paralyzed:
+                    local_new_potential[tid, nid] += 1
+                if was_paralyzed:
+                    local_new_paralyzed[tid, nid] += 1
 
     return
 
