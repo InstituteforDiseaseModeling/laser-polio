@@ -565,6 +565,9 @@ class DiseaseState_ABM:
         pars = self.pars
 
         # -- Initialize timers --
+        # NOTE: Timers are now stored as np.int8 instead of np.uint8.
+        # This reduces the maximum timer value from 255 to 127 days.
+        # The change is intentional: timer values are clipped to 127, and int8 may be preferred for memory savings or to allow negative values if needed.
         sim.people.add_scalar_property("exposure_timer", dtype=np.int8, default=0)
         sim.people.add_scalar_property("infection_timer", dtype=np.int8, default=0)
         sim.people.add_scalar_property("paralysis_timer", dtype=np.int8, default=0)
