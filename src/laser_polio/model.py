@@ -577,8 +577,8 @@ class DiseaseState_ABM:
         # Initialize time to paralysis (parameterized as time from exposure to paralysis) & ensure it's within the range of exposure and infection timers
         raw_paralysis_time = self.pars.t_to_paralysis(sim.people.capacity)
         raw_paralysis_time = raw_paralysis_time - sim.people.exposure_timer
-        paralysis_timer = np.clip(raw_paralysis_time, 0, sim.people.infection_timer).astype(np.int8)
-        paralysis_timer = np.clip(paralysis_timer, 0, 127)
+        upper_bound = np.minimum(sim.people.infection_timer, 127)
+        paralysis_timer = np.clip(raw_paralysis_time, 0, upper_bound).astype(np.int8)
         sim.people.paralysis_timer[:] = paralysis_timer
 
         # -- Initialize immunity --
