@@ -577,7 +577,9 @@ class DiseaseState_ABM:
         # Clip exposure and infection timers to be within the range of 0 and 127 (the max value for an int8)
         sim.people.exposure_timer[:] = np.clip(sim.people.exposure_timer, 0, 127)
         sim.people.infection_timer[:] = np.clip(sim.people.infection_timer, 0, 127)
-        # Initialize time to paralysis (parameterized as time from exposure to paralysis) & ensure it's within the range of exposure and infection timers
+        # The paralysis timer is parameterized as 'time from exposure to paralysis'.
+        # We adjust it to 'time remaining after exposure period' by subtracting the exposure timer.
+        # Then, we clip it to ensure paralysis occurs during the infection period (i.e., after exposure but before recovery).
         raw_paralysis_time = self.pars.t_to_paralysis(sim.people.capacity)
         raw_paralysis_time = raw_paralysis_time - sim.people.exposure_timer
         upper_bound = np.minimum(sim.people.infection_timer, 127)
