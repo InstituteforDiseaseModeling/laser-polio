@@ -7,7 +7,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numba as nb
 import numpy as np
-import scipy.stats as stats
 import sciris as sc
 from alive_progress import alive_bar
 from laser_core.demographics.kmestimator import KaplanMeierEstimator
@@ -21,6 +20,7 @@ from laser_core.migration import row_normalizer
 from laser_core.propertyset import PropertySet
 from laser_core.random import seed as set_seed
 from laser_core.utils import calc_capacity
+from scipy import special  # ndtr (normal CDF) is fast C-ufunc
 from tqdm import tqdm
 
 import laser_polio as lp
@@ -836,34 +836,58 @@ def populate_heterogeneous_values(start, end, acq_risk_out, infectivity_out, par
             - corr_risk_inf
     """
 
-    mean_ln = 1
-    var_ln = pars.risk_mult_var
+    # precompute everything you can
+    mean_ln = 1.0
+    var_ln = float(pars.risk_mult_var)
     mu_ln = np.log(mean_ln**2 / np.sqrt(var_ln + mean_ln**2))
-    sigma_ln = np.sqrt(np.log(var_ln / mean_ln**2 + 1))
+    sigma_ln = np.sqrt(np.log(var_ln / mean_ln**2 + 1.0))
+
+    # gamma(shape=1, scale) == exponential(scale)
     mean_gamma = pars.r0 / np.mean(pars.dur_inf(1000))
-    shape_gamma = 1
+    shape_gamma = 1.0
     scale_gamma = max(mean_gamma / shape_gamma, 1e-10)
 
-    # Target Spearman rank correlation coefficient
-    rho = 2.0 * np.sin(np.pi * pars.corr_risk_inf / 6)  # Convert Pearson correlation coefficient to Spearman rank correlation coefficient
-    cov_matrix = np.array([[1, rho], [rho, 1]])
-    L = np.linalg.cholesky(cov_matrix)
+    rho = float(pars.corr_risk_inf)
+    rho = np.clip(rho, -0.999999, 0.999999)  # avoid degenerate covariance
+    sqrt1mr2 = np.sqrt(1.0 - rho * rho)
 
-    logger.info("FIXME: This chunk of code to initialize acq_risk_out and infectivity_out is known to be slow right now.")
-    BATCH_SIZE = 1_000_000
+    # faster RNG
+    rng = np.random.default_rng(getattr(pars, "seed", None))
+
+    # choose a batch that keeps memory friendly but large enough to vectorize well
+    BATCH_SIZE = 250_000
+
+    # OPTIONAL: remove chatty logs in a hot path
+    # logger.info("Initializing acq_risk_out and infectivity_out (fast path)")
+
     for batch_start in range(start, end, BATCH_SIZE):
         batch_end = min(batch_start + BATCH_SIZE, end)
         b_n = batch_end - batch_start
+        sl = slice(batch_start, batch_end)
 
-        z = np.random.normal(size=(b_n, 2))
-        z_corr = z @ L.T
+        # generate TWO independent standard normals
+        z1 = rng.standard_normal(b_n)  # for acquisition risk
+        z2i = rng.standard_normal(b_n)  # independent
+        # correlate z2 with z1: z2 = rho*z1 + sqrt(1-rho^2)*z2i
+        z2 = rho * z1 + sqrt1mr2 * z2i
 
         if pars.individual_heterogeneity:
-            acq_risk_out[batch_start:batch_end] = np.exp(mu_ln + sigma_ln * z_corr[:, 0])
-            infectivity_out[batch_start:batch_end] = stats.gamma.ppf(stats.norm.cdf(z_corr[:, 1]), a=shape_gamma, scale=scale_gamma)
+            # lognormal via direct transform (already fast)
+            # (optionally cast to float32 if your arrays are float32)
+            acq_risk_out[sl] = np.exp(mu_ln + sigma_ln * z1)
+
+            # U = Phi(z2) using fast C-ufunc
+            u = special.ndtr(z2)
+
+            # infectivity ~ Gamma(shape=1, scale) => Exponential(scale)
+            # inverse CDF: x = -scale * ln(1 - u); use log1p for numeric stability
+            infectivity_out[sl] = -scale_gamma * np.log1p(-u)
+            # If you ever change shape_gamma != 1.0:
+            # u = np.clip(u, 1e-12, 1-1e-12)
+            # infectivity_out[sl] = scale_gamma * special.gammaincinv(shape_gamma, u)
         else:
-            acq_risk_out[batch_start:batch_end] = 1.0
-            infectivity_out[batch_start:batch_end] = mean_gamma
+            acq_risk_out[sl] = 1.0
+            infectivity_out[sl] = mean_gamma
 
 
 def count_SEIRP(node_id, disease_state, strain, potentially_paralyzed, paralyzed, n_nodes: int, n_strains: int, n_people: int):
@@ -1221,6 +1245,7 @@ class Transmission_ABM:
         if self.sim.pars.distances is not None:
             dist_matrix = self.sim.pars.distances
         else:
+            print("Calculating distance matrix because it wasn't provided.")
             # Calculate the distance matrix based on the Haversine formula
             node_lookup = self.sim.pars.node_lookup
             n_nodes = len(self.sim.nodes)
