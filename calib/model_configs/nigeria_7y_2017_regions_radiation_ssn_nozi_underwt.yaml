@@ -1,0 +1,37 @@
+regions: [
+    "NIGERIA",
+]
+admin_level: 0
+start_year: 2017
+n_days: 2555
+pop_scale: 1.0
+vx_prob_ri: 0.0
+init_region: "BIRINIWA"
+init_prev: 0
+seed_schedule:
+  - date: "2017-10-01"
+    dot_name: "AFRO:NIGERIA:JIGAWA:HADEJIA"
+    prevalence: 100
+  - date: "2017-10-01"
+    dot_name: "AFRO:NIGERIA:JIGAWA:GARKI"
+    prevalence: 100
+  - date: "2020-07-01"
+    dot_name: "AFRO:NIGERIA:ZAMFARA:TALATA_MAFARA"
+    prevalence: 100
+  - date: "2020-10-01"
+    dot_name: "AFRO:NIGERIA:NIGER:SULEJA"
+    prevalence: 100
+seasonal_amplitude: 0.1
+seasonal_peak_doy: 159
+migration_method: "radiation"
+node_seeding_zero_inflation: 0.0
+use_pim_scalars: false
+results_path: "results/demo_nigeria"
+save_plots: false
+save_data: true
+summary_config:
+  time_periods:
+    bins: ["2020-07-01", "2022-07-01"]  # Split points
+    labels: ["2017-2020.5", "2020.5-2022.5", "2022.5-2024"]
+  grouping_level: "adm01"
+  region_groupings: ["NIGERIA"]

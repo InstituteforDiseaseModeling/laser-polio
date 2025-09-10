@@ -10,7 +10,7 @@ def objective(
     trial, calib_config, model_config_path, fit_function, results_path, actual_data_file, n_replicates=1, scoring_fn=None, target_fn=None
 ):
     """Optuna objective function that runs the simulation and evaluates the fit."""
-    results_file = results_path / "simulation_results.csv"
+    results_file = results_path / "simulation_results.h5"
     if Path(results_file).exists():
         try:
             Path(results_file).unlink()

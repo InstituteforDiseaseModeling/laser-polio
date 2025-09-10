@@ -269,6 +269,7 @@ def calc_targets_regional(filename, model_config_path=None, is_actual_data=True)
     """Load simulation results and extract target features for comparison.
 
     Targets are:
+    - cases_total: Total infected
     - cases_by_period: Total infected by time period
     - cases_by_month: Monthly timeseries of total infected
     - cases_by_region: Regional cases
@@ -278,7 +279,10 @@ def calc_targets_regional(filename, model_config_path=None, is_actual_data=True)
     """
 
     # Load the data & config
-    df = pd.read_csv(filename)
+    if is_actual_data:
+        df = pd.read_csv(filename)
+    else:
+        df = pd.read_hdf(filename)
     with open(model_config_path) as f:
         model_config = yaml.safe_load(f)
 
@@ -298,6 +302,9 @@ def calc_targets_regional(filename, model_config_path=None, is_actual_data=True)
         df = df[df["date"] <= max_date]
 
     targets = {}
+
+    # Total cases
+    targets["cases_total"] = df[case_col].sum() * scale_factor
 
     # Total cases by time period
     cases_by_period = df.groupby("time_period", observed=True)[case_col].sum() * scale_factor
@@ -337,14 +344,20 @@ def calc_targets_regional(filename, model_config_path=None, is_actual_data=True)
     else:
         # Fallback to default values
         bins = [0, 1, 2, 3, 4, 5, 10, 20, np.inf]
+    # Count the number of unique dot_names by region
+    dot_names_by_region = df.groupby("region")["dot_name"].nunique().to_dict()
+    print(f"{dot_names_by_region=}")
     case_bins_by_region = {}
     for region in df["region"].unique():
         region_mask = df["region"] == region
-        region_district_cases = df[region_mask].groupby("dot_name")[case_col].sum() * scale_factor
-
+        region_district_cases = df[region_mask].groupby("dot_name", observed=True)[case_col].sum() * scale_factor
         # Count districts in each bin
         hist_counts, _ = np.histogram(region_district_cases.values, bins=bins)
         case_bins_by_region[region] = hist_counts.tolist()
+        # Check that the number of districts with cases in the bins matches the number of unique dot_names in the region
+        assert len(region_district_cases) == dot_names_by_region[region] == sum(hist_counts), (
+            f"Number of districts with cases in region {region} does not match the number of unique dot_names or the number of districts with cases in the bins"
+        )
     targets["case_bins_by_region"] = case_bins_by_region
 
     # print(f"{targets=}")
