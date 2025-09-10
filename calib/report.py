@@ -620,20 +620,35 @@ def _plot_targets_impl(actual, preds, output_dir, shp, model_config, start_year,
         plt.close()
 
     # Monthly Timeseries Cases
-    if "cases_by_month" in actual:
-        n_months = len(actual["cases_by_month"])
+    if "cases_by_month_timeseries" in actual:
+        n_months = len(actual["cases_by_month_timeseries"])
         months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
         plt.figure()
         plt.title(f"Cases by Month - {title_prefix}")
-        plt.plot(months_series, actual["cases_by_month"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+        plt.plot(months_series, actual["cases_by_month_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
         for i, rep in enumerate(preds):
             label = f"Rep {i + 1}"
-            plt.plot(months_series, rep["cases_by_month"], "o-", label=label, color=color_map[label])
+            plt.plot(months_series, rep["cases_by_month_timeseries"], "o-", label=label, color=color_map[label])
         plt.xlabel("Month")
         plt.ylabel("Cases")
         plt.legend()
         plt.tight_layout()
-        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_month.png")
+        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_month_timeseries.png")
+        plt.close()
+
+    if "cases_by_month" in actual:
+        months = list(range(1, 1 + len(actual["cases_by_month"])))
+        plt.figure(figsize=(10, 6))
+        plt.title(f"Cases by Month - {title_prefix}")
+        plt.plot(months, actual["cases_by_month"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+        for i, rep in enumerate(preds):
+            label = f"Rep {i + 1}"
+            plt.plot(months, rep["cases_by_month"], "o-", label=label, color=color_map[label])
+        plt.xlabel("Month")
+        plt.ylabel("Cases")
+        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+        plt.tight_layout()
+        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_month.png", bbox_inches="tight")
         plt.close()
 
     # Regional Cases (bar plot)

@@ -17,7 +17,7 @@ import laser_polio as lp
 
 # ------------------- USER CONFIGS -------------------
 
-study_name = "calib_zamfara_20250822"
+study_name = "calib_zamfara_20250910"
 model_config = "config_zamfara.yaml"
 calib_config = "r0.yaml"
 

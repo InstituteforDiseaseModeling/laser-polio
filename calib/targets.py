@@ -312,7 +312,7 @@ def calc_targets_regional(filename, model_config_path=None, is_actual_data=True)
 
     # Total cases by month and year (e.g., 2018-01, 2018-02, etc.)
     monthly_df = df.groupby([df["date"].dt.to_period("M")])[case_col].sum().sort_index().astype(float) * scale_factor
-    targets["cases_by_monthly_timeseries"] = monthly_df.values
+    targets["cases_by_month_timeseries"] = monthly_df.values
 
     # Total cases by month number (1-12) across all years
     cases_by_month_across_years = monthly_df.groupby(monthly_df.index.month).sum()
