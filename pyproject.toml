@@ -107,6 +107,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 ignore = [
+    "RUF059", # unused unpacked variables
     "RUF001", # ruff-specific rules ambiguous-unicode-character-string
     "S101", # flake8-bandit assert
     "S308", # flake8-bandit suspicious-mark-safe-usage
@@ -124,7 +125,6 @@ ignore = [
     "PT028", # default arguments in test functions
     "DTZ001", # Ignore datetime timezone issues 
     "DTZ002", # I want to be able to just call a today() function.
-    "UP038", # due to be deprecated
     "W291",  # Never again do I want to think about trailing whitespace
 ]
 select = [
