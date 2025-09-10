@@ -1,7 +1,15 @@
+from pathlib import Path
+from unittest.mock import patch
+
 import numpy as np
 from laser_core.propertyset import PropertySet
+from scipy import stats
+from scipy.stats import spearmanr
 
 import laser_polio as lp
+
+test_dir = Path(__file__).parent
+data_path = test_dir / "data"
 
 # TODO: (ask AI)
 # Test no transmission when r0 = 0
@@ -342,10 +350,259 @@ def test_zero_inflation():
     )
 
 
+@patch("laser_polio.root", Path("tests/"))
+def test_r0_sans_heterogeneity():
+    """
+    Test that r0 generates the expected number of infections withOUT heterogeneity.
+    E.g., R0 = 14 should generate ~14 infections.
+
+    Assumes:
+    - No immunity
+    - No heterogeneity
+    - R0 spatial scalars are all 1.0
+    - No seasonality
+    - No births or deaths
+    - No routine immunization
+    - No SIAs
+    """
+
+    # Key assumptions
+    init_immun_scalar = 0.0
+    individual_heterogeneity = False
+    r0_scalar_wt_slope = 0.0  # ensures that r0_scalars = 1.0
+    r0_scalar_wt_intercept = 0.5  # ensures that r0_scalars = 1.0
+    seasonal_amplitude = 0.0  # no seasonality
+    cbr = np.array([0])  # no births or deaths
+    vx_prob_ri = None  # no routine immunization
+    vx_prob_sia = None  # no SIA
+    ipv_vx = False
+    n_days = 30
+    dur_inf = lp.constant(value=25)  # Single infection will expire before end of sim
+    dur_exp = lp.constant(value=60)  # Long exposures ensure that exposed individuals will be in the E state at the end of the simulation
+    n_reps = 10
+
+    # Setting pars
+    r0 = 14
+    regions = ["ZAMFARA"]
+    start_year = 2018
+    pop_scale = 1 / 1
+    init_region = "ANKA"
+    init_prev = 1
+    migration_method = "radiation"
+    radiation_k_log10 = -0.3
+    max_migr_frac = 0.1
+    verbose = 0
+    save_plots = False
+    save_data = False
+    plot_pars = False
+    results_path = "results/test_r0_sans_heterogeneity"
+    init_pop_file = None
+    use_pim_scalars = True
+
+    Es = []
+    Is = []
+    for _rep in range(n_reps):
+        sim = lp.run_sim(
+            regions=regions,
+            start_year=start_year,
+            n_days=n_days,
+            pop_scale=pop_scale,
+            init_region=init_region,
+            init_prev=init_prev,
+            results_path=results_path,
+            save_plots=save_plots,
+            save_data=save_data,
+            plot_pars=plot_pars,
+            verbose=verbose,
+            r0=r0,
+            migration_method=migration_method,
+            radiation_k_log10=radiation_k_log10,
+            max_migr_frac=max_migr_frac,
+            init_pop_file=init_pop_file,
+            use_pim_scalars=use_pim_scalars,
+            individual_heterogeneity=individual_heterogeneity,
+            init_immun_scalar=init_immun_scalar,
+            r0_scalar_wt_slope=r0_scalar_wt_slope,
+            r0_scalar_wt_intercept=r0_scalar_wt_intercept,
+            seasonal_amplitude=seasonal_amplitude,
+            cbr=cbr,
+            vx_prob_ri=vx_prob_ri,
+            vx_prob_sia=vx_prob_sia,
+            ipv_vx=ipv_vx,
+            dur_exp=dur_exp,
+            dur_inf=dur_inf,
+        )
+
+        E = np.sum(sim.results.E_by_strain[:, :, 0], axis=1)  # Filter to VDPV2 strain & sum over nodes
+        Es.append(E)
+        I = np.sum(sim.results.I_by_strain[:, :, 0], axis=1)  # Filter to VDPV2 strain & sum over nodes
+        Is.append(I)
+
+    I_init = np.array([x[0] for x in Is])
+    I_final = np.array([x[-1] for x in Is])
+    E_final = np.array([x[-1] for x in Es])
+    assert np.all(I_init == 1), f"There should be one infection at the start of the simulation, but got {I_init}."
+    assert np.all(I_final == 0), f"There should be no infections at the end of the simulation, but got {I_final}."
+    assert np.isclose(np.mean(E_final), 14, atol=7), (
+        f"There should be approximately 14 exposures at the end of the simulation, but got {np.mean(E_final)}."
+    )
+
+
+def test_r0_with_heterogeneity():
+    """
+    Test that r0 generates the expected number of infections WITH heterogeneity.
+    E.g., R0 = 14 should generate ~14 infections.
+
+    Assumes:
+    - No immunity
+    - WITH heterogeneity
+    - R0 spatial scalars are all 1.0
+    - No seasonality
+    - No births or deaths
+    - No routine immunization
+    - No SIAs
+    """
+
+    # Key assumptions
+    init_immun_scalar = 0.0
+    individual_heterogeneity = True
+    r0_scalar_wt_slope = 0.0  # ensures that r0_scalars = 1.0
+    r0_scalar_wt_intercept = 0.5  # ensures that r0_scalars = 1.0
+    seasonal_amplitude = 0.0  # no seasonality
+    cbr = np.array([0])  # no births or deaths
+    vx_prob_ri = None  # no routine immunization
+    vx_prob_sia = None  # no SIA
+    ipv_vx = False
+    n_days = 30
+    dur_inf = lp.constant(value=25)  # Single infection will expire before end of sim
+    dur_exp = lp.constant(value=60)  # Long exposures ensure that exposed individuals will be in the E state at the end of the simulation
+    n_reps = 10
+
+    # Setting pars
+    r0 = 14
+    regions = ["ZAMFARA"]
+    start_year = 2018
+    pop_scale = 1 / 1
+    init_region = "ANKA"
+    init_prev = 1
+    migration_method = "radiation"
+    radiation_k_log10 = -0.3
+    max_migr_frac = 0.1
+    verbose = 0
+    save_plots = False
+    save_data = False
+    plot_pars = False
+    results_path = "results/test_r0_sans_heterogeneity"
+    init_pop_file = None
+    use_pim_scalars = True
+
+    Es = []
+    Is = []
+    risks = []
+    infectivities = []
+    for _rep in range(n_reps):
+        sim = lp.run_sim(
+            regions=regions,
+            start_year=start_year,
+            n_days=n_days,
+            pop_scale=pop_scale,
+            init_region=init_region,
+            init_prev=init_prev,
+            results_path=results_path,
+            save_plots=save_plots,
+            save_data=save_data,
+            plot_pars=plot_pars,
+            verbose=verbose,
+            r0=r0,
+            migration_method=migration_method,
+            radiation_k_log10=radiation_k_log10,
+            max_migr_frac=max_migr_frac,
+            init_pop_file=init_pop_file,
+            use_pim_scalars=use_pim_scalars,
+            individual_heterogeneity=individual_heterogeneity,
+            init_immun_scalar=init_immun_scalar,
+            r0_scalar_wt_slope=r0_scalar_wt_slope,
+            r0_scalar_wt_intercept=r0_scalar_wt_intercept,
+            seasonal_amplitude=seasonal_amplitude,
+            cbr=cbr,
+            vx_prob_ri=vx_prob_ri,
+            vx_prob_sia=vx_prob_sia,
+            ipv_vx=ipv_vx,
+            dur_exp=dur_exp,
+            dur_inf=dur_inf,
+        )
+
+        E = np.sum(sim.results.E_by_strain[:, :, 0], axis=1)  # Filter to VDPV2 strain & sum over nodes
+        Es.append(E)
+        I = np.sum(sim.results.I_by_strain[:, :, 0], axis=1)  # Filter to VDPV2 strain & sum over nodes
+        Is.append(I)
+
+        # Check individual heterogeneity
+        risk = sim.people.acq_risk_multiplier
+        risks.append(risk)
+        infectivity = sim.people.daily_infectivity
+        infectivities.append(infectivity)
+
+    I_init = np.array([x[0] for x in Is])
+    I_final = np.array([x[-1] for x in Is])
+    E_final = np.array([x[-1] for x in Es])
+    assert np.all(I_init == 1), f"There should be one infection at the start of the simulation, but got {I_init}."
+    assert np.all(I_final == 0), f"There should be no infections at the end of the simulation, but got {I_final}."
+    assert np.isclose(np.mean(E_final), 14, atol=10), (
+        f"There should be approximately 14 exposures at the end of the simulation, but got {np.mean(E_final)}."
+    )
+
+    # Pool all risk values across reps for more statistical power
+    pooled_risks = np.concatenate(risks)
+    pooled_infectivities = np.concatenate(infectivities)
+
+    # Test 1: Mean risk should be approximately 1.0 (lognormal with mean=1.0 by design)
+    assert np.isclose(np.mean(pooled_risks), 1.0, rtol=0.1), f"Risk multiplier mean should be ~1.0, but got {np.mean(pooled_risks):.3f}"
+
+    # Test 2: Right skewness - mean > median for right-skewed distributions
+    risk_mean = np.mean(pooled_risks)
+    risk_median = np.median(pooled_risks)
+    assert risk_mean > risk_median, (
+        f"Risk values should be right-skewed (mean > median), but got mean={risk_mean:.3f}, median={risk_median:.3f}"
+    )
+
+    # Test 3: Kolmogorov-Smirnov test for lognormality
+    # Fit lognormal to the data
+    log_risks = np.log(pooled_risks[pooled_risks > 0])  # Remove any zeros
+    log_mean = np.mean(log_risks)
+    log_std = np.std(log_risks)
+    # Test if log-transformed data is approximately normal
+    ks_stat, p_value = stats.kstest(log_risks, lambda x: stats.norm.cdf(x, loc=log_mean, scale=log_std))
+    assert p_value > 0.01, (  # Don't reject normality of log(risk) at 1% level
+        f"Log-transformed risks should be approximately normal (lognormal test), but KS test p-value={p_value:.4f}"
+    )
+
+    # Test 4: Variance should be approximately equal to risk_mult_var parameter (4.0)
+    assert np.isclose(np.var(pooled_risks), 4.0, rtol=0.3), f"Risk variance should be ~4.0, but got {np.var(pooled_risks):.3f}"
+
+    # Test 5: Correlation between risk and infectivity should be approximately 0.8
+    pooled_corr = spearmanr(pooled_risks, pooled_infectivities).correlation
+    assert np.isclose(pooled_corr, 0.8, atol=0.1), f"Risk-infectivity correlation should be ~0.8, but got {pooled_corr:.3f}"
+
+    # Test 6: Mean infectivity should be approximately 14/24
+    assert np.isclose(np.mean(pooled_infectivities), 14 / 24, atol=0.1), (
+        f"Infectivity mean should be ~14/24, but got {np.mean(pooled_infectivities):.3f}"
+    )
+
+    # Test 7: Infectivity should be right-skewed
+    infectivity_mean = np.mean(pooled_infectivities)
+    infectivity_median = np.median(pooled_infectivities)
+    assert infectivity_mean > infectivity_median, (
+        f"Infectivity values should be right-skewed (mean > median), but got mean={infectivity_mean:.3f}, median={infectivity_median:.3f}"
+    )
+
+
 if __name__ == "__main__":
-    test_trans_default()
-    test_zero_trans()
-    test_double_trans()
-    test_linear_transmission()
-    test_zero_inflation()
+    # test_trans_default()
+    # test_zero_trans()
+    # test_double_trans()
+    # test_linear_transmission()
+    # test_zero_inflation()
+    test_r0_sans_heterogeneity()
+    test_r0_with_heterogeneity()
     print("All transmission tests passed!")

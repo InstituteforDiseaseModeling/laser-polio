@@ -114,18 +114,29 @@ def compute_log_likelihood_fit(
 
 def compute_nll_dirichlet(actual, predicted, weights=None):
     """
-    Compute negative log-likelihood with minimal, key-agnostic rules:
-    - If the observed target is a scalar -> Poisson.
-    - Otherwise (vector or matrix, including nested dicts) -> Dirichlet-multinomial
-      with alpha = simulated + 1 (posterior-predictive style).
+    Negative log-likelihood across heterogeneous components:
+      - 1-bin (scalar) targets -> Poisson
+      - >=2 bins (vector/matrix/nested) -> Dirichlet-Multinomial on the flattened bins
 
-    Automatically handles:
-      - lists / 1D arrays
-      - 1-level dicts (vector by sorted keys)
-      - 2-level nested dicts (rows = outer keys, cols = union of inner keys across obs/pred)
-      - dict -> list (inner list indexed as 0..K-1)
+    Parameters
+    ----------
+    actual, predicted : dict
+        Component -> data. Values can be scalars, lists/arrays, dicts, or dict-of-dicts/lists.
+    weights : dict | None
+        Optional per-component weights (default 1.0).
+    rho / tau / tau_per_bin :
+        How to set DM concentration tau (fixed across models). Priority: tau > tau_per_bin > rho*n_obs.
+    per_bin : bool
+        If True, normalize each DM log-likelihood by the number of bins K.
+    eps : float
+        Small positive number to avoid log(0) / zero probabilities.
+
+    Returns
+    -------
+    dict
+        Per-component negative log-likelihoods and "total_neg_ll".
     """
-    log_likelihoods = {}
+    log_likelihoods: dict[str, float] = {}
     weights = weights or {}
 
     def _to_matrix(obj):
@@ -221,12 +232,32 @@ def compute_nll_dirichlet(actual, predicted, weights=None):
                             out[i, j] = float(sub_list[c])
         return out
 
-    for key in actual:
+    def dm_rowwise(v_obs, v_sim, rho=1.0, eps=1e-12, average=False):
+        v_obs = np.asarray(v_obs, int)
+        v_sim = np.clip(np.asarray(v_sim, float), eps, None)
+        R = v_obs.shape[0]
+        total = 0.0
+        rows_used = 0
+        for i in range(R):
+            x = v_obs[i]
+            n = int(x.sum())
+            if n == 0:
+                continue
+            p = v_sim[i] / v_sim[i].sum()
+            tau = rho * n
+            alpha = tau * p
+            total += sps.dirichlet_multinomial.logpmf(x=x, n=n, alpha=alpha)
+            rows_used += 1
+        if average and rows_used > 0:
+            total /= rows_used  # optional: mean per row
+        return float(total)
+
+    for key in actual.keys():
         try:
             a = actual[key]
             p = predicted[key]
 
-            # Build aligned arrays
+            # 1) Align to the same 2D shape
             v_obs, row_labels, col_labels = _to_matrix(a)
             v_sim = _align_pred(p, row_labels, col_labels)
 
@@ -238,24 +269,21 @@ def compute_nll_dirichlet(actual, predicted, weights=None):
                     print(f"[WARN] Shape mismatch on '{key}': {v_obs.shape} vs {v_sim.shape}")
                 continue
 
-            # Clip simulation values to avoid negatives or log(0)
+            # 2) Clip simulated values to avoid negatives or log(0)
             v_sim = np.clip(v_sim, 1e-12, None)
 
             # Decide likelihood: scalar -> Poisson, else -> Dirichlet-multinomial
             if v_obs.size == 1:
-                # Poisson for scalar targets
+                # ---- Poisson for scalar target ----
                 y = np.round(v_obs[0, 0]).astype(int)
                 lam = max(float(v_sim[0, 0]), 1e-12)
                 logp = poisson.logpmf(y, lam)
             else:
-                # Dirichlet-multinomial for vectors/matrices (posterior-predictive with +1)
-                x = v_obs.astype(int)
-                n = x.sum(axis=1)
-                alpha = v_sim + 1.0
-                logp = sps.dirichlet_multinomial.logpmf(x=x, n=n, alpha=alpha)
+                # ---- Dirichlet-Multinomial on FLATTENED bins ----
+                logp = dm_rowwise(v_obs, v_sim)
 
             weight = float(weights.get(key, 1.0))
-            neg_ll = -1.0 * weight * np.sum(logp)
+            neg_ll = -1.0 * weight * logp
             log_likelihoods[key] = float(neg_ll)
 
         except Exception as e:

@@ -9,6 +9,7 @@ from kubernetes import config
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from get_lp_module_versions import check_version_match
 
+# TODO: uncomment lines 59, 70-75 after fixing the volume mount issue
 """
 This script is used to run the calibration workers on a Kubernetes cluster.
 Set tolerations and the node pool to either "64gb" or "128gb". 
@@ -55,7 +56,7 @@ container = client.V1Container(
     env_from=[client.V1EnvFromSource(secret_ref=client.V1SecretEnvSource(name="mysql-secrets"))],
     # resources=client.V1ResourceRequirements(requests={"cpu": "6"}, limits={"cpu": "7"}),
     resources=client.V1ResourceRequirements(requests={"memory": "50Gi"}),
-    volume_mounts=[client.V1VolumeMount(name="shared-data", mount_path=SHARED_DIR)],
+    # volume_mounts=[client.V1VolumeMount(name="shared-data", mount_path=SHARED_DIR)],
 )
 
 # Pod spec
@@ -66,12 +67,12 @@ template = client.V1PodTemplateSpec(
         image_pull_secrets=[client.V1LocalObjectReference(name="idmodregcred3")],
         node_selector={"nodepool": "64gb"},
         tolerations=[client.V1Toleration(key="nodepool", operator="Equal", value="64gb", effect="NoSchedule")],
-        volumes=[
-            client.V1Volume(
-                name="shared-data",
-                persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name=PERSISTENT_VOLUME_CLAIM_NAME),
-            )
-        ],
+        # volumes=[
+        #     client.V1Volume(
+        #         name="shared-data",
+        #         persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name=PERSISTENT_VOLUME_CLAIM_NAME),
+        #     )
+        # ],
     )
 )
 

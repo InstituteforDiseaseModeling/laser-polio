@@ -1,6 +1,6 @@
 parameters:
   r0:
-    low: 5.0
+    low: 0.1
     high: 20.0
   seasonal_amplitude:
     low: 0.0
@@ -14,6 +14,9 @@ parameters:
   max_migr_frac:
     low: 0.0
     high: 0.1
+  node_seeding_zero_inflation:
+    low: 0.01
+    high: 0.99
 
 metadata:
   scoring_fn: compute_nll_dirichlet

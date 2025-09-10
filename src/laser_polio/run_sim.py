@@ -85,9 +85,16 @@ def run_sim(
     r0_scalar_wt_center = configs.pop("r0_scalar_wt_center", 0.22)
     sia_re_center = configs.pop("sia_re_center", 0.5)
     sia_re_scale = configs.pop("sia_re_scale", 1.0)
+    ipv_vx = configs.pop("ipv_vx", True)  # If True, backcalculate IPV protections
 
     if os.getenv("POLIO_ROOT"):
         lp.root = Path(os.getenv("POLIO_ROOT"))
+
+    # Setup results path
+    if results_path is None:
+        results_path = Path("results/default")  # Provide a default path
+    Path(results_path).mkdir(parents=True, exist_ok=True)
+    results_path = Path(results_path)
 
     # Geography
     dot_names = lp.find_matching_dot_names(
@@ -134,41 +141,46 @@ def run_sim(
         else:
             configs["seed_schedule"] = background_seeds
 
-    # SIA schedule
-    start_date = lp.date(f"{start_year}-01-01")
-    historic = pd.read_csv(lp.root / "data/sia_historic_schedule.csv")
-    future = pd.read_csv(lp.root / "data/sia_scenario_1.csv")
-    sia_schedule = lp.process_sia_schedule_polio(pd.concat([historic, future]), dot_names, start_date, n_days, filter_to_type2=True)
-
     # Demographics and risk
     df_comp = pd.read_csv(lp.root / "data/compiled_cbr_pop_ri_sia_underwt_africa.csv")
     df_comp = df_comp[df_comp["year"] == start_year]
     pop = (df_comp.set_index("dot_name").loc[dot_names, "pop_total"].values * pop_scale).astype(int)
     cbr = df_comp.set_index("dot_name").loc[dot_names, "cbr"].values
+
+    # ---Setup R0 spatial scalars
+
+    underwt = df_comp.set_index("dot_name").loc[dot_names, "prop_underwt"].values
+    r0_scalars_wt = (
+        1 / (1 + np.exp(r0_scalar_wt_slope * (r0_scalar_wt_center - underwt)))
+    ) + r0_scalar_wt_intercept  # The 0.22 is the mean of Nigeria underwt
+
+    if use_pim_scalars:
+        # Scale PIM estimates using Nigeria mins and maxes to keep this consistent with the underweight scaling when geography is not Nigeria
+        # TODO: revisit this section if using geography outside Nigeria
+        pim_re = df_comp["reff_random_effect"].values  # get all values
+        nig_min = -0.0786359245626656
+        nig_max = 2.200145038240859
+        pim_scaled = (pim_re - nig_min) / (nig_max - nig_min)
+        # pim_scaled = (pim_re - pim_re.min()) / (pim_re.max() - pim_re.min())  # Rescale to [0, 1]
+        df_comp.loc[:, "pim_scaled"] = pim_scaled
+        pim_scaled = df_comp.set_index("dot_name").loc[dot_names, "pim_scaled"].values
+        r0_scalars = pim_scaled * (r0_scalars_wt.max() - r0_scalars_wt.min()) + r0_scalars_wt.min()
+    else:
+        r0_scalars = r0_scalars_wt
+
+    # --- Setup vaccination interventions ---
+
+    # Routine immunization probabilities
     ri = df_comp.set_index("dot_name").loc[dot_names, "ri_eff"].values
     ri_ipv = df_comp.set_index("dot_name").loc[dot_names, "dpt3"].values
     # SIA probabilities
     sia_re = df_comp.set_index("dot_name").loc[dot_names, "sia_random_effect"].values
     sia_prob = lp.calc_sia_prob_from_rand_eff(sia_re, center=sia_re_center, scale=sia_re_scale)
-    # R0 scalars
-    underwt = df_comp.set_index("dot_name").loc[dot_names, "prop_underwt"].values
-    r0_scalars_wt = (
-        1 / (1 + np.exp(r0_scalar_wt_slope * (r0_scalar_wt_center - underwt)))
-    ) + r0_scalar_wt_intercept  # The 0.22 is the mean of Nigeria underwt
-    # Scale PIM estimates using Nigeria mins and maxes to keep this consistent with the underweight scaling when geography is not Nigeria
-    # TODO: revisit this section if using geography outside Nigeria
-    pim_re = df_comp["reff_random_effect"].values  # get all values
-    nig_min = -0.0786359245626656
-    nig_max = 2.200145038240859
-    pim_scaled = (pim_re - nig_min) / (nig_max - nig_min)
-    # pim_scaled = (pim_re - pim_re.min()) / (pim_re.max() - pim_re.min())  # Rescale to [0, 1]
-    df_comp.loc[:, "pim_scaled"] = pim_scaled
-    pim_scaled = df_comp.set_index("dot_name").loc[dot_names, "pim_scaled"].values
-    r0_scalar_pim = pim_scaled * (r0_scalars_wt.max() - r0_scalars_wt.min()) + r0_scalars_wt.min()
-    if use_pim_scalars:
-        r0_scalars = r0_scalar_pim
-    else:
-        r0_scalars = r0_scalars_wt
+    # SIA scheduled
+    start_date = lp.date(f"{start_year}-01-01")
+    historic = pd.read_csv(lp.root / "data/sia_historic_schedule.csv")
+    future = pd.read_csv(lp.root / "data/sia_scenario_1.csv")
+    sia_schedule = lp.process_sia_schedule_polio(pd.concat([historic, future]), dot_names, start_date, n_days, filter_to_type2=True)
 
     # --- Calculate the number of initial susceptible people ---
 
@@ -183,13 +195,9 @@ def run_sim(
     init_immun = pd.read_hdf(lp.root / "data/init_immunity_0.5coverage_january.h5", key="immunity")
     init_immun = init_immun.set_index("dot_name").loc[dot_names]
     init_immun = init_immun[init_immun["period"] == start_year]
-    # Apply scalar multiplier to immunity values, clipping to [0.0, 1.0]
-    immunity_cols = [col for col in init_immun.columns if col.startswith("immunity_")]
-    init_immun.loc[:, immunity_cols] = init_immun[immunity_cols] * init_immun_scalar
     # Set immunity for 15+ to 1.0
     init_immun.loc[:, "immunity_180_1200"] = 1.0
-    # Clip immunity values to [0.0, 1.0]
-    init_immun[immunity_cols] = init_immun[immunity_cols].clip(lower=0.0, upper=1.0)
+
     # Wide → Long
     init_immun_long = init_immun.reset_index().melt(
         id_vars="dot_name",
@@ -251,8 +259,8 @@ def run_sim(
     # Sum by dot_name
     immun_summary = sus_by_age_node.groupby("dot_name")[["n_immune", "n_susceptible"]].sum()
     # Account for rounding errors & handle them in the oldest age bin
-    pop_diff = pop - immun_summary["n_immune"] - immun_summary["n_susceptible"]
-    sus_by_age_node.loc[sus_by_age_node["age_max_months_immun"] == 1201, "n_immune"] += pop_diff.values
+    pop_diff = np.array(pop) - np.array(immun_summary["n_immune"].values) - np.array(immun_summary["n_susceptible"].values)
+    sus_by_age_node.loc[sus_by_age_node["age_max_months_immun"] == 1201, "n_immune"] += pop_diff
     # Re-calculate the immune & susceptible counts
     immun_summary = sus_by_age_node.groupby("dot_name")[["n_immune", "n_susceptible"]].sum()
     # Convert age_min_months_immun to years
@@ -262,6 +270,15 @@ def run_sim(
     # Drop age_min_months_immun and age_max_months_immun
     sus_by_age_node = sus_by_age_node.drop(columns=["age_min_months_immun", "age_max_months_immun"])
     sus_summary = sus_by_age_node.groupby("dot_name")["n_susceptible"].sum().astype(int)
+
+    # Apply scalar multiplier to immunity values, clipping to [0.0, 1.0]
+    if init_immun_scalar != 1.0:
+        tot_pop = sus_by_age_node["n_susceptible"] + sus_by_age_node["n_immune"]
+        prop_immune = sus_by_age_node["n_immune"] / tot_pop
+        scaled_prop_immune = (prop_immune * init_immun_scalar).clip(lower=0.0, upper=1.0)
+        sus_by_age_node["n_immune"] = (tot_pop * scaled_prop_immune).astype(int)
+        sus_by_age_node["n_susceptible"] = (tot_pop * (1 - scaled_prop_immune)).astype(int)
+
     # Sanity checks
     assert np.all(age_merged["immune_frac"] <= 1.0), "Immunity fraction exceeds 1.0"
     assert np.all(age_merged["immune_frac"] >= 0.0), "Negative immunity fraction"
@@ -276,6 +293,7 @@ def run_sim(
     assert np.all(sus_by_age_node["n_susceptible"] >= 0.0), "Negative susceptible count"
 
     # ---- Backcalculate RI IPV Protection ----
+
     # IPV prevents paralysis but does not block transmission.
     # Since IPV and OPV immunity groups are assumed to overlap, and OPV-protected individuals
     # were already marked as Recovered (i.e., immune to both transmission and paralysis),
@@ -284,7 +302,7 @@ def run_sim(
     # Initialize IPV protection column
     sus_by_age_node["n_ipv_protected"] = 0
     # Check if IPV parameters are available
-    if ri_ipv is not None and len(ri_ipv) > 0:
+    if ipv_vx and ri_ipv is not None and len(ri_ipv) > 0:
         # IPV eligibility threshold (must be born after ipv_start_year) + 98 days (roughly the timing of 2nd dose of RI IPV (+ 3rd dose of OPV))
         # Convert to years for comparison with age bins
         ipv_start_year = config.get("ipv_start_year", 2015)  # Default IPV start year is 2015
@@ -339,13 +357,6 @@ def run_sim(
 
     # Validate all arrays match
     assert all(len(arr) == len(dot_names) for arr in [shp, node_lookup, init_prevs, pop, cbr, ri, ri_ipv, sia_prob, r0_scalars])
-
-    # Setup results path
-    if results_path is None:
-        results_path = Path("results/default")  # Provide a default path
-
-    Path(results_path).mkdir(parents=True, exist_ok=True)
-    results_path = Path(results_path)
 
     # Base parameters (can be overridden)
     base_pars = {

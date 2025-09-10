@@ -345,6 +345,7 @@ def disease_state_step(
     node_id,
     n_nodes,
     disease_state,
+    strain,
     active_count,
     exposure_timer,
     infection_timer,
@@ -371,6 +372,7 @@ def disease_state_step(
         node_id,
         n_nodes,
         disease_state,
+        strain,
         active_count,
         exposure_timer,
         infection_timer,
@@ -393,6 +395,7 @@ def disease_state_step_kernel(
     node_id,
     n_nodes,
     disease_state,
+    strain,
     active_count,
     exposure_timer,
     infection_timer,
@@ -414,41 +417,41 @@ def disease_state_step_kernel(
 
         # ---- Exposed to Infected Transition ----
         if disease_state[i] == 1:  # Exposed
-            # Decrement first because newly exposed were set after last disease-state step
-            exposure_timer[i] -= 1
             if exposure_timer[i] <= 0:
                 disease_state[i] = 2  # Become infected
+            exposure_timer[i] -= 1
 
-        # ---- Infected to Recovered Transition ----
-        if disease_state[i] == 2:  # Infected
+        # ---- Infected & paralysis ----
+        if disease_state[i] == 2:
+            # ---- Infected to Recovered Transition ----
             if infection_timer[i] <= 0:
                 disease_state[i] = 3  # Become recovered
             infection_timer[i] -= 1
 
-        # ---- Paralysis ----
-        if disease_state[i] in (1, 2, 3):
-            # NOTE: Currently we don't have strain tracking, so I had to set potentially_paralyzed to 0 in SIA_ABM & RI_ABM, otherwise those interventions would cause potential paralysis cases.
-            # TODO: revise when we have strain stracking
-            # TODO: remove the potential_paralysis attributes from RI & SIAs after we have strain tracking
-            # Any time after exposure, but not yet potentially paralyzed
-            if potentially_paralyzed[i] == -1:  # after exposure, but not yet flagged
+            # ---- Paralysis ----
+            # Paralysis can only occur during the infected stage & only for paralytic strains
+            # Paralysis timer is parameterized as time from exposure to paralysis. During initialization, it's trimmed to be within the range of the exposure and infection timers.
+            if strain[i] == 0:
                 if paralysis_timer[i] <= 0:
-                    if ipv_protected[i] == 0:
-                        potentially_paralyzed[i] = 1
-                        was_potentially_paralyzed = True
-                        # Numba supports np.random.random() in nopython mode
-                        if np.random.random() < p_paralysis:
-                            paralyzed[i] = 1
-                            was_paralyzed = True
-                    else:
-                        # Explicitly set to 0 if protected
-                        potentially_paralyzed[i] = 0
-                paralysis_timer[i] -= 1
+                    if potentially_paralyzed[i] == -1:
+                        # If infected with a paralytic strain and not yet potentially paralyzed
+                        if ipv_protected[i] == 0:
+                            potentially_paralyzed[i] = 1
+                            was_potentially_paralyzed = True
+                            if np.random.random() < p_paralysis:
+                                paralyzed[i] = 1
+                                was_paralyzed = True
+                        else:
+                            # Explicitly set to 0 if ipv_protected
+                            potentially_paralyzed[i] = 0
+                paralysis_timer[i] -= 1  # Only decrement if it's a paralytic strain
 
-        if was_potentially_paralyzed:
-            local_new_potential[tid, nid] += 1
-        if was_paralyzed:
-            local_new_paralyzed[tid, nid] += 1
+                if was_potentially_paralyzed:
+                    local_new_potential[tid, nid] += 1
+                if was_paralyzed:
+                    local_new_paralyzed[tid, nid] += 1
+
+    return
 
 
 @nb.njit(parallel=True, cache=True)
@@ -559,22 +562,33 @@ class DiseaseState_ABM:
         self._common_init(sim)
         self._initialize_results_arrays()
         self.verbose = sim.pars["verbose"] if "verbose" in sim.pars else 1
-
-        # Initialize all agents with an exposure_timer, infection_timer, and paralysis_timer
-        sim.people.add_scalar_property("exposure_timer", dtype=np.uint8, default=0)
-        sim.people.exposure_timer[:] = self.pars.dur_exp(self.people.capacity)
-        sim.people.add_scalar_property("infection_timer", dtype=np.uint8, default=0)
-        sim.people.infection_timer[:] = self.pars.dur_inf(self.people.capacity)
-        sim.people.add_scalar_property("paralysis_timer", dtype=np.uint8, default=0)
-        sim.people.paralysis_timer[:] = self.pars.t_to_paralysis(self.people.capacity)
-
         pars = self.pars
 
-        # logger.debug(f"Before immune initialization, we have {sim.people.count} active agents.")
-        if self.verbose >= 2:
-            print(f"Before immune initialization, we have {sim.people.count} active agents.")
+        # -- Initialize timers --
+        # NOTE: Timers are now stored as np.int8 instead of np.uint8.
+        # This reduces the maximum timer value from 255 to 127 days.
+        # The change is intentional: timer values are clipped to 127, and int8 may be preferred for memory savings or to allow negative values if needed.
+        sim.people.add_scalar_property("exposure_timer", dtype=np.int8, default=0)
+        sim.people.add_scalar_property("infection_timer", dtype=np.int8, default=0)
+        sim.people.add_scalar_property("paralysis_timer", dtype=np.int8, default=0)
+        # Initialize exposure and infection timers
+        sim.people.exposure_timer[:] = self.pars.dur_exp(sim.people.capacity)
+        sim.people.infection_timer[:] = self.pars.dur_inf(sim.people.capacity)
+        # Clip exposure and infection timers to be within the range of 0 and 127 (the max value for an int8)
+        sim.people.exposure_timer[:] = np.clip(sim.people.exposure_timer, 0, 127)
+        sim.people.infection_timer[:] = np.clip(sim.people.infection_timer, 0, 127)
+        # The paralysis timer is parameterized as 'time from exposure to paralysis'.
+        # We adjust it to 'time remaining after exposure period' by subtracting the exposure timer.
+        # Then, we clip it to ensure paralysis occurs during the infection period (i.e., after exposure but before recovery).
+        raw_paralysis_time = self.pars.t_to_paralysis(sim.people.capacity)
+        raw_paralysis_time = raw_paralysis_time - sim.people.exposure_timer
+        upper_bound = np.minimum(sim.people.infection_timer, 127)
+        paralysis_timer = np.clip(raw_paralysis_time, 0, upper_bound).astype(np.int8)
+        sim.people.paralysis_timer[:] = paralysis_timer
 
         # -- Initialize immunity --
+        if self.verbose >= 2:
+            print(f"Before immune initialization, we have {sim.people.count} active agents.")
         if pars.init_sus_by_age is None:
             # Normalize init_immun into per-node immunity fractions
             if isinstance(pars.init_immun, float):
@@ -709,6 +723,7 @@ class DiseaseState_ABM:
             node_id=self.people.node_id,
             n_nodes=n_nodes,
             disease_state=self.people.disease_state,
+            strain=self.people.strain,
             active_count=self.people.count,
             exposure_timer=self.people.exposure_timer,
             infection_timer=self.people.infection_timer,
@@ -722,6 +737,24 @@ class DiseaseState_ABM:
         )
         self.results.new_potentially_paralyzed[t, :] = new_potential
         self.results.new_paralyzed[t, :] = new_paralyzed
+
+        # Debugging
+        if self.verbose >= 3:
+            logger.info(f"DISEASE STATE STEP at time: {self.sim.t}")
+
+            # Who is exposed?
+            exposed = self.people.disease_state == 1
+            logger.info(f"Exposed IDs: {np.where(exposed)[0]}")
+            logger.info(f"Exposure timers: {self.people.exposure_timer[np.where(exposed)[0]]}")
+            unique_exposure_timers, counts_exposure_timers = np.unique(self.people.exposure_timer, return_counts=True)
+            logger.info(f"Unique exposure timers: {dict(zip(unique_exposure_timers, counts_exposure_timers, strict=False))}")
+
+            # Who is infected?
+            infected = self.people.disease_state == 2
+            logger.info(f"Infected IDs: {np.where(infected)[0]}")
+            logger.info(f"Infection timers: {self.people.infection_timer[np.where(infected)[0]]}")
+            unique_infection_timers, counts_infection_timers = np.unique(self.people.infection_timer, return_counts=True)
+            logger.info(f"Unique infection timers: {dict(zip(unique_infection_timers, counts_infection_timers, strict=False))}")
 
         # --- Seed infections from seed_schedule ---
         if t in self.seed_schedule:
@@ -1789,7 +1822,6 @@ def get_deaths(num_nodes, num_people, disease_state, node_id, date_of_death, t, 
         nb.int32[:, :],
         nb.int32[:, :],
         nb.uint8[:],
-        nb.int8[:],
         nb.int8,
     ),
     parallel=True,
@@ -1810,7 +1842,6 @@ def fast_ri(
     local_ri_protected,
     local_ipv_counts,
     chronically_missed,
-    potentially_paralyzed,
     ri_vaccine_strain,
 ):
     """
@@ -1843,12 +1874,9 @@ def fast_ri(
                     disease_state[i] = 1  # Set to exposed
                     strain[i] = ri_vaccine_strain  # Set vaccine strain
                     local_ri_protected[nb.get_thread_id(), node] += 1  # Increment protected count
-                    # TODO remove when we have strain tracking hooked up into paralysis
-                    potentially_paralyzed[i] = 0  # Assume that vaccine strains don't cause paralysis
             if np.random.rand() < prob_ipv:
                 local_ipv_counts[nb.get_thread_id(), node] += 1
                 ipv_protected[i] = 1
-
     return
 
 
@@ -1961,7 +1989,6 @@ class RI_ABM:
                 local_ri_protected=local_ri_protected,
                 local_ipv_counts=local_ipv_counts,
                 chronically_missed=self.people.chronically_missed,
-                potentially_paralyzed=self.people.potentially_paralyzed,
                 ri_vaccine_strain=ri_vaccine_strain,
             )
             # Sum up the counts from all threads
@@ -2005,7 +2032,6 @@ def fast_sia(
     local_vaccinated,
     local_protected,
     chronically_missed,
-    potentially_paralyzed,
     sia_vaccine_strain,
 ):
     """
@@ -2025,7 +2051,6 @@ def fast_sia(
         local_vaccinated: Output array for vaccinated counts (threads x nodes).
         local_protected: Output array for protected counts (threads x nodes).
         chronically_missed: Array indicating chronically missed individuals.
-        potentially_paralyzed: Array for paralysis tracking.
         sia_vaccine_strain: Integer strain ID for this vaccine type.
     """
     num_people = count
@@ -2057,9 +2082,6 @@ def fast_sia(
                     disease_states[i] = 1  # Move to Exposed state (vaccine infection)
                     strain[i] = sia_vaccine_strain  # Set vaccine strain
                     local_protected[thread_id, node] += 1  # Increment protected count
-                    # TODO remove when we have strain tracking hooked up into paralysis
-                    potentially_paralyzed[i] = 0  # Vaccine strains don't cause paralysis
-
     return
 
 
@@ -2140,7 +2162,6 @@ class SIA_ABM:
                     local_vaccinated,
                     local_protected,
                     chronically_missed=self.people.chronically_missed,
-                    potentially_paralyzed=self.people.potentially_paralyzed,
                     sia_vaccine_strain=sia_vaccine_strain,
                 )
                 self.results.sia_vaccinated[t] = local_vaccinated.sum(
