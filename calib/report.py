@@ -624,7 +624,7 @@ def _plot_targets_impl(actual, preds, output_dir, shp, model_config, start_year,
         n_months = len(actual["cases_by_month_timeseries"])
         months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
         plt.figure()
-        plt.title(f"Cases by Month - {title_prefix}")
+        plt.title(f"Cases by Month Timeseries - {title_prefix}")
         plt.plot(months_series, actual["cases_by_month_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
         for i, rep in enumerate(preds):
             label = f"Rep {i + 1}"
@@ -639,7 +639,7 @@ def _plot_targets_impl(actual, preds, output_dir, shp, model_config, start_year,
     if "cases_by_month" in actual:
         months = list(range(1, 1 + len(actual["cases_by_month"])))
         plt.figure(figsize=(10, 6))
-        plt.title(f"Cases by Month (Aggregated Across Years) - {title_prefix}")
+        plt.title(f"Cases by Month (Aggregated Across Years)- {title_prefix}")
         plt.plot(months, actual["cases_by_month"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
         for i, rep in enumerate(preds):
             label = f"Rep {i + 1}"
