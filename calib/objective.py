@@ -48,15 +48,16 @@ def objective(
     for rep in range(n_replicates):
         try:
             # Run sim
-            sim = lp.run_sim(config, verbose=0)
+            verbose = 0
+            sim = lp.run_sim(config, verbose=verbose)
 
             # Record seed (first rep only)
             if rep == 0:
                 trial.set_user_attr("rand_seed", sim.pars.seed)
 
             # Evaluate fit
-            actual = target_fn(actual_data_file, model_config_path, is_actual_data=True)
-            predicted = target_fn(results_file, model_config_path, is_actual_data=False)
+            actual = target_fn(actual_data_file, model_config_path, is_actual_data=True, verbose=verbose)
+            predicted = target_fn(results_file, model_config_path, is_actual_data=False, verbose=verbose)
             weights = calib_config.get("metadata", {}).get("weights", {})
             scores = scoring_fn(actual, predicted, weights=weights)
             score = scores["total_log_likelihood"]

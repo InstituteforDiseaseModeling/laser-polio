@@ -57,7 +57,8 @@ def run_sim(
     # Configure logging based on verbose level
     configure_logging(verbose)
 
-    print("run_sim started")
+    if verbose > 0:
+        print("run_sim started")
     config = config or {}
     configs = sc.mergedicts(config, kwargs)
 
@@ -428,7 +429,8 @@ def run_sim(
         sim = regular()
         if save_init_pop:
             sim.people.save_snapshot(results_path / "init_pop.h5", sim.results.R[:], sim.pars)
-    print("Initialized")
+    if verbose > 0:
+        print("Initialized")
 
     # Safety checks
     if verbose >= 3:

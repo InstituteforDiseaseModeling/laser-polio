@@ -265,7 +265,7 @@ def calc_targets_simplified_temporal(filename, model_config_path=None, is_actual
     return targets
 
 
-def calc_targets_regional(filename, model_config_path=None, is_actual_data=True):
+def calc_targets_regional(filename, model_config_path=None, is_actual_data=True, verbose=0):
     """Load simulation results and extract target features for comparison.
 
     Targets are:
@@ -319,7 +319,7 @@ def calc_targets_regional(filename, model_config_path=None, is_actual_data=True)
     targets["cases_by_month"] = cases_by_month_across_years.values
 
     # Total cases by region (across all time periods)
-    cases_by_region = df.groupby("region")[case_col].sum() * scale_factor
+    cases_by_region = df.groupby("region", observed=True)[case_col].sum() * scale_factor
     targets["cases_by_region"] = cases_by_region.to_dict()
 
     # Cases by region and time_period
@@ -331,7 +331,9 @@ def calc_targets_regional(filename, model_config_path=None, is_actual_data=True)
     targets["cases_by_region_period"] = cases_by_region_period_nested
 
     # Regional monthly timeseries
-    regional_monthly_df = df.groupby(["region", df["date"].dt.to_period("M")])[case_col].sum().sort_index().astype(float) * scale_factor
+    regional_monthly_df = (
+        df.groupby(["region", df["date"].dt.to_period("M")], observed=True)[case_col].sum().sort_index().astype(float) * scale_factor
+    )
     # Convert to dictionary with arrays per region
     cases_by_region_month = {}
     for region in df["region"].unique():
@@ -349,8 +351,9 @@ def calc_targets_regional(filename, model_config_path=None, is_actual_data=True)
         # Fallback to default values
         bins = [0, 1, 2, 3, 4, 5, 10, 20, np.inf]
     # Count the number of unique dot_names by region
-    dot_names_by_region = df.groupby("region")["dot_name"].nunique().to_dict()
-    print(f"{dot_names_by_region=}")
+    dot_names_by_region = df.groupby("region", observed=True)["dot_name"].nunique().to_dict()
+    if verbose > 0:
+        print(f"{dot_names_by_region=}")
     case_bins_by_region = {}
     for region in df["region"].unique():
         region_mask = df["region"] == region
