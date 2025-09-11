@@ -10,6 +10,7 @@ metadata:
     cases_total: 5.0
     cases_by_period: 1.0
     cases_by_month: 1.0
+    cases_by_month_timeseries: 1.0
     cases_by_region: 1.0
     cases_by_region_period: 1.0
     cases_by_region_month: 0.0

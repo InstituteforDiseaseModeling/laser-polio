@@ -1,0 +1,17 @@
+parameters:
+  seasonal_peak_doy:
+    low: 0
+    high: 360
+    
+metadata:
+  scoring_fn: compute_nll_dirichlet
+  target_fn: calc_targets_regional
+  weights:
+    cases_total: 0.0
+    cases_by_period: 0.0
+    cases_by_month_timeseries: 0.0
+    cases_by_month: 1.0
+    cases_by_region: 0.0
+    cases_by_region_period: 0.0
+    cases_by_region_month: 0.0
+    case_bins_by_region: 0.0

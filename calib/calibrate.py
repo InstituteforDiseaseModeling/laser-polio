@@ -17,13 +17,18 @@ import laser_polio as lp
 
 # ------------------- USER CONFIGS -------------------
 
-study_name = "calib_zamfara_20250910"
-model_config = "config_zamfara.yaml"
-calib_config = "r0.yaml"
+# study_name = "calib_zamfara_20250911v4"
+# model_config = "config_zamfara.yaml"
+# calib_config = "r0.yaml"
 
 # study_name = "calib_nigeria_7y_2017_underwt_regions_maxmigrfrac_dm_fix_20250822"
 # model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac.yaml"
 # calib_config = "r0_k_ssn_wts_maxmigrfrac.yaml"
+
+# Goal: Calibrate only the seasonal_peak_doy parameter
+study_name = "calib_nga_7y_doy_20250911"
+model_config = "nigeria_7y_2017_regions_radiation_ssn_nozi_underwt.yaml"
+calib_config = "doy.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 2
