@@ -5,7 +5,7 @@ parameters:
     
 metadata:
   scoring_fn: compute_nll_dirichlet
-  target_fn: calc_targets_regional_by_period
+  target_fn: calc_targets_regional
   weights:
     cases_total: 0.0
     cases_by_period: 0.0
