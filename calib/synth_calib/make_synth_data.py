@@ -1,4 +1,4 @@
-import numpy as np
+import matplotlib.pyplot as plt
 import pandas as pd
 import sciris as sc
 import yaml
@@ -57,8 +57,9 @@ def make_synth_df_from_results(sim):
                     "E": results.E[t, n],
                     "I": results.I[t, n],
                     "R": results.R[t, n],
-                    "P": results.paralyzed[t, n],
                     "new_exposed": results.new_exposed[t, n],
+                    "new_potentially_paralyzed": results.new_potentially_paralyzed[t, n],
+                    "new_paralyzed": results.new_paralyzed[t, n],
                 }
             )
 
@@ -73,17 +74,8 @@ def make_synth_df_from_results(sim):
     df["month_start"] = df["date"].values.astype("datetime64[M]")  # fast way
 
     # Group by dot_name and month_start, then sum the P column
-    grouped = df.groupby(["dot_name", "month_start"])["new_exposed"].sum().reset_index()
-
-    # Divide by 2000 & convert to integers
-    grouped["new_exposed"] /= 2000
-
-    cases = []
-    for i in range(len(grouped["new_exposed"])):
-        expected = grouped["new_exposed"][i]
-        paralytic_cases = np.random.poisson(expected)
-        cases.append(paralytic_cases)
-    grouped["cases"] = cases
+    grouped = df.groupby(["dot_name", "month_start"])[["new_potentially_paralyzed", "new_paralyzed"]].sum().reset_index()
+    grouped["cases"] = grouped["new_paralyzed"]
 
     return grouped
 
@@ -93,6 +85,18 @@ df = make_synth_df_from_results(sim)
 df["month_start"] = pd.to_datetime(df["month_start"]).astype("datetime64[ns]")
 print(df.dtypes)
 print(df.head())
+
+# Plot the case data over time
+plt.figure()
+cases_by_month = df.groupby("month_start")["new_paralyzed"].sum()
+plt.plot(cases_by_month, label="New Paralyzed")
+plt.legend()
+plt.title("New Paralyzed Cases by Month")
+plt.xlabel("Month")
+plt.ylabel("Cases")
+plt.grid()
+plt.savefig(f"{results_path}/new_paralyzed_cases_by_month.png")
+plt.show()
 
 # Save as h5
 synth_filename = f"{results_path}/synth_data.h5"
