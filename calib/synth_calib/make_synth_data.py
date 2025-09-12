@@ -86,18 +86,30 @@ df["month_start"] = pd.to_datetime(df["month_start"]).astype("datetime64[ns]")
 print(df.dtypes)
 print(df.head())
 
-# Plot the case data over time
-plt.figure()
-cases_by_month = df.groupby("month_start")["new_paralyzed"].sum()
-plt.plot(cases_by_month, label="New Paralyzed")
-plt.legend()
-plt.title("New Paralyzed Cases by Month")
-plt.xlabel("Month")
-plt.ylabel("Cases")
-plt.grid()
-plt.savefig(f"{results_path}/new_paralyzed_cases_by_month.png")
-plt.show()
+# Plot with two y-axes
+fig, ax1 = plt.subplots(figsize=(10, 6))
 
+# Left y-axis: new_paralyzed
+cases_by_month = df.groupby("month_start")[["new_paralyzed", "new_potentially_paralyzed"]].sum()
+ax1.plot(cases_by_month.index, cases_by_month["new_paralyzed"], color="tab:blue", label="New Paralyzed", linewidth=2)
+ax1.set_xlabel("Month")
+ax1.set_ylabel("New Paralyzed", color="tab:blue")
+ax1.tick_params(axis="y", labelcolor="tab:blue")
+
+# Right y-axis: new_potentially_paralyzed
+ax2 = ax1.twinx()
+ax2.plot(cases_by_month.index, cases_by_month["new_potentially_paralyzed"], color="tab:red", linestyle="--", label="New Potentially Paralyzed", linewidth=2)
+ax2.set_ylabel("New Potentially Paralyzed", color="tab:red")
+ax2.tick_params(axis="y", labelcolor="tab:red")
+
+# Title and grid
+fig.suptitle("Paralyzed vs. Potentially Paralyzed Cases by Month")
+ax1.grid(True)
+
+# Save and show
+fig.tight_layout()
+plt.savefig(f"{results_path}/cases_by_month_dual_axes.png")
+plt.show()
 # Save as h5
 synth_filename = f"{results_path}/synth_data.h5"
 df.to_hdf(synth_filename, key="epi", mode="w", format="table")
