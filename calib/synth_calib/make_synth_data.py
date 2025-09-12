@@ -1,4 +1,4 @@
-import numpy as np
+import matplotlib.pyplot as plt
 import pandas as pd
 import sciris as sc
 import yaml
@@ -57,8 +57,9 @@ def make_synth_df_from_results(sim):
                     "E": results.E[t, n],
                     "I": results.I[t, n],
                     "R": results.R[t, n],
-                    "P": results.paralyzed[t, n],
                     "new_exposed": results.new_exposed[t, n],
+                    "new_potentially_paralyzed": results.new_potentially_paralyzed[t, n],
+                    "new_paralyzed": results.new_paralyzed[t, n],
                 }
             )
 
@@ -73,17 +74,8 @@ def make_synth_df_from_results(sim):
     df["month_start"] = df["date"].values.astype("datetime64[M]")  # fast way
 
     # Group by dot_name and month_start, then sum the P column
-    grouped = df.groupby(["dot_name", "month_start"])["new_exposed"].sum().reset_index()
-
-    # Divide by 2000 & convert to integers
-    grouped["new_exposed"] /= 2000
-
-    cases = []
-    for i in range(len(grouped["new_exposed"])):
-        expected = grouped["new_exposed"][i]
-        paralytic_cases = np.random.poisson(expected)
-        cases.append(paralytic_cases)
-    grouped["cases"] = cases
+    grouped = df.groupby(["dot_name", "month_start"])[["new_potentially_paralyzed", "new_paralyzed"]].sum().reset_index()
+    grouped["cases"] = grouped["new_paralyzed"]
 
     return grouped
 
@@ -94,6 +86,30 @@ df["month_start"] = pd.to_datetime(df["month_start"]).astype("datetime64[ns]")
 print(df.dtypes)
 print(df.head())
 
+# Plot with two y-axes
+fig, ax1 = plt.subplots(figsize=(10, 6))
+
+# Left y-axis: new_paralyzed
+cases_by_month = df.groupby("month_start")[["new_paralyzed", "new_potentially_paralyzed"]].sum()
+ax1.plot(cases_by_month.index, cases_by_month["new_paralyzed"], color="tab:blue", label="New Paralyzed", linewidth=2)
+ax1.set_xlabel("Month")
+ax1.set_ylabel("New Paralyzed", color="tab:blue")
+ax1.tick_params(axis="y", labelcolor="tab:blue")
+
+# Right y-axis: new_potentially_paralyzed
+ax2 = ax1.twinx()
+ax2.plot(cases_by_month.index, cases_by_month["new_potentially_paralyzed"], color="tab:red", linestyle="--", label="New Potentially Paralyzed", linewidth=2)
+ax2.set_ylabel("New Potentially Paralyzed", color="tab:red")
+ax2.tick_params(axis="y", labelcolor="tab:red")
+
+# Title and grid
+fig.suptitle("Paralyzed vs. Potentially Paralyzed Cases by Month")
+ax1.grid(True)
+
+# Save and show
+fig.tight_layout()
+plt.savefig(f"{results_path}/cases_by_month_dual_axes.png")
+plt.show()
 # Save as h5
 synth_filename = f"{results_path}/synth_data.h5"
 df.to_hdf(synth_filename, key="epi", mode="w", format="table")
