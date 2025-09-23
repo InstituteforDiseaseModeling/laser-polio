@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 import cloud_calib_config as cfg
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import optuna
@@ -21,7 +22,7 @@ import optuna
 # ------------------- USER CONFIGS -------------------
 USER = {
     "study_name": None,  # If None, use cloud_calib_config.study_name
-    "sweep_param": "seasonal_peak_doy",
+    "sweep_param": "seasonal_amplitude",
     "n_bins": 3,  # Number of bins across the sweep param
     "n_per_bin": 10,  # Number of trials to plot per bin
     "output_root": None,  # If None -> results/<study_name>/sweep_<param>/
@@ -200,8 +201,6 @@ def plot_cases_overlay(study, trial_numbers, sweep_par, title, output_path, ymax
         ay = np.asarray(actual["cases_by_month"], dtype=float)
         x = np.arange(len(ay))
         ax.plot(x, ay, alpha=0.8, label="actual", color="black", linewidth=3)
-    else:
-        ay = None
 
     # Pull 'best' calib values
     best = study.best_trial.user_attrs["predicted"][0]
@@ -209,12 +208,24 @@ def plot_cases_overlay(study, trial_numbers, sweep_par, title, output_path, ymax
     if isinstance(best, dict) and "cases_by_month" in best:
         by = np.asarray(best["cases_by_month"], dtype=float)
         x = np.arange(len(by))
-        ax.plot(x, by, alpha=0.8, label=f"best ({sweep_par}={best_param:.4g})", color="black", linestyle=":", linewidth=2)
-    else:
-        by = None
+        ax.plot(
+            x,
+            by,
+            alpha=0.8,
+            label=f"best ({sweep_par}={best_param:.4g})",
+            color="black",
+            linestyle=":",
+            linewidth=2,
+        )
 
-    # Overlay predictions
-    for tn in trial_numbers:
+    # --- NEW: colormap based on sweep_par value ---
+    vals = [study.trials[int(tn)].params.get(sweep_par, np.nan) for tn in trial_numbers]
+    vals = np.asarray(vals, dtype=float)
+    norm = mpl.colors.Normalize(vmin=np.nanmin(vals), vmax=np.nanmax(vals))
+    cmap = plt.cm.RdBu_r  # red-to-blue
+
+    # Overlay predictions with colored lines
+    for tn, val in zip(trial_numbers, vals, strict=False):
         ua = study.trials[int(tn)].user_attrs
         pred_list = ua.get("predicted", None)
         pred = pred_list[0] if isinstance(pred_list, (list, tuple)) else pred_list
@@ -222,15 +233,22 @@ def plot_cases_overlay(study, trial_numbers, sweep_par, title, output_path, ymax
             continue
         y = np.asarray(pred["cases_by_month"], dtype=float)
         x = np.arange(len(y))
-        par_val = study.trials[int(tn)].params.get(sweep_par, None)
-        lbl = f"trial {tn}" + (f", {sweep_par}={par_val:.4g}" if par_val is not None else "")
-        ax.plot(x, y, alpha=0.6, label=lbl, linestyle="--")
+        color = cmap(norm(val))
+        lbl = f"trial {tn}, {sweep_par}={val:.4g}"
+        ax.plot(x, y, alpha=0.6, label=lbl, linestyle="--", color=color)
 
     ax.set_title(title)
     ax.set_xlabel("Months since start")
     ax.set_ylabel("Cases")
     if ymax is not None:
         ax.set_ylim(0, ymax)
+
+    # Add colorbar legend for the sweep parameter values
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cbar = plt.colorbar(sm, ax=ax)
+    cbar.set_label(sweep_par)
+
     ax.legend(loc="best", fontsize=8)
 
     if output_path:
