@@ -25,10 +25,15 @@ import laser_polio as lp
 # model_config = "config_nigeria_7y_2017_regions_sansmaxmigrfrac.yaml"
 # calib_config = "r0_k_ssn_wts_maxmigrfrac.yaml"
 
-# Goal: Calibrate only the seasonal_peak_doy parameter
-study_name = "calib_nga_7y_doy_20250911"
-model_config = "nigeria_7y_2017_regions_radiation_ssn_nozi_underwt.yaml"
-calib_config = "doy.yaml"
+# # Goal: Calibrate only the seasonal_peak_doy parameter
+# study_name = "calib_nga_7y_doy_20250911"
+# model_config = "nigeria_7y_2017_regions_radiation_ssn_nozi_underwt.yaml"
+# calib_config = "doy.yaml"
+
+# Goal: Try all core pars after adding cases_by_month
+study_name = "calib_nigeria_7y_2017_r0_amp_doy_radk_mmf_nozi_underwt_20250916"
+model_config = "nigeria_7y_2017_regions_r0_radk_mmf_ssn_nozi_underwt.yaml"
+calib_config = "r0_amp_doy_radk_mmf.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 2

@@ -5,34 +5,28 @@ import yaml
 
 # ------------------- USER CONFIGS -------------------
 
-# Goal: region calib after fixing the strain paralysis issue
-job_name = "lpsk5"
-study_name = "calib_nigeria_7y_2017_doy_bymonth_20250912"
-model_config = "nigeria_7y_2017_regions_r0_radk_mmf_ssn_nozi_underwt.yaml"
-calib_config = "doy_bymonth.yaml"
-
-# # Goal: region calib after fixing the strain paralysis issue
-# job_name = "lpsk6"
-# study_name = "calib_nigeria_7y_2017_doy_bymonth_bytimeseries_20250912"
+# # Goal: Try all core pars after adding cases_by_month
+# job_name = "lpsk9"
+# study_name = "calib_nigeria_7y_2017_r0_amp_doy_radk_mmf_nozi_underwt_20250916"
 # model_config = "nigeria_7y_2017_regions_r0_radk_mmf_ssn_nozi_underwt.yaml"
-# calib_config = "doy_bymonth_bytimeseries.yaml"
+# calib_config = "r0_amp_doy_radk_mmf.yaml"
 
-# # Goal: region calib after fixing the strain paralysis issue
-# job_name = "lpsk7"
-# study_name = "calib_nigeria_7y_2017_doy_amp_bymonth_20250912"
+# # Goal: Try all core pars after adding cases_by_month
+# job_name = "lpsk10"
+# study_name = "calib_nigeria_7y_2017_r0_amp_doy_radk_mmf_nozi_underwt_narrow_20250917"
 # model_config = "nigeria_7y_2017_regions_r0_radk_mmf_ssn_nozi_underwt.yaml"
-# calib_config = "doy_amp_bymonth.yaml"
+# calib_config = "r0_amp_doy_radk_mmf_narrow.yaml"
 
-# # Goal: region calib after fixing the strain paralysis issue
-# job_name = "lpsk8"
-# study_name = "calib_nigeria_7y_2017_doy_amp_bymonth_bytimeseries_20250912"
-# model_config = "nigeria_7y_2017_regions_r0_radk_mmf_ssn_nozi_underwt.yaml"
-# calib_config = "doy_amp_bymonth_bytimeseries.yaml"
+# Goal: Try calibrating core pars in West Africa
+job_name = "lpsk10"
+study_name = "calib_wa_7y_2017_r0_amp_doy_radk_mmf_nozi_underwt_20250923"
+model_config = "wa_7y_2017_regions_r0_radk_mmf_ssn_nozi_underwt.yaml"
+calib_config = "r0_amp_doy_radk_mmf.yaml"
 
 fit_function = "log_likelihood"
 n_trials = 1  # Number of trials to run per pod
 n_replicates = 1  # Number of replicates to run for each trial
-parallelism = 50  # The number of pods (i.e., jobs) to run in parallel
+parallelism = 200  # The number of pods (i.e., jobs) to run in parallel
 completions = 5000  # The total number of pods (i.e., jobs) that need to successfully complete before the job is considered "done"
 
 # ---------------------------------------------------
