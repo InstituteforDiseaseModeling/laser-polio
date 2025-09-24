@@ -50,5 +50,5 @@ summary_config:
   time_periods:
     bins: ["2020-07-01", "2022-07-01"]  # Split points
     labels: ["2017-2020.5", "2020.5-2022.5", "2022.5-2024"]
-  grouping_level: "adm01"
+  grouping_level: "adm0"
   region_groupings: ["NIGERIA"]
