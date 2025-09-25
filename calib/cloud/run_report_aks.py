@@ -7,7 +7,6 @@ import cloud_calib_config as cfg
 import optuna
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-import yaml
 from report import plot_likelihoods
 from report import plot_likelihoods_vs_params
 from report import plot_optuna
@@ -32,27 +31,18 @@ def main():
         study.study_name = cfg.study_name
         results_path = Path("results") / cfg.study_name
         results_path.mkdir(parents=True, exist_ok=True)
-        with open(Path("calib/model_configs/") / cfg.model_config) as f:
-            model_config = yaml.safe_load(f)
-            start_year = model_config["start_year"]
+        # with open(Path("calib/model_configs/") / cfg.model_config) as f:
+        #     model_config = yaml.safe_load(f)
+        #     start_year = model_config["start_year"]
 
         print("📊 Plotting target comparisons for best trial...")
-        plot_targets_new(study, n=1, output_dir=results_path)
+        plot_targets_new(study, n=10, output_dir=results_path)
 
         print("💾 Saving results...")
         save_study_results(study, output_dir=results_path)
 
         print("📈 Plotting optuna results...")
         plot_optuna(cfg.study_name, study.storage_url, output_dir=results_path)
-
-        print("📊 Plotting target comparisons for top trials...")
-        plot_targets_new(study, output_dir=results_path, n_best=10, start_year=start_year)
-
-        # print("📊 Plotting target comparisons...")
-        # plot_targets(study, output_dir=results_path)
-
-        # print("📊 Plotting top trials...")
-        # plot_top_trials(study, output_dir=results_path, n_best=10, start_year=start_year)
 
         print("📊 Plotting runtimes...")
         plot_runtimes(study, output_dir=results_path)

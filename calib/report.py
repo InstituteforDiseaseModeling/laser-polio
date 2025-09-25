@@ -7,14 +7,16 @@ import matplotlib
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
+from sqlalchemy import create_engine
+from sqlalchemy import text
 
 # Ensure we're using the Agg backend for better cross-platform compatibility
 matplotlib.use("Agg")
-import heapq
 
 import optuna
 import optuna.visualization as vis
-import pandas as pd
 import sciris as sc
 import yaml
 from matplotlib.cm import ScalarMappable
@@ -499,45 +501,100 @@ def get_trial_by_number(study, trial_number):
     raise ValueError(f"Trial {trial_number} not found in study")
 
 
-# def plot_trial_targets(study, trial_number, output_dir=None, shp=None, model_config=None, start_year=2018):
-#     """Plot targets for a specific trial number."""
-#     trial = get_trial_by_number(study, trial_number)
-#     if trial.state != optuna.trial.TrialState.COMPLETE:
-#         raise ValueError(f"Trial {trial_number} is not completed")
+def get_top_trials(study, n=10, include_params=True, include_user_attrs=True):
+    """
+    Efficiently retrieve the top N trials from an Optuna MySQL database.
 
-#     actual = trial.user_attrs["actual"]
-#     preds = trial.user_attrs["predicted"]
+    Parameters
+    ----------
+    study : optuna.Study
+        The Optuna study object (should have storage_url and study_name attributes)
+    n : int, default=10
+        Number of top trials to retrieve
+    include_params : bool, default=True
+        Whether to include trial parameters
+    include_user_attrs : bool, default=True
+        Whether to include user attributes
 
-#     # Use provided model_config or default empty dict
-#     if model_config is None:
-#         model_config = {}
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing trial information, parameters, and user attributes
+    """
 
-#     # Use the output_dir directly instead of creating a subdirectory
-#     trial_dir = Path(output_dir)
-#     trial_dir.mkdir(parents=True, exist_ok=True)
+    # Use the storage_url you attached to the study object
+    if hasattr(study, "storage_url"):
+        storage_url = study.storage_url
+    else:
+        raise ValueError("Study object missing storage_url attribute. Please set: study.storage_url = cfg.storage_url")
 
-#     # Generate shapefile if not provided
-#     if shp is None:
-#         try:
-#             shp = get_shapefile_from_config(model_config)
-#             print("[INFO] Generated shapefile from model config")
-#         except Exception as e:
-#             print(f"[WARN] Could not generate shapefile: {e}")
-#             shp = None
+    engine = create_engine(storage_url)
 
-#     # Use the same plotting logic as plot_targets but with trial-specific data
-#     _plot_targets_impl(actual, preds, trial_dir, shp, model_config, start_year, f"Trial {trial_number}")
+    try:
+        study_id = study._study_id
+
+        # Get top trials with values
+        query = """
+            SELECT t.trial_id, t.number, tv.value, t.datetime_start, t.datetime_complete
+            FROM trials t
+            INNER JOIN trial_values tv ON t.trial_id = tv.trial_id
+            WHERE t.study_id = %(study_id)s 
+                AND t.state = 'COMPLETE'
+                AND tv.objective = 0
+            ORDER BY tv.value ASC
+            LIMIT %(n)s
+        """
+
+        df = pd.read_sql(query, engine, params={"study_id": study_id, "n": n})
+
+        if len(df) == 0:
+            print(f"Warning: No completed trials found in study '{study.study_name}'")
+            return df
+
+        # Get parameters if requested
+        if include_params:
+            params_query = text("""
+                SELECT trial_id, param_name, param_value
+                FROM trial_params
+                WHERE trial_id IN :trial_ids
+            """)
+            df_params = pd.read_sql(params_query, engine)
+
+            if not df_params.empty:
+                df_params_wide = df_params.pivot(index="trial_id", columns="param_name", values="param_value")
+                df = df.merge(df_params_wide, left_on="trial_id", right_index=True, how="left")
+
+        # Get user attributes if requested
+        if include_user_attrs:
+            user_attrs_query = text("""
+                SELECT trial_id, `key`, value_json
+                FROM trial_user_attributes
+                WHERE trial_id IN :trial_ids
+            """)
+            df_user_attrs = pd.read_sql(user_attrs_query, engine)
+
+            if not df_user_attrs.empty:
+                # Parse JSON values
+                df_user_attrs["value_parsed"] = df_user_attrs["value_json"].apply(json.loads)
+
+                # Pivot to wide format
+                df_attrs_wide = df_user_attrs.pivot(index="trial_id", columns="key", values="value_parsed")
+                df = df.merge(df_attrs_wide, left_on="trial_id", right_index=True, how="left")
+
+        # Sort by value to maintain order
+        df = df.sort_values("value").reset_index(drop=True)
+
+        return df
+
+    finally:
+        engine.dispose()
 
 
 def plot_targets_new(study, n=1, output_dir=None, shp=None):
-    # Load trials
-    trials = heapq.nsmallest(
-        n,
-        (t for t in study.trials if t.value is not None and t.state == optuna.trial.TrialState.COMPLETE),
-        key=lambda t: t.value,
-    )
-    actual = trials[0].user_attrs["actual"]  # should be same for all
-    preds = [trial.user_attrs["predicted"] for trial in trials]
+    # Load top trials
+    trials = get_top_trials(study, n=n)
+    actual = trials.iloc[0]["actual"]  # Extract actual (should be same for all trials)
+    preds = trials["predicted"].tolist()  # List of predicted arrays for each trial
 
     # Load metadata and model config
     metadata_path = Path(output_dir) / "study_metadata.json"
@@ -556,67 +613,146 @@ def plot_targets_new(study, n=1, output_dir=None, shp=None):
             print(f"[WARN] Could not generate shapefile: {e}")
             shp = None
 
-    # Define consistent colors for plotting
-    # TODO: use color map that can handle more than 20 trials
-    # cmap = cm.get_cmap("tab20")
-    # color_map = {f"Trial {trial.number}": cmap(i) for i, trial in enumerate(trials)}
-    cmap = cm.get_cmap("turbo")
-    color_map = {f"Trial {trial.number}": cmap(i) for i, trial in enumerate(trials)}
+    # Define consistent colors using seaborn's 'flare' palette
+    # Option 1: Use seaborn color palette directly
+    colors = sns.color_palette("flare", n_colors=len(trials))
+    colors.reverse()  # Reverse so darkest is for best trials
+    # Create color map with Trial objects for consistent use across all plots
+    color_map = {}
+    for i, (_idx, row) in enumerate(trials.iterrows()):
+        trial_num = row["number"]
+        color_map[f"Trial {trial_num}"] = colors[i]
+        # Also store by index for convenience
+        color_map[i] = colors[i]
+    # Add standard colors for actual/predicted labels
+    color_map["Actual"] = "black"
+    color_map["Predicted"] = colors[0]  # Darkest flare color for best/single prediction
 
     # Create output directory
-    if n == 1:
-        output_path = Path(output_dir) / "target_plots" / "best_trial"
-    else:
-        output_path = Path(output_dir) / "target_plots" / "top_trials"
+    output_path = Path(output_dir) / "target_plots"
     output_path.mkdir(exist_ok=True, parents=True)
 
     # Plotting
-    plot_cases_total(actual, preds, output_path, "Best", color_map)
-    plot_cases_by_period(actual, preds, output_path, "Best", color_map)
+    plot_cases_total(actual, preds, trials, output_path, color_map)
+    plot_cases_by_period(actual, preds, trials, output_path, color_map)
+    print("[INFO] Plotted cases total and cases by period")
 
 
-def plot_cases_total(actual, preds, output_dir, title_prefix, color_map):
+def plot_cases_total(actual, preds, trials, output_dir, color_map):
+    if "cases_total" not in actual:
+        print("[WARN] cases_total not found in calib targets. Skipping plot.")
+        return
+
+    # Extract predicted values
+    predicted_values = [pred[0]["cases_total"] for pred in preds]
+    actual_value = actual["cases_total"]
+
     if len(preds) == 1:
-        plt.figure(figsize=(10, 6))
-        plt.title(f"Cases Total - {title_prefix}")
-    #     plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
-    #     plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_total.png", bbox_inches="tight")
-    #     plt.close()
-    # else:
-    #     plt.figure(figsize=(10, 6))
-    #     plt.title(f"Cases Total - {title_prefix}")
-    #     plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
-    #     for i, rep in enumerate(preds):
-    #         plt.scatter(x, rep["cases_total"], label=f"Rep {i + 1}", color=color_map[f"Rep {i + 1}"], marker="o", s=50)
-    #     plt.xticks(x, period_labels, rotation=45, ha="right")
-    #     plt.ylabel("Cases")
-    #     plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-    #     plt.tight_layout()
-    #     plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_total.png", bbox_inches="tight")
-    #     plt.close()
-
-
-def plot_cases_by_period(actual, preds, output_dir, title_prefix, color_map):
-    # For now, just implement the basic cases_by_period plot as an example
-    if "cases_by_period" in actual:
-        period_labels = list(actual["cases_by_period"].keys())
-        x = np.arange(len(period_labels))
-        actual_vals = [actual["cases_by_period"][period] for period in period_labels]
-
-        plt.figure(figsize=(10, 6))
-        plt.title(f"Cases by Period - {title_prefix}")
-        plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
-        for i, rep in enumerate(preds):
-            pred = rep["cases_by_period"]
-            label = f"Rep {i + 1}"
-            pred_vals = [pred.get(period, 0) for period in period_labels]
-            plt.scatter(x, pred_vals, label=label, color=color_map[f"Rep {i + 1}"], marker="o", s=50)
-        plt.xticks(x, period_labels, rotation=45, ha="right")
+        # --- Two-bar comparison (Actual vs Predicted) ---
+        plt.figure(figsize=(8, 6))
+        plt.title("Cases Total")
+        x = np.arange(2)
+        labels = ["Actual", "Predicted"]
+        values = [actual_value, predicted_values[0]]
+        colors = [color_map["Actual"], color_map["Predicted"]]
+        plt.bar(x, values, width=0.6, color=colors, edgecolor="black", linewidth=1.2)
+        plt.xticks(x, labels)
         plt.ylabel("Cases")
-        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+        for xi, v in zip(x, values, strict=False):
+            if np.isfinite(v):
+                plt.text(xi, v, f"{v:.0f}", ha="center", va="bottom", fontsize=10)
         plt.tight_layout()
-        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_period.png", bbox_inches="tight")
+        plt.savefig(output_dir / "cases_total.png", bbox_inches="tight", dpi=200)
         plt.close()
+
+    else:
+        # --- Histogram for multiple trials ---
+        plt.figure(figsize=(10, 6))
+        # Plot histogram of predictions
+        plt.hist(predicted_values, bins=30, color="grey", edgecolor="black", alpha=0.4, label=f"Predicted (n={len(predicted_values)})")
+        # Add solid line for actual value (keep as grey for consistency)
+        plt.axvline(actual_value, color=color_map["Actual"], linestyle="-", linewidth=3, label=f"Actual: {actual_value:.0f}")
+        # # Add dashed line for best predicted value using the best trial's color
+        best_pred = predicted_values[0]
+        best_trial_num = trials.iloc[0]["number"]
+        plt.axvline(
+            best_pred,
+            color=color_map[0],
+            linestyle=":",
+            linewidth=3,
+            label=f"Best predicted (Trial {best_trial_num}): {best_pred:.0f}",
+        )
+        plt.xlabel("Cases Total")
+        plt.ylabel("Number of Trials")
+        plt.title(f"Cases Total Distribution\n{len(predicted_values)} trials")
+        plt.legend(loc="best")
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(output_dir / "cases_total.png", bbox_inches="tight", dpi=200)
+        plt.close()
+        print("[INFO] Plotted cases total histogram")
+
+
+def plot_cases_by_period(actual, preds, trials, output_dir, color_map):
+    if "cases_by_period" not in actual:
+        print("[WARN] cases_by_period not found in calib targets. Skipping plot.")
+        return
+
+    # Extract predicted values
+    predicted_values = [pred[0]["cases_by_period"] for pred in preds]
+    actual_value = actual["cases_by_period"]
+
+    period_labels = list(actual_value.keys())
+    x = np.arange(len(period_labels))
+    actual_vals = [actual_value[period] for period in period_labels]
+
+    plt.figure(figsize=(12, 6))
+    plt.title("Cases by Period")
+
+    # Plot actual data as grey bars (using color from map)
+    plt.bar(x, actual_vals, width=0.6, color=color_map["Actual"], alpha=0.4, edgecolor="black", linewidth=1.5, label="Actual", zorder=1)
+
+    if len(preds) == 1:
+        # Single prediction - use color from map
+        trial_num = trials.iloc[0]["number"]
+        pred_vals = [predicted_values[0].get(period, 0) for period in period_labels]
+        plt.plot(x, pred_vals, "o-", color=color_map[f"Trial {trial_num}"], linewidth=2.5, markersize=8, label="Predicted", zorder=3)
+    else:
+        # Multiple predictions - plot worst to best so best is on top
+        for i in range(len(preds) - 1, -1, -1):  # Reverse order
+            trial_num = trials.iloc[i]["number"]
+            pred_dict = predicted_values[i]
+            pred_vals = [pred_dict.get(period, 0) for period in period_labels]
+
+            if i == 0:  # Best trial
+                plt.plot(
+                    x,
+                    pred_vals,
+                    "o-",
+                    color=color_map[i],
+                    linewidth=2.5,
+                    markersize=8,
+                    alpha=1.0,
+                    label=f"Best (Trial {trial_num})",
+                    zorder=4,
+                )
+            else:
+                # Other trials with transparency
+                alpha = 0.3 + (0.4 * (1 - i / len(preds)))  # More transparent for worse trials
+                plt.plot(x, pred_vals, "o-", color=color_map[i], linewidth=1.5, markersize=5, alpha=alpha, zorder=2 + i / 100)
+
+        # Add label for other predictions
+        if len(preds) > 1:
+            plt.plot([], [], "o-", color="grey", alpha=0.5, linewidth=1.5, markersize=5, label=f"Other trials (n={len(preds) - 1})")
+
+    plt.xticks(x, period_labels, rotation=45, ha="right")
+    plt.ylabel("Cases")
+    plt.xlabel("Period")
+    plt.legend(loc="best")
+    plt.grid(True, alpha=0.3, axis="y")
+    plt.tight_layout()
+    plt.savefig(output_dir / "cases_by_period.png", bbox_inches="tight", dpi=200)
+    plt.close()
 
 
 def plot_targets(study, output_dir=None, shp=None):
