@@ -4,13 +4,11 @@ from pathlib import Path
 
 import geopandas as gpd
 import matplotlib
-import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from sqlalchemy import create_engine
-from sqlalchemy import text
 
 # Ensure we're using the Agg backend for better cross-platform compatibility
 matplotlib.use("Agg")
@@ -551,13 +549,20 @@ def get_top_trials(study, n=10, include_params=True, include_user_attrs=True):
             print(f"Warning: No completed trials found in study '{study.study_name}'")
             return df
 
+        trial_ids = df["trial_id"].tolist()
+        trial_ids_str = ",".join(map(str, trial_ids))
+
         # Get parameters if requested
         if include_params:
-            params_query = text("""
+            # Validate that all trial_ids are integers (they should be from the DB)
+            validated_ids = [int(tid) for tid in trial_ids]
+            trial_ids_str = ",".join(map(str, validated_ids))
+
+            params_query = f"""
                 SELECT trial_id, param_name, param_value
                 FROM trial_params
-                WHERE trial_id IN :trial_ids
-            """)
+                WHERE trial_id IN ({trial_ids_str})
+            """  # noqa: S608 - trial_ids are validated integers from database
             df_params = pd.read_sql(params_query, engine)
 
             if not df_params.empty:
@@ -566,11 +571,11 @@ def get_top_trials(study, n=10, include_params=True, include_user_attrs=True):
 
         # Get user attributes if requested
         if include_user_attrs:
-            user_attrs_query = text("""
+            user_attrs_query = f"""
                 SELECT trial_id, `key`, value_json
                 FROM trial_user_attributes
-                WHERE trial_id IN :trial_ids
-            """)
+                WHERE trial_id IN ({trial_ids_str})
+            """  # noqa: S608 - trial_ids are validated integers from database
             df_user_attrs = pd.read_sql(user_attrs_query, engine)
 
             if not df_user_attrs.empty:
@@ -603,6 +608,7 @@ def plot_targets_new(study, n=1, output_dir=None, shp=None):
     with open(metadata_path) as f:
         metadata = json.load(f)
     model_config = metadata.get("model_config", {})
+    start_year = model_config["start_year"]
 
     # Generate shapefile if not provided
     if shp is None:
@@ -615,7 +621,7 @@ def plot_targets_new(study, n=1, output_dir=None, shp=None):
 
     # Define consistent colors using seaborn's 'flare' palette
     # Option 1: Use seaborn color palette directly
-    colors = sns.color_palette("flare", n_colors=len(trials))
+    colors = sns.color_palette("Reds", n_colors=len(trials))
     colors.reverse()  # Reverse so darkest is for best trials
     # Create color map with Trial objects for consistent use across all plots
     color_map = {}
@@ -635,6 +641,14 @@ def plot_targets_new(study, n=1, output_dir=None, shp=None):
     # Plotting
     plot_cases_total(actual, preds, trials, output_path, color_map)
     plot_cases_by_period(actual, preds, trials, output_path, color_map)
+    plot_cases_by_month(actual, preds, trials, output_path, color_map)
+    plot_cases_by_month_timeseries(actual, preds, trials, output_path, color_map, start_year)
+    plot_cases_by_region(actual, preds, trials, output_path, color_map)
+    plot_cases_by_region_period(actual, preds, trials, output_path, color_map)
+    plot_cases_by_region_month(actual, preds, trials, output_path, color_map, start_year)
+    plot_case_bins_by_region(actual, preds, trials, output_path, color_map, model_config)
+    # TODO
+    plot_case_diff_choropleth_multi(actual, preds, trials, output_path, color_map, shp, model_config)
     print("[INFO] Plotted cases total and cases by period")
 
 
@@ -649,48 +663,68 @@ def plot_cases_total(actual, preds, trials, output_dir, color_map):
 
     if len(preds) == 1:
         # --- Two-bar comparison (Actual vs Predicted) ---
-        plt.figure(figsize=(8, 6))
-        plt.title("Cases Total")
+        fig, ax = plt.subplots(figsize=(6, 5))
+        ax.set_title("Cases Total", fontsize=14, fontweight="bold")
+
         x = np.arange(2)
         labels = ["Actual", "Predicted"]
         values = [actual_value, predicted_values[0]]
         colors = [color_map["Actual"], color_map["Predicted"]]
-        plt.bar(x, values, width=0.6, color=colors, edgecolor="black", linewidth=1.2)
-        plt.xticks(x, labels)
-        plt.ylabel("Cases")
-        for xi, v in zip(x, values, strict=False):
-            if np.isfinite(v):
-                plt.text(xi, v, f"{v:.0f}", ha="center", va="bottom", fontsize=10)
+
+        bars = ax.bar(x, values, width=0.5, color=colors, edgecolor="darkgrey", linewidth=1.2, alpha=0.8)
+
+        # Add value labels on bars
+        for bar, val in zip(bars, values, strict=False):
+            if np.isfinite(val):
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width() / 2.0, height, f"{val:.0f}", ha="center", va="bottom", fontsize=11)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, fontsize=11)
+        ax.set_ylabel("Cases", fontsize=12)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.grid(True, alpha=0.2, axis="y", linestyle="--")
+        ax.set_axisbelow(True)
+
         plt.tight_layout()
-        plt.savefig(output_dir / "cases_total.png", bbox_inches="tight", dpi=200)
+        plt.savefig(output_dir / "cases_total.png", bbox_inches="tight", dpi=150)
         plt.close()
 
     else:
         # --- Histogram for multiple trials ---
-        plt.figure(figsize=(10, 6))
-        # Plot histogram of predictions
-        plt.hist(predicted_values, bins=30, color="grey", edgecolor="black", alpha=0.4, label=f"Predicted (n={len(predicted_values)})")
-        # Add solid line for actual value (keep as grey for consistency)
-        plt.axvline(actual_value, color=color_map["Actual"], linestyle="-", linewidth=3, label=f"Actual: {actual_value:.0f}")
-        # # Add dashed line for best predicted value using the best trial's color
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.set_title("Cases Total Distribution", fontsize=14, fontweight="bold")
+
+        # Calculate better bin size based on data range
+        n_bins = min(30, max(10, int(np.sqrt(len(predicted_values)) * 2)))
+
+        # Plot histogram with consistent grey coloring
+        ax.hist(predicted_values, bins=n_bins, color="lightgrey", edgecolor="darkgrey", alpha=0.6, linewidth=0.8)
+
+        # Add vertical lines
+        ax.axvline(actual_value, color="black", linestyle="-", linewidth=2.5, label=f"Actual: {actual_value:.0f}", zorder=5)
+
         best_pred = predicted_values[0]
         best_trial_num = trials.iloc[0]["number"]
-        plt.axvline(
-            best_pred,
-            color=color_map[0],
-            linestyle=":",
-            linewidth=3,
-            label=f"Best predicted (Trial {best_trial_num}): {best_pred:.0f}",
+        ax.axvline(
+            best_pred, color=color_map[0], linestyle="--", linewidth=2.5, label=f"Best (Trial {best_trial_num}): {best_pred:.0f}", zorder=4
         )
-        plt.xlabel("Cases Total")
-        plt.ylabel("Number of Trials")
-        plt.title(f"Cases Total Distribution\n{len(predicted_values)} trials")
-        plt.legend(loc="best")
-        plt.grid(True, alpha=0.3)
+
+        # Formatting
+        ax.set_xlabel("Cases Total", fontsize=12)
+        ax.set_ylabel("Number of Trials", fontsize=12)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.grid(True, alpha=0.2, axis="y", linestyle="--")
+        ax.set_axisbelow(True)
+
+        # Compact legend
+        ax.legend(loc="upper right", framealpha=0.9, fontsize=10)
+
         plt.tight_layout()
-        plt.savefig(output_dir / "cases_total.png", bbox_inches="tight", dpi=200)
+        plt.savefig(output_dir / "cases_total.png", bbox_inches="tight", dpi=150)
         plt.close()
-        print("[INFO] Plotted cases total histogram")
 
 
 def plot_cases_by_period(actual, preds, trials, output_dir, color_map):
@@ -706,84 +740,672 @@ def plot_cases_by_period(actual, preds, trials, output_dir, color_map):
     x = np.arange(len(period_labels))
     actual_vals = [actual_value[period] for period in period_labels]
 
-    plt.figure(figsize=(12, 6))
-    plt.title("Cases by Period")
+    fig, ax = plt.subplots(figsize=(10, 6))  # Slightly smaller width
+    ax.set_title("Cases by Period", fontsize=14, fontweight="bold")
 
-    # Plot actual data as grey bars (using color from map)
-    plt.bar(x, actual_vals, width=0.6, color=color_map["Actual"], alpha=0.4, edgecolor="black", linewidth=1.5, label="Actual", zorder=1)
+    # Plot actual data as grey bars
+    _bars = ax.bar(x, actual_vals, width=0.7, color="lightgrey", alpha=0.6, edgecolor="lightgrey", linewidth=1.2, label="Actual", zorder=1)
 
     if len(preds) == 1:
-        # Single prediction - use color from map
+        # Single prediction
         trial_num = trials.iloc[0]["number"]
         pred_vals = [predicted_values[0].get(period, 0) for period in period_labels]
-        plt.plot(x, pred_vals, "o-", color=color_map[f"Trial {trial_num}"], linewidth=2.5, markersize=8, label="Predicted", zorder=3)
+        ax.plot(x, pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
     else:
-        # Multiple predictions - plot worst to best so best is on top
-        for i in range(len(preds) - 1, -1, -1):  # Reverse order
-            trial_num = trials.iloc[i]["number"]
-            pred_dict = predicted_values[i]
-            pred_vals = [pred_dict.get(period, 0) for period in period_labels]
+        # Multiple predictions - simplified approach
+        # Plot all non-best trials in one go for efficiency
+        for i in range(1, len(preds)):  # Skip best (index 0)
+            pred_vals = [predicted_values[i].get(period, 0) for period in period_labels]
+            # Graduated transparency based on ranking
+            alpha = 0.2 + (0.3 * (1 - i / len(preds)))
+            ax.plot(x, pred_vals, "-", color=color_map[i], linewidth=1.0, alpha=alpha, zorder=2)
 
-            if i == 0:  # Best trial
-                plt.plot(
-                    x,
-                    pred_vals,
-                    "o-",
-                    color=color_map[i],
-                    linewidth=2.5,
-                    markersize=8,
-                    alpha=1.0,
-                    label=f"Best (Trial {trial_num})",
-                    zorder=4,
-                )
-            else:
-                # Other trials with transparency
-                alpha = 0.3 + (0.4 * (1 - i / len(preds)))  # More transparent for worse trials
-                plt.plot(x, pred_vals, "o-", color=color_map[i], linewidth=1.5, markersize=5, alpha=alpha, zorder=2 + i / 100)
+        # Add single legend entry for other trials
+        ax.plot([], [], "-", color="grey", alpha=0.4, linewidth=1.0, label=f"Trials 2-{len(preds)} (n={len(preds) - 1})")
 
-        # Add label for other predictions
-        if len(preds) > 1:
-            plt.plot([], [], "o-", color="grey", alpha=0.5, linewidth=1.5, markersize=5, label=f"Other trials (n={len(preds) - 1})")
+        # Plot best trial last with markers
+        best_trial_num = trials.iloc[0]["number"]
+        best_pred_vals = [predicted_values[0].get(period, 0) for period in period_labels]
+        ax.plot(x, best_pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4)
 
-    plt.xticks(x, period_labels, rotation=45, ha="right")
-    plt.ylabel("Cases")
-    plt.xlabel("Period")
-    plt.legend(loc="best")
-    plt.grid(True, alpha=0.3, axis="y")
+    # Formatting improvements
+    ax.set_xticks(x)
+    ax.set_xticklabels(period_labels, rotation=45, ha="right", fontsize=10)
+    ax.set_ylabel("Cases", fontsize=12)
+    ax.set_xlabel("Period", fontsize=12)
+
+    # Cleaner grid
+    ax.grid(True, alpha=0.2, axis="y", linestyle="--")
+    ax.set_axisbelow(True)  # Grid behind data
+
+    # Tighter legend
+    ax.legend(loc="upper left", framealpha=0.9, fontsize=10)
+
+    # Add subtle formatting
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
     plt.tight_layout()
-    plt.savefig(output_dir / "cases_by_period.png", bbox_inches="tight", dpi=200)
+    plt.savefig(output_dir / "cases_by_period.png", bbox_inches="tight", dpi=150)
     plt.close()
 
 
-def plot_targets(study, output_dir=None, shp=None):
-    best = study.best_trial
-    actual = best.user_attrs["actual"]
-    preds = best.user_attrs["predicted"]
+def plot_cases_by_month(actual, preds, trials, output_dir, color_map):
+    if "cases_by_month" not in actual:
+        print("[WARN] cases_by_month not found in calib targets. Skipping plot.")
+        return
 
-    # Load metadata and model config
-    metadata_path = Path(output_dir) / "study_metadata.json"
-    if not metadata_path.exists():
-        raise FileNotFoundError(f"study_metadata.json not found at {metadata_path}")
-    with open(metadata_path) as f:
-        metadata = json.load(f)
-    model_config = metadata.get("model_config", {})
-    start_year = model_config.get("start_year", 2018)
+    # Extract predicted values
+    predicted_values = [pred[0]["cases_by_month"] for pred in preds]
+    actual_values = actual["cases_by_month"]
 
-    # Create output directory for best trial plots
-    best_dir = Path(output_dir) / "best_trial_plots"
-    best_dir.mkdir(exist_ok=True)
+    # Create month labels (1-indexed)
+    months = list(range(1, 1 + len(actual_values)))
+    x = np.array(months) - 1  # Convert to 0-indexed for plotting positions
 
-    # Generate shapefile if not provided
-    if shp is None:
-        try:
-            shp = get_shapefile_from_config(model_config)
-            print("[INFO] Generated shapefile from model config")
-        except Exception as e:
-            print(f"[WARN] Could not generate shapefile: {e}")
-            shp = None
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.set_title("Cases by Month (Aggregated Across Years)", fontsize=14, fontweight="bold")
 
-    # Use the common plotting implementation
-    _plot_targets_impl(actual, preds, best_dir, shp, model_config, start_year, "Best")
+    # Plot actual data as grey bars
+    _bars = ax.bar(
+        x, actual_values, width=0.7, color="lightgrey", alpha=0.6, edgecolor="lightgrey", linewidth=1.2, label="Actual", zorder=1
+    )
+
+    if len(preds) == 1:
+        # Single prediction
+        trial_num = trials.iloc[0]["number"]
+        pred_vals = predicted_values[0]
+        ax.plot(x, pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
+    else:
+        # Multiple predictions
+        # Plot all non-best trials
+        for i in range(1, len(preds)):  # Skip best (index 0)
+            pred_vals = predicted_values[i]
+            # Graduated transparency based on ranking
+            alpha = 0.2 + (0.3 * (1 - i / len(preds)))
+            ax.plot(x, pred_vals, "-", color=color_map[i], linewidth=1.0, alpha=alpha, zorder=2)
+
+        # Add single legend entry for other trials
+        ax.plot([], [], "-", color="grey", alpha=0.4, linewidth=1.0, label=f"Trials 2-{len(preds)} (n={len(preds) - 1})")
+
+        # Plot best trial last with markers
+        best_trial_num = trials.iloc[0]["number"]
+        best_pred_vals = predicted_values[0]
+        ax.plot(x, best_pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4)
+
+    # Formatting
+    ax.set_xticks(x)
+    ax.set_xticklabels(months, fontsize=10)
+    ax.set_xlabel("Month", fontsize=12)
+    ax.set_ylabel("Cases", fontsize=12)
+
+    # Cleaner grid
+    ax.grid(True, alpha=0.2, axis="y", linestyle="--")
+    ax.set_axisbelow(True)  # Grid behind data
+
+    # Tighter legend
+    ax.legend(loc="upper left", framealpha=0.9, fontsize=10)
+
+    # Add subtle formatting
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.tight_layout()
+    plt.savefig(output_dir / "cases_by_month.png", bbox_inches="tight", dpi=150)
+    plt.close()
+
+
+def plot_cases_by_month_timeseries(actual, preds, trials, output_dir, color_map, start_year):
+    if "cases_by_month_timeseries" not in actual:
+        print("[WARN] cases_by_month_timeseries not found in calib targets. Skipping plot.")
+        return
+
+    # Extract predicted values
+    predicted_values = [pred[0]["cases_by_month_timeseries"] for pred in preds]
+    actual_values = actual["cases_by_month_timeseries"]
+
+    # Create date range for x-axis
+    n_months = len(actual_values)
+    months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
+
+    # Convert to numeric positions for bar plotting
+    x = np.arange(len(months_series))
+
+    fig, ax = plt.subplots(figsize=(12, 6))  # Wider for time series
+    ax.set_title("Cases by Month Timeseries", fontsize=14, fontweight="bold")
+
+    # Plot actual data as grey bars (consistent with other plots)
+    _bars = ax.bar(
+        x, actual_values, width=0.7, color="lightgrey", alpha=0.6, edgecolor="lightgrey", linewidth=1.2, label="Actual", zorder=1
+    )
+
+    if len(preds) == 1:
+        # Single prediction
+        trial_num = trials.iloc[0]["number"]
+        pred_vals = predicted_values[0]
+        ax.plot(x, pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
+    else:
+        # Multiple predictions
+        # Plot all non-best trials without markers
+        for i in range(1, len(preds)):  # Skip best (index 0)
+            pred_vals = predicted_values[i]
+            # Graduated transparency based on ranking
+            alpha = 0.2 + (0.3 * (1 - i / len(preds)))
+            ax.plot(x, pred_vals, "-", color=color_map[i], linewidth=1.0, alpha=alpha, zorder=2)
+
+        # Add single legend entry for other trials
+        ax.plot([], [], "-", color="grey", alpha=0.4, linewidth=1.0, label=f"Trials 2-{len(preds)} (n={len(preds) - 1})")
+
+        # Plot best trial last with markers
+        best_trial_num = trials.iloc[0]["number"]
+        best_pred_vals = predicted_values[0]
+        ax.plot(x, best_pred_vals, "-", color=color_map[0], linewidth=2, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4)
+
+    # Formatting - use subset of dates for cleaner x-axis
+    # Show every nth month to avoid crowding
+    n_ticks = 12  # Show approximately 12 ticks
+    step = max(1, len(months_series) // n_ticks)
+    tick_positions = x[::step]
+    tick_labels = [months_series[i].strftime("%Y-%m") for i in range(0, len(months_series), step)]
+
+    ax.set_xticks(tick_positions)
+    ax.set_xticklabels(tick_labels, rotation=45, ha="right", fontsize=10)
+    ax.set_xlabel("Date", fontsize=12)
+    ax.set_ylabel("Cases", fontsize=12)
+
+    # Cleaner grid
+    ax.grid(True, alpha=0.2, axis="y", linestyle="--")
+    ax.set_axisbelow(True)  # Grid behind data
+
+    # Tighter legend
+    ax.legend(loc="upper left", framealpha=0.9, fontsize=10)
+
+    # Add subtle formatting
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.tight_layout()
+    plt.savefig(output_dir / "cases_by_month_timeseries.png", bbox_inches="tight", dpi=150)
+    plt.close()
+
+
+def plot_cases_by_region(actual, preds, trials, output_dir, color_map):
+    if "cases_by_region" not in actual:
+        print("[WARN] cases_by_region not found in calib targets. Skipping plot.")
+        return
+
+    # Extract predicted values
+    predicted_values = [pred[0]["cases_by_region"] for pred in preds]
+    actual_value = actual["cases_by_region"]
+
+    region_labels = list(actual_value.keys())
+    x = np.arange(len(region_labels))
+    actual_vals = list(actual_value.values())
+
+    fig, ax = plt.subplots(figsize=(12, 8))  # Taller for region names
+    ax.set_title("Regional Cases", fontsize=14, fontweight="bold")
+
+    # Plot actual data as grey bars
+    _bars = ax.bar(x, actual_vals, width=0.7, color="lightgrey", alpha=0.6, edgecolor="lightgrey", linewidth=1.2, label="Actual", zorder=1)
+
+    if len(preds) == 1:
+        # Single prediction
+        trial_num = trials.iloc[0]["number"]
+        pred_vals = list(predicted_values[0].values())
+        ax.plot(x, pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
+    else:
+        # Multiple predictions
+        # Plot all non-best trials without markers
+        for i in range(1, len(preds)):  # Skip best (index 0)
+            pred_vals = list(predicted_values[i].values())
+            # Graduated transparency based on ranking
+            alpha = 0.2 + (0.3 * (1 - i / len(preds)))
+            ax.plot(x, pred_vals, "-", color=color_map[i], linewidth=1.0, alpha=alpha, zorder=2)
+
+        # Add single legend entry for other trials
+        ax.plot([], [], "-", color="grey", alpha=0.4, linewidth=1.0, label=f"Trials 2-{len(preds)} (n={len(preds) - 1})")
+
+        # Plot best trial last with markers
+        best_trial_num = trials.iloc[0]["number"]
+        best_pred_vals = list(predicted_values[0].values())
+        ax.plot(x, best_pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4)
+
+    # Formatting
+    ax.set_xticks(x)
+    ax.set_xticklabels(region_labels, rotation=45, ha="right", fontsize=10)
+    ax.set_xlabel("Region", fontsize=12)
+    ax.set_ylabel("Cases", fontsize=12)
+
+    # Cleaner grid
+    ax.grid(True, alpha=0.2, axis="y", linestyle="--")
+    ax.set_axisbelow(True)  # Grid behind data
+
+    # Tighter legend
+    ax.legend(loc="upper left", framealpha=0.9, fontsize=10)
+
+    # Add subtle formatting
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.tight_layout()
+    plt.savefig(output_dir / "cases_by_region.png", bbox_inches="tight", dpi=150)
+    plt.close()
+
+
+def plot_cases_by_region_period(actual, preds, trials, output_dir, color_map):
+    if "cases_by_region_period" not in actual:
+        print("[WARN] cases_by_region_period not found in calib targets. Skipping plot.")
+        return
+
+    region_period_data = actual["cases_by_region_period"]
+    predicted_values = [pred[0]["cases_by_region_period"] for pred in preds]
+
+    # Extract all unique periods from all regions
+    all_periods = set()
+    for region_dict in region_period_data.values():
+        all_periods.update(region_dict.keys())
+    periods = sorted(all_periods)
+
+    # Extract all unique regions
+    regions = sorted(region_period_data.keys())
+
+    # Create figure with subplots stacked vertically (one per period)
+    n_periods = len(periods)
+    if n_periods == 0:
+        return
+
+    fig, axes = plt.subplots(n_periods, 1, figsize=(12, 4 * n_periods))
+    if n_periods == 1:
+        axes = [axes]
+
+    for period_idx, period in enumerate(periods):
+        ax = axes[period_idx]
+
+        # Extract data for this period across all regions
+        x = np.arange(len(regions))
+        actual_vals = [region_period_data.get(region, {}).get(period, 0) for region in regions]
+
+        # Plot actual data as grey bars
+        ax.bar(x, actual_vals, width=0.7, color="lightgrey", alpha=0.6, edgecolor="lightgrey", linewidth=1.2, label="Actual", zorder=1)
+
+        if len(preds) == 1:
+            # Single prediction
+            trial_num = trials.iloc[0]["number"]
+            rep_data = predicted_values[0]
+            pred_vals = [rep_data.get(region, {}).get(period, 0) for region in regions]
+            ax.plot(x, pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
+        else:
+            # Multiple predictions
+            # Plot all non-best trials without markers
+            for i in range(1, len(preds)):  # Skip best (index 0)
+                rep_data = predicted_values[i]
+                pred_vals = [rep_data.get(region, {}).get(period, 0) for region in regions]
+                # Graduated transparency based on ranking
+                alpha = 0.2 + (0.3 * (1 - i / len(preds)))
+                ax.plot(x, pred_vals, "-", color=color_map[i], linewidth=1.0, alpha=alpha, zorder=2)
+
+            # Add single legend entry for other trials (only for first subplot)
+            if period_idx == 0:
+                ax.plot([], [], "-", color="grey", alpha=0.4, linewidth=1.0, label=f"Trials 2-{len(preds)} (n={len(preds) - 1})")
+
+            # Plot best trial last with markers
+            best_trial_num = trials.iloc[0]["number"]
+            best_rep_data = predicted_values[0]
+            best_pred_vals = [best_rep_data.get(region, {}).get(period, 0) for region in regions]
+            ax.plot(
+                x, best_pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4
+            )
+
+        # Formatting
+        ax.set_title(f"Regional Cases - {period}", fontsize=12, fontweight="bold")
+        ax.set_xticks(x)
+        ax.set_xticklabels(regions, rotation=45, ha="right", fontsize=10)
+        ax.set_ylabel("Cases", fontsize=11)
+
+        # Cleaner grid
+        ax.grid(True, alpha=0.2, axis="y", linestyle="--")
+        ax.set_axisbelow(True)
+
+        # Legend only on first subplot to avoid repetition
+        if period_idx == 0:
+            ax.legend(loc="upper left", framealpha=0.9, fontsize=10)
+
+        # Add subtle formatting
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+    plt.tight_layout()
+    plt.savefig(output_dir / "cases_by_region_period.png", bbox_inches="tight", dpi=150)
+    plt.close()
+
+
+def plot_cases_by_region_month(actual, preds, trials, output_dir, color_map, start_year):
+    if "cases_by_region_month" not in actual:
+        print("[WARN] cases_by_region_month not found in calib targets. Skipping plot.")
+        return
+
+    cases_by_region_month_actual = actual["cases_by_region_month"]
+    predicted_values = [pred[0]["cases_by_region_month"] for pred in preds]
+    regions = list(cases_by_region_month_actual.keys())
+    n_regions = len(regions)
+
+    if n_regions == 0:
+        return
+
+    # Create subplot grid
+    n_cols = 2
+    n_rows = (n_regions + n_cols - 1) // n_cols  # Ceiling division
+
+    # Define dynamic figure size
+    fig_height_per_row = 3.5
+    fig_width = 15
+    fig_height = n_rows * fig_height_per_row
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_width, fig_height))
+    fig.suptitle("Regional Monthly Timeseries Comparison", fontsize=16, fontweight="bold")
+
+    # Normalize axes to always be a flat list
+    if isinstance(axes, np.ndarray):
+        axes = axes.flatten()
+    else:
+        axes = [axes]
+
+    # Get time series info
+    first_key = next(iter(cases_by_region_month_actual))
+    n_months = len(cases_by_region_month_actual[first_key])
+    months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
+    x = np.arange(len(months_series))
+
+    for idx, region in enumerate(regions):
+        ax = axes[idx]
+        actual_timeseries = cases_by_region_month_actual[region]
+
+        # Plot actual data as grey bars
+        ax.bar(
+            x, actual_timeseries, width=0.7, color="lightgrey", alpha=0.6, edgecolor="lightgrey", linewidth=1.2, label="Actual", zorder=1
+        )
+
+        if len(preds) == 1:
+            # Single prediction
+            trial_num = trials.iloc[0]["number"]
+            if region in predicted_values[0]:
+                pred_timeseries = predicted_values[0][region]
+                ax.plot(x, pred_timeseries, "o-", color=color_map[0], linewidth=2.5, markersize=5, label=f"Trial {trial_num}", zorder=3)
+        else:
+            # Multiple predictions
+            # Plot all non-best trials without markers
+            for i in range(1, len(preds)):
+                if region in predicted_values[i]:
+                    pred_timeseries = predicted_values[i][region]
+                    alpha = 0.2 + (0.3 * (1 - i / len(preds)))
+                    ax.plot(x, pred_timeseries, "-", color=color_map[i], linewidth=1.0, alpha=alpha, zorder=2)
+
+            # Add single legend entry for other trials (only in first subplot)
+            if idx == 0:
+                ax.plot([], [], "-", color="grey", alpha=0.4, linewidth=1.0, label=f"Trials 2-{len(preds)} (n={len(preds) - 1})")
+
+            # Plot best trial last with markers
+            best_trial_num = trials.iloc[0]["number"]
+            if region in predicted_values[0]:
+                best_timeseries = predicted_values[0][region]
+                ax.plot(
+                    x,
+                    best_timeseries,
+                    "o-",
+                    color=color_map[0],
+                    linewidth=2.5,
+                    markersize=5,
+                    label=f"Best: Trial {best_trial_num}",
+                    zorder=4,
+                )
+
+        # Formatting
+        ax.set_title(f"{region.replace('_', ' ').title()}", fontsize=11, fontweight="bold")
+        ax.set_ylabel("Cases", fontsize=10)
+
+        # Format x-axis with subset of dates
+        n_ticks = 6  # Show fewer ticks per subplot
+        step = max(1, len(months_series) // n_ticks)
+        tick_positions = x[::step]
+        tick_labels = [months_series[i].strftime("%Y-%m") for i in range(0, len(months_series), step)]
+        ax.set_xticks(tick_positions)
+        ax.set_xticklabels(tick_labels, rotation=45, ha="right", fontsize=9)
+
+        # Cleaner grid
+        ax.grid(True, alpha=0.2, axis="y", linestyle="--")
+        ax.set_axisbelow(True)
+
+        # Remove spines
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+        # Only add legend to first subplot
+        if idx == 0:
+            ax.legend(loc="upper left", framealpha=0.9, fontsize=9)
+
+    # Hide any unused subplots
+    for idx in range(n_regions, len(axes)):
+        axes[idx].set_visible(False)
+
+    plt.tight_layout()
+    plt.savefig(output_dir / "cases_by_region_month.png", bbox_inches="tight", dpi=150)
+    plt.close()
+
+
+def plot_case_bins_by_region(actual, preds, trials, output_dir, color_map, model_config):
+    if "case_bins_by_region" not in actual:
+        print("[WARN] case_bins_by_region not found in calib targets. Skipping plot.")
+        return
+
+    # Read bin configuration from model config
+    bin_config = model_config.get("summary_config", {}).get("case_bins", {})
+    bin_labels = bin_config.get("bin_labels", ["0", "1", "2", "3", "4", "5-9", "10-19", "20+"])
+
+    case_bins_by_region_actual = actual["case_bins_by_region"]
+    predicted_values = [pred[0]["case_bins_by_region"] for pred in preds]
+    regions = list(case_bins_by_region_actual.keys())
+    n_regions = len(regions)
+
+    if n_regions == 0:
+        return
+
+    # Create subplot grid
+    n_cols = 2
+    n_rows = (n_regions + n_cols - 1) // n_cols
+
+    fig_height_per_row = 3
+    fig_width = 15
+    fig_height = n_rows * fig_height_per_row
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_width, fig_height))
+    fig.suptitle("District Case Count Distribution by Region", fontsize=16, fontweight="bold")
+
+    # Normalize axes to always be a flat list
+    if isinstance(axes, np.ndarray):
+        axes = axes.flatten()
+    else:
+        axes = [axes]
+
+    # Get consistent y-axis scale across all subplots
+    all_counts = []
+    all_counts.extend(case_bins_by_region_actual.values())
+    for pred_dict in predicted_values:
+        if pred_dict:
+            all_counts.extend(pred_dict.values())
+    max_count = max(max(counts) if counts else 0 for counts in all_counts)
+
+    for idx, region in enumerate(regions):
+        ax = axes[idx]
+        actual_counts = case_bins_by_region_actual[region]
+        x_positions = np.arange(len(bin_labels))
+
+        # Plot actual data as grey bars
+        bars = ax.bar(
+            x_positions,
+            actual_counts,
+            width=0.7,
+            color="lightgrey",
+            alpha=0.6,
+            edgecolor="lightgrey",
+            linewidth=1.2,
+            label="Actual",
+            zorder=1,
+        )
+
+        if len(preds) == 1:
+            # Single prediction
+            trial_num = trials.iloc[0]["number"]
+            if region in predicted_values[0]:
+                pred_counts = predicted_values[0][region]
+                ax.plot(
+                    x_positions, pred_counts, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3
+                )
+        else:
+            # Multiple predictions
+            # Plot all non-best trials without markers
+            for i in range(1, len(preds)):
+                if region in predicted_values[i]:
+                    pred_counts = predicted_values[i][region]
+                    alpha = 0.2 + (0.3 * (1 - i / len(preds)))
+                    ax.plot(x_positions, pred_counts, "-", color=color_map[i], linewidth=1.0, alpha=alpha, zorder=2)
+
+            # Add single legend entry for other trials (only in first subplot)
+            if idx == 0:
+                ax.plot([], [], "-", color="grey", alpha=0.4, linewidth=1.0, label=f"Trials 2-{len(preds)} (n={len(preds) - 1})")
+
+            # Plot best trial last with markers
+            best_trial_num = trials.iloc[0]["number"]
+            if region in predicted_values[0]:
+                best_counts = predicted_values[0][region]
+                ax.plot(
+                    x_positions,
+                    best_counts,
+                    "-",
+                    color=color_map[0],
+                    linewidth=2.5,
+                    markersize=7,
+                    label=f"Best: Trial {best_trial_num}",
+                    zorder=4,
+                )
+
+        # Formatting
+        ax.set_title(f"{region.replace('_', ' ').title()}", fontsize=11, fontweight="bold")
+        ax.set_xlabel("Number of Cases", fontsize=10)
+        ax.set_ylabel("Number of Districts", fontsize=10)
+        ax.set_xticks(x_positions)
+        ax.set_xticklabels(bin_labels, rotation=0, fontsize=9)
+        ax.set_ylim(0, max_count * 1.1)
+
+        # Cleaner grid
+        ax.grid(True, alpha=0.2, axis="y", linestyle="--")
+        ax.set_axisbelow(True)
+
+        # Remove spines
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+        # Add count annotations on actual bars (optional - can remove if too cluttered)
+        for _i, (bar, count) in enumerate(zip(bars, actual_counts, strict=False)):
+            if count > 0:
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    count + max_count * 0.02,
+                    f"{int(count)}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                    color="grey",
+                )
+
+        # Only add legend to first subplot
+        if idx == 0:
+            ax.legend(loc="upper right", framealpha=0.9, fontsize=9)
+
+    # Hide any unused subplots
+    for idx in range(n_regions, len(axes)):
+        axes[idx].set_visible(False)
+
+    plt.tight_layout()
+    plt.savefig(output_dir / "case_bins_by_region.png", bbox_inches="tight", dpi=150)
+    plt.close()
+
+
+def plot_case_diff_choropleth_multi(actual, preds, trials, output_dir, color_map, shp, model_config):
+    if shp is None or "cases_by_region" not in actual:
+        print("[WARN] Cannot create choropleth - missing shapefile or cases_by_region data.")
+        return
+
+    predicted_values = [pred[0]["cases_by_region"] for pred in preds]
+    actual_cases = actual["cases_by_region"]
+
+    if len(preds) == 1:
+        # Single prediction - plot the difference
+        plot_case_diff_choropleth(
+            shp=shp,
+            actual_cases=actual_cases,
+            pred_cases=predicted_values[0],
+            output_path=output_dir / "case_diff_choropleth.png",
+            title=f"Case Count Difference (Actual - Predicted) - Trial {trials.iloc[0]['number']}",
+        )
+    else:
+        # Multiple predictions - create subplot with best, mean, and std
+        fig = plt.figure(figsize=(18, 6))
+        gs = fig.add_gridspec(1, 3, wspace=0.15)
+
+        # Calculate statistics across all predictions
+        regions = list(actual_cases.keys())
+        pred_array = np.array([[pred_dict.get(r, 0) for r in regions] for pred_dict in predicted_values])
+        mean_pred = dict(zip(regions, np.mean(pred_array, axis=0), strict=False))
+        std_pred = dict(zip(regions, np.std(pred_array, axis=0), strict=False))
+        best_pred = predicted_values[0]  # First is best
+
+        # Panel 1: Best prediction difference
+        ax1 = fig.add_subplot(gs[0])
+        plot_choropleth_panel(
+            ax=ax1,
+            shp=shp,
+            values={r: actual_cases.get(r, 0) - best_pred.get(r, 0) for r in regions},
+            title=f"Best Trial ({trials.iloc[0]['number']})",
+            cmap="RdBu",
+            center_zero=True,
+        )
+
+        # Panel 2: Mean prediction difference
+        ax2 = fig.add_subplot(gs[1])
+        plot_choropleth_panel(
+            ax=ax2,
+            shp=shp,
+            values={r: actual_cases.get(r, 0) - mean_pred.get(r, 0) for r in regions},
+            title=f"Mean of {len(preds)} Trials",
+            cmap="RdBu",
+            center_zero=True,
+        )
+
+        # Panel 3: Standard deviation of predictions
+        ax3 = fig.add_subplot(gs[2])
+        plot_choropleth_panel(ax=ax3, shp=shp, values=std_pred, title="Std Dev of Predictions", cmap="YlOrRd", center_zero=False)
+
+        fig.suptitle("Case Count Differences by Region", fontsize=16, fontweight="bold")
+        plt.tight_layout()
+        plt.savefig(output_dir / "case_diff_choropleth_multi.png", bbox_inches="tight", dpi=150)
+        plt.close()
+
+
+def plot_choropleth_panel(ax, shp, values, title, cmap="RdBu", center_zero=True):
+    """Helper function to plot a single choropleth panel."""
+    shp_copy = shp.copy()
+    shp_copy["value"] = shp_copy["region"].map(values)
+
+    if center_zero:
+        # Center colormap at zero for differences
+        max_abs = max(abs(min(values.values())), abs(max(values.values())))
+        vmin, vmax = -max_abs, max_abs
+    else:
+        # Use full range for std dev
+        vmin, vmax = 0, max(values.values())
+
+    shp_copy.plot(column="value", ax=ax, cmap=cmap, vmin=vmin, vmax=vmax, legend=True, legend_kwds={"shrink": 0.8, "label": title})
+
+    ax.set_title(title, fontsize=12, fontweight="bold")
+    ax.axis("off")
 
 
 def _plot_targets_impl(actual, preds, output_dir, shp, model_config, start_year, title_prefix):
@@ -818,275 +1440,275 @@ def _plot_targets_impl(actual, preds, output_dir, shp, model_config, start_year,
     # For now, just call the original plot_targets logic with proper parameters
     # This is a simplified implementation - the full plotting logic from plot_targets
     # could be moved here for better code reuse
-    print(f"[INFO] Plotting targets for {title_prefix} trial to {output_dir}")
+    # print(f"[INFO] Plotting targets for {title_prefix} trial to {output_dir}")
 
-    # Define consistent colors
-    n_reps = len(preds)
-    labels = ["Actual"] + [f"Rep {i + 1}" for i in range(n_reps)]
-    cmap = cm.get_cmap("Dark2")
-    color_map = {label: cmap(i) for i, label in enumerate(labels)}
+    # # Define consistent colors
+    # n_reps = len(preds)
+    # labels = ["Actual"] + [f"Rep {i + 1}" for i in range(n_reps)]
+    # cmap = cm.get_cmap("Dark2")
+    # color_map = {label: cmap(i) for i, label in enumerate(labels)}
 
-    # For now, just implement the basic cases_by_period plot as an example
-    if "cases_by_period" in actual:
-        period_labels = list(actual["cases_by_period"].keys())
-        x = np.arange(len(period_labels))
-        actual_vals = [actual["cases_by_period"][period] for period in period_labels]
+    # # For now, just implement the basic cases_by_period plot as an example
+    # if "cases_by_period" in actual:
+    #     period_labels = list(actual["cases_by_period"].keys())
+    #     x = np.arange(len(period_labels))
+    #     actual_vals = [actual["cases_by_period"][period] for period in period_labels]
 
-        plt.figure(figsize=(10, 6))
-        plt.title(f"Cases by Period - {title_prefix}")
-        plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
-        for i, rep in enumerate(preds):
-            pred = rep["cases_by_period"]
-            label = f"Rep {i + 1}"
-            pred_vals = [pred.get(period, 0) for period in period_labels]
-            plt.scatter(x, pred_vals, label=label, color=color_map[f"Rep {i + 1}"], marker="o", s=50)
-        plt.xticks(x, period_labels, rotation=45, ha="right")
-        plt.ylabel("Cases")
-        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-        plt.tight_layout()
-        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_period.png", bbox_inches="tight")
-        plt.close()
+    #     plt.figure(figsize=(10, 6))
+    #     plt.title(f"Cases by Period - {title_prefix}")
+    #     plt.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
+    #     for i, rep in enumerate(preds):
+    #         pred = rep["cases_by_period"]
+    #         label = f"Rep {i + 1}"
+    #         pred_vals = [pred.get(period, 0) for period in period_labels]
+    #         plt.scatter(x, pred_vals, label=label, color=color_map[f"Rep {i + 1}"], marker="o", s=50)
+    #     plt.xticks(x, period_labels, rotation=45, ha="right")
+    #     plt.ylabel("Cases")
+    #     plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+    #     plt.tight_layout()
+    #     plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_period.png", bbox_inches="tight")
+    #     plt.close()
 
-    # Monthly Timeseries Cases
-    if "cases_by_month_timeseries" in actual:
-        n_months = len(actual["cases_by_month_timeseries"])
-        months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
-        plt.figure()
-        plt.title(f"Cases by Month Timeseries - {title_prefix}")
-        plt.plot(months_series, actual["cases_by_month_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
-        for i, rep in enumerate(preds):
-            label = f"Rep {i + 1}"
-            plt.plot(months_series, rep["cases_by_month_timeseries"], "o-", label=label, color=color_map[label])
-        plt.xlabel("Month")
-        plt.ylabel("Cases")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_month_timeseries.png")
-        plt.close()
+    # # Monthly Timeseries Cases
+    # if "cases_by_month_timeseries" in actual:
+    #     n_months = len(actual["cases_by_month_timeseries"])
+    #     months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
+    #     plt.figure()
+    #     plt.title(f"Cases by Month Timeseries - {title_prefix}")
+    #     plt.plot(months_series, actual["cases_by_month_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+    #     for i, rep in enumerate(preds):
+    #         label = f"Rep {i + 1}"
+    #         plt.plot(months_series, rep["cases_by_month_timeseries"], "o-", label=label, color=color_map[label])
+    #     plt.xlabel("Month")
+    #     plt.ylabel("Cases")
+    #     plt.legend()
+    #     plt.tight_layout()
+    #     plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_month_timeseries.png")
+    #     plt.close()
 
-    if "cases_by_month" in actual:
-        months = list(range(1, 1 + len(actual["cases_by_month"])))
-        plt.figure(figsize=(10, 6))
-        plt.title(f"Cases by Month (Aggregated Across Years) - {title_prefix}")
-        plt.plot(months, actual["cases_by_month"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
-        for i, rep in enumerate(preds):
-            label = f"Rep {i + 1}"
-            plt.plot(months, rep["cases_by_month"], "o-", label=label, color=color_map[label])
-        plt.xlabel("Month")
-        plt.ylabel("Cases")
-        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-        plt.tight_layout()
-        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_month.png", bbox_inches="tight")
-        plt.close()
+    # if "cases_by_month" in actual:
+    #     months = list(range(1, 1 + len(actual["cases_by_month"])))
+    #     plt.figure(figsize=(10, 6))
+    #     plt.title(f"Cases by Month (Aggregated Across Years) - {title_prefix}")
+    #     plt.plot(months, actual["cases_by_month"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+    #     for i, rep in enumerate(preds):
+    #         label = f"Rep {i + 1}"
+    #         plt.plot(months, rep["cases_by_month"], "o-", label=label, color=color_map[label])
+    #     plt.xlabel("Month")
+    #     plt.ylabel("Cases")
+    #     plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+    #     plt.tight_layout()
+    #     plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_month.png", bbox_inches="tight")
+    #     plt.close()
 
-    # Regional Cases (bar plot)
-    if "cases_by_region" in actual:
-        region_labels = list(actual["cases_by_region"].keys())
-        x = np.arange(len(region_labels))
-        width = 0.6
-        plt.figure(figsize=(12, 8))
-        plt.title(f"Regional Cases - {title_prefix}")
-        plt.bar(
-            x, actual["cases_by_region"].values(), width, label="Actual", edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5
-        )
-        for i, rep in enumerate(preds):
-            label = f"Rep {i + 1}"
-            plt.scatter(x, rep["cases_by_region"].values(), label=f"Rep {i + 1}", color=color_map[label], marker="o", s=50)
-        plt.xticks(x + width * (len(preds) // 2), region_labels, rotation=45, ha="right")
-        plt.ylabel("Cases")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_region.png")
-        plt.close()
+    # # Regional Cases (bar plot)
+    # if "cases_by_region" in actual:
+    #     region_labels = list(actual["cases_by_region"].keys())
+    #     x = np.arange(len(region_labels))
+    #     width = 0.6
+    #     plt.figure(figsize=(12, 8))
+    #     plt.title(f"Regional Cases - {title_prefix}")
+    #     plt.bar(
+    #         x, actual["cases_by_region"].values(), width, label="Actual", edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5
+    #     )
+    #     for i, rep in enumerate(preds):
+    #         label = f"Rep {i + 1}"
+    #         plt.scatter(x, rep["cases_by_region"].values(), label=f"Rep {i + 1}", color=color_map[label], marker="o", s=50)
+    #     plt.xticks(x + width * (len(preds) // 2), region_labels, rotation=45, ha="right")
+    #     plt.ylabel("Cases")
+    #     plt.legend()
+    #     plt.tight_layout()
+    #     plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_region.png")
+    #     plt.close()
 
-    # Regional Cases by Period (nested dictionary structure)
-    if "cases_by_region_period" in actual:
-        region_period_data = actual["cases_by_region_period"]
+    # # Regional Cases by Period (nested dictionary structure)
+    # if "cases_by_region_period" in actual:
+    #     region_period_data = actual["cases_by_region_period"]
 
-        # Extract all unique periods from all regions
-        all_periods = set()
-        for region_dict in region_period_data.values():
-            all_periods.update(region_dict.keys())
-        periods = sorted(all_periods)
+    #     # Extract all unique periods from all regions
+    #     all_periods = set()
+    #     for region_dict in region_period_data.values():
+    #         all_periods.update(region_dict.keys())
+    #     periods = sorted(all_periods)
 
-        # Extract all unique regions
-        regions = sorted(region_period_data.keys())
+    #     # Extract all unique regions
+    #     regions = sorted(region_period_data.keys())
 
-        # Create figure with subplots stacked vertically (one per period)
-        n_periods = len(periods)
-        if n_periods > 0:
-            fig, axes = plt.subplots(n_periods, 1, figsize=(12, 4 * n_periods))
-            if n_periods == 1:
-                axes = [axes]
+    #     # Create figure with subplots stacked vertically (one per period)
+    #     n_periods = len(periods)
+    #     if n_periods > 0:
+    #         fig, axes = plt.subplots(n_periods, 1, figsize=(12, 4 * n_periods))
+    #         if n_periods == 1:
+    #             axes = [axes]
 
-            for i, period in enumerate(periods):
-                ax = axes[i]
+    #         for i, period in enumerate(periods):
+    #             ax = axes[i]
 
-                # Extract data for this period across all regions
-                x = np.arange(len(regions))
-                actual_vals = [region_period_data.get(region, {}).get(period, 0) for region in regions]
+    #             # Extract data for this period across all regions
+    #             x = np.arange(len(regions))
+    #             actual_vals = [region_period_data.get(region, {}).get(period, 0) for region in regions]
 
-                # Plot actual as outlined bar
-                ax.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
+    #             # Plot actual as outlined bar
+    #             ax.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
 
-                # Plot predicted reps as colored dots
-                for j, rep in enumerate(preds):
-                    label = f"Rep {j + 1}"
-                    rep_data = rep.get("cases_by_region_period", {})
-                    rep_vals = [rep_data.get(region, {}).get(period, 0) for region in regions]
-                    ax.scatter(x, rep_vals, label=label, color=color_map[label], marker="o", s=50)
+    #             # Plot predicted reps as colored dots
+    #             for j, rep in enumerate(preds):
+    #                 label = f"Rep {j + 1}"
+    #                 rep_data = rep.get("cases_by_region_period", {})
+    #                 rep_vals = [rep_data.get(region, {}).get(period, 0) for region in regions]
+    #                 ax.scatter(x, rep_vals, label=label, color=color_map[label], marker="o", s=50)
 
-                ax.set_title(f"Regional Cases - {period}")
-                ax.set_xticks(x)
-                ax.set_xticklabels(regions, rotation=45, ha="right")
-                ax.set_ylabel("Cases")
-                ax.legend()
+    #             ax.set_title(f"Regional Cases - {period}")
+    #             ax.set_xticks(x)
+    #             ax.set_xticklabels(regions, rotation=45, ha="right")
+    #             ax.set_ylabel("Cases")
+    #             ax.legend()
 
-            plt.tight_layout()
-            plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_region_period.png")
-            plt.close()
+    #         plt.tight_layout()
+    #         plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_region_period.png")
+    #         plt.close()
 
-    if "cases_by_region_month" in actual:
-        cases_by_region_month_actual = actual.get("cases_by_region_month")
-        regions = list(cases_by_region_month_actual.keys())
-        n_regions = len(regions)
+    # if "cases_by_region_month" in actual:
+    #     cases_by_region_month_actual = actual.get("cases_by_region_month")
+    #     regions = list(cases_by_region_month_actual.keys())
+    #     n_regions = len(regions)
 
-        if n_regions > 0:
-            # Create subplot grid (2x2 for 4 regions, adjust if different number)
-            n_cols = 2
-            n_rows = (n_regions + n_cols - 1) // n_cols  # Ceiling division
+    #     if n_regions > 0:
+    #         # Create subplot grid (2x2 for 4 regions, adjust if different number)
+    #         n_cols = 2
+    #         n_rows = (n_regions + n_cols - 1) // n_cols  # Ceiling division
 
-            # Define dynamic figure size: scale height per row and keep width fixed
-            fig_height_per_row = 3.5
-            fig_width = 15
-            fig_height = n_rows * fig_height_per_row
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_width, fig_height))
-            fig.suptitle("Regional Monthly Timeseries Comparison", fontsize=16)
+    #         # Define dynamic figure size: scale height per row and keep width fixed
+    #         fig_height_per_row = 3.5
+    #         fig_width = 15
+    #         fig_height = n_rows * fig_height_per_row
+    #         fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_width, fig_height))
+    #         fig.suptitle("Regional Monthly Timeseries Comparison", fontsize=16)
 
-            # Flatten axes for easier indexing if multiple rows
-            # if n_regions > 1:
-            #     axes = axes.flatten() if n_rows > 1 else [axes] if n_cols == 1 else axes
-            # else:
-            #     axes = [axes]
+    #         # Flatten axes for easier indexing if multiple rows
+    #         # if n_regions > 1:
+    #         #     axes = axes.flatten() if n_rows > 1 else [axes] if n_cols == 1 else axes
+    #         # else:
+    #         #     axes = [axes]
 
-            # Normalize axes to always be a flat list of Axes
-            if isinstance(axes, np.ndarray):
-                axes = axes.flatten()
-            else:
-                axes = [axes]
+    #         # Normalize axes to always be a flat list of Axes
+    #         if isinstance(axes, np.ndarray):
+    #             axes = axes.flatten()
+    #         else:
+    #             axes = [axes]
 
-            # Get the length of the first key in the dictionary
-            first_key = next(iter(actual["cases_by_region_month"]))
-            n_months = len(actual["cases_by_region_month"][first_key])
-            months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
+    #         # Get the length of the first key in the dictionary
+    #         first_key = next(iter(actual["cases_by_region_month"]))
+    #         n_months = len(actual["cases_by_region_month"][first_key])
+    #         months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
 
-            for idx, region in enumerate(regions):
-                ax = axes[idx]
-                timeseries = cases_by_region_month_actual[region]
+    #         for idx, region in enumerate(regions):
+    #             ax = axes[idx]
+    #             timeseries = cases_by_region_month_actual[region]
 
-                # Plot actual data
-                ax.plot(months_series, timeseries, "o-", label="Actual", color=color_map["Actual"], linewidth=2)
+    #             # Plot actual data
+    #             ax.plot(months_series, timeseries, "o-", label="Actual", color=color_map["Actual"], linewidth=2)
 
-                # Add predicted data for each replicate
-                for i, rep in enumerate(preds):
-                    if "cases_by_region_month" in rep and region in rep["cases_by_region_month"]:
-                        label = f"Rep {i + 1}"
-                        rep_timeseries = rep["cases_by_region_month"][region]
-                        ax.plot(months_series, rep_timeseries, "o-", label=label, color=color_map[label])
+    #             # Add predicted data for each replicate
+    #             for i, rep in enumerate(preds):
+    #                 if "cases_by_region_month" in rep and region in rep["cases_by_region_month"]:
+    #                     label = f"Rep {i + 1}"
+    #                     rep_timeseries = rep["cases_by_region_month"][region]
+    #                     ax.plot(months_series, rep_timeseries, "o-", label=label, color=color_map[label])
 
-                ax.set_title(f"{region.replace('_', ' ').title()}")
-                ax.set_xlabel("Month")
-                ax.set_ylabel("Cases")
-                ax.tick_params(axis="x", rotation=45)
-                ax.grid(True, alpha=0.3)
+    #             ax.set_title(f"{region.replace('_', ' ').title()}")
+    #             ax.set_xlabel("Month")
+    #             ax.set_ylabel("Cases")
+    #             ax.tick_params(axis="x", rotation=45)
+    #             ax.grid(True, alpha=0.3)
 
-                # Only add legend to first subplot to avoid clutter
-                if idx == 0:
-                    ax.legend(loc="upper left")
+    #             # Only add legend to first subplot to avoid clutter
+    #             if idx == 0:
+    #                 ax.legend(loc="upper left")
 
-            # Hide any unused subplots
-            for idx in range(n_regions, len(axes)):
-                axes[idx].set_visible(False)
+    #         # Hide any unused subplots
+    #         for idx in range(n_regions, len(axes)):
+    #             axes[idx].set_visible(False)
 
-            plt.tight_layout()
-            plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_region_month.png", dpi=300, bbox_inches="tight")
-            plt.close()
+    #         plt.tight_layout()
+    #         plt.savefig(output_dir / f"plot_{title_prefix.lower()}_cases_by_region_month.png", dpi=300, bbox_inches="tight")
+    #         plt.close()
 
-    # District Case Bin Counts (binned histogram comparison)
-    if "case_bins_by_region" in actual:
-        # Read bin configuration from model config
-        bin_config = model_config.get("summary_config", {}).get("case_bins", {})
-        bin_labels = bin_config.get("bin_labels", ["0", "1", "2", "3", "4", "5-9", "10-19", "20+"])
+    # # District Case Bin Counts (binned histogram comparison)
+    # if "case_bins_by_region" in actual:
+    #     # Read bin configuration from model config
+    #     bin_config = model_config.get("summary_config", {}).get("case_bins", {})
+    #     bin_labels = bin_config.get("bin_labels", ["0", "1", "2", "3", "4", "5-9", "10-19", "20+"])
 
-        case_bins_by_region_actual = actual["case_bins_by_region"]
-        regions = list(case_bins_by_region_actual.keys())
-        n_regions = len(regions)
+    #     case_bins_by_region_actual = actual["case_bins_by_region"]
+    #     regions = list(case_bins_by_region_actual.keys())
+    #     n_regions = len(regions)
 
-        if n_regions > 0:
-            # Create subplot grid (2x2 for 4 regions, adjust if different number)
-            n_cols = 2
-            n_rows = (n_regions + n_cols - 1) // n_cols  # Ceiling division
+    #     if n_regions > 0:
+    #         # Create subplot grid (2x2 for 4 regions, adjust if different number)
+    #         n_cols = 2
+    #         n_rows = (n_regions + n_cols - 1) // n_cols  # Ceiling division
 
-            fig_height_per_row = 3
-            fig_width = 15
-            fig_height = n_rows * fig_height_per_row
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_width, fig_height))
-            # fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 10))
-            fig.suptitle("District Case Count Distribution by Region", fontsize=16)
+    #         fig_height_per_row = 3
+    #         fig_width = 15
+    #         fig_height = n_rows * fig_height_per_row
+    #         fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_width, fig_height))
+    #         # fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 10))
+    #         fig.suptitle("District Case Count Distribution by Region", fontsize=16)
 
-            # Flatten axes for easier indexing if multiple rows
-            if n_regions > 1:
-                axes = axes.flatten() if n_rows > 1 else [axes] if n_cols == 1 else axes
-            else:
-                axes = [axes]
+    #         # Flatten axes for easier indexing if multiple rows
+    #         if n_regions > 1:
+    #             axes = axes.flatten() if n_rows > 1 else [axes] if n_cols == 1 else axes
+    #         else:
+    #             axes = [axes]
 
-            # Get consistent y-axis scale across all subplots
-            all_counts = []
-            all_counts.extend(case_bins_by_region_actual.values())
-            for rep in preds:
-                if "case_bins_by_region" in rep:
-                    all_counts.extend(rep["case_bins_by_region"].values())
-            max_count = max(max(counts) if counts else 0 for counts in all_counts)
+    #         # Get consistent y-axis scale across all subplots
+    #         all_counts = []
+    #         all_counts.extend(case_bins_by_region_actual.values())
+    #         for rep in preds:
+    #             if "case_bins_by_region" in rep:
+    #                 all_counts.extend(rep["case_bins_by_region"].values())
+    #         max_count = max(max(counts) if counts else 0 for counts in all_counts)
 
-            for idx, region in enumerate(regions):
-                ax = axes[idx]
-                actual_counts = case_bins_by_region_actual[region]
-                x_positions = range(len(bin_labels))
+    #         for idx, region in enumerate(regions):
+    #             ax = axes[idx]
+    #             actual_counts = case_bins_by_region_actual[region]
+    #             x_positions = range(len(bin_labels))
 
-                # Plot actual data as bars with edges only
-                ax.bar(x_positions, actual_counts, width=0.8, edgecolor=color_map["Actual"], facecolor="none", linewidth=2, label="Actual")
+    #             # Plot actual data as bars with edges only
+    #             ax.bar(x_positions, actual_counts, width=0.8, edgecolor=color_map["Actual"], facecolor="none", linewidth=2, label="Actual")
 
-                # Add predicted data for each replicate as dots
-                for i, rep in enumerate(preds):
-                    if "case_bins_by_region" in rep and region in rep["case_bins_by_region"]:
-                        label = f"Rep {i + 1}"
-                        rep_counts = rep["case_bins_by_region"][region]
-                        ax.scatter(x_positions, rep_counts, label=label, color=color_map[label], marker="o", s=50)
+    #             # Add predicted data for each replicate as dots
+    #             for i, rep in enumerate(preds):
+    #                 if "case_bins_by_region" in rep and region in rep["case_bins_by_region"]:
+    #                     label = f"Rep {i + 1}"
+    #                     rep_counts = rep["case_bins_by_region"][region]
+    #                     ax.scatter(x_positions, rep_counts, label=label, color=color_map[label], marker="o", s=50)
 
-                ax.set_title(f"{region.replace('_', ' ').title()}")
-                ax.set_xlabel("Number of Cases")
-                ax.set_ylabel("Number of Districts")
-                ax.set_xticks(x_positions)
-                ax.set_xticklabels(bin_labels, rotation=0)
-                ax.set_ylim(0, max_count * 1.1)
-                ax.grid(True, alpha=0.3)
+    #             ax.set_title(f"{region.replace('_', ' ').title()}")
+    #             ax.set_xlabel("Number of Cases")
+    #             ax.set_ylabel("Number of Districts")
+    #             ax.set_xticks(x_positions)
+    #             ax.set_xticklabels(bin_labels, rotation=0)
+    #             ax.set_ylim(0, max_count * 1.1)
+    #             ax.grid(True, alpha=0.3)
 
-                # Add count annotations on actual bars
-                for i, count in enumerate(actual_counts):
-                    if count > 0:
-                        ax.text(i, count + max_count * 0.02, f"{int(count)}", ha="center", va="bottom", fontsize=9)
+    #             # Add count annotations on actual bars
+    #             for i, count in enumerate(actual_counts):
+    #                 if count > 0:
+    #                     ax.text(i, count + max_count * 0.02, f"{int(count)}", ha="center", va="bottom", fontsize=9)
 
-                # Only add legend to first subplot to avoid clutter
-                if idx == 0:
-                    ax.legend(loc="upper right")
+    #             # Only add legend to first subplot to avoid clutter
+    #             if idx == 0:
+    #                 ax.legend(loc="upper right")
 
-            # Hide any unused subplots
-            for idx in range(n_regions, len(axes)):
-                axes[idx].set_visible(False)
+    #         # Hide any unused subplots
+    #         for idx in range(n_regions, len(axes)):
+    #             axes[idx].set_visible(False)
 
-            plt.tight_layout()
-            plt.savefig(output_dir / f"plot_{title_prefix.lower()}_case_bins_by_region.png", dpi=300, bbox_inches="tight")
-            plt.close()
+    #         plt.tight_layout()
+    #         plt.savefig(output_dir / f"plot_{title_prefix.lower()}_case_bins_by_region.png", dpi=300, bbox_inches="tight")
+    #         plt.close()
 
     # Plot choropleth of case count differences for each replicate
     if shp is not None and "cases_by_region" in actual:
@@ -1111,122 +1733,6 @@ def _plot_targets_impl(actual, preds, output_dir, shp, model_config, start_year,
                     output_path=output_dir / f"plot_{title_prefix.lower()}_case_diff_choropleth_temporal_rep{i + 1}.png",
                     title=f"Case Count Difference by Period (Actual - Predicted) - Rep {i + 1}",
                 )
-
-    # Total Nodes with Cases
-    if "nodes_with_cases_total" in actual:
-        plt.figure()
-        plt.title("Total Nodes with Cases")
-        width = 0.2
-        x = np.arange(1 + len(preds))
-        values = [actual["nodes_with_cases_total"][0]] + [rep["nodes_with_cases_total"][0] for rep in preds]
-        labels = ["Actual"] + [f"Rep {i + 1}" for i in range(len(preds))]
-        plt.bar(x, values, width=width, color=[color_map[lbl] for lbl in labels])
-        plt.xticks(x, labels, rotation=45)
-        plt.ylabel("Nodes")
-        plt.tight_layout()
-        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_nodes_with_cases_total.png")
-        plt.close()
-
-    # Monthly Nodes with Cases
-    if "nodes_with_cases_timeseries" in actual:
-        n_months = len(actual["nodes_with_cases_timeseries"])
-        months = list(range(1, n_months + 1))
-        plt.figure()
-        plt.title("Monthly Nodes with Cases")
-        plt.plot(months, actual["nodes_with_cases_timeseries"], "o-", label="Actual", color=color_map["Actual"], linewidth=2)
-        for i, rep in enumerate(preds):
-            label = f"Rep {i + 1}"
-            plt.plot(months, rep["nodes_with_cases_timeseries"], "o-", label=f"Rep {i + 1}", color=color_map[label])
-        plt.xlabel("Month")
-        plt.ylabel("Number of Nodes with ≥1 Case")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_nodes_with_cases_timeseries.png")
-        plt.close()
-
-    # Regional Cases (bar plot)
-    if "regional" in actual:
-        x = np.arange(len(region_labels))
-        width = 0.1
-        plt.figure()
-        plt.title("Regional")
-        plt.bar(x, [actual["regional"][r] for r in region_labels], width, label="Actual", color=color_map["Actual"])
-        for i, rep in enumerate(preds):
-            label = f"Rep {i + 1}"
-            plt.bar(x + (i + 1) * width, [rep["regional"][r] for r in region_labels], width, label=f"Rep {i + 1}", color=color_map[label])
-        plt.xticks(x + width * (len(preds) // 2), region_labels)
-        plt.ylabel("Cases")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(output_dir / f"plot_{title_prefix.lower()}_regional.png")
-        plt.close()
-
-    if "regional_by_period" in actual:
-        regional_by_period_actual = actual.get("regional_by_period")
-
-        # Extract periods and regions from the dictionary keys
-        periods = []
-        period_data = {}
-
-        for key, value in regional_by_period_actual.items():
-            # Parse the tuple key format: "('NIGERIA:JIGAWA', '2018-2019')"
-            # Extract both the region and period from the tuple-like string
-            parts = key.strip("()").split("', '")
-            if len(parts) == 2:
-                adm01_name = parts[0].strip("'")
-                period = parts[1].strip("'")
-
-                if period not in periods:
-                    periods.append(period)
-                    period_data[period] = {}
-
-                period_data[period][adm01_name] = value
-
-        # Use the periods in the order they appear in the dictionary
-        # Create figure with subplots stacked vertically
-        n_periods = len(periods)
-        if n_periods > 0:
-            fig, axes = plt.subplots(n_periods, 1, figsize=(12, 4 * n_periods))
-            if n_periods == 1:
-                axes = [axes]
-
-            for i, period in enumerate(periods):
-                ax = axes[i]
-                data = period_data.get(period, {})
-
-                if data:
-                    adm_labels = sorted(data.keys())
-                    x = np.arange(len(adm_labels))
-                    actual_vals = [data.get(adm, 0) for adm in adm_labels]
-
-                    # Plot actual as outlined bar
-                    ax.bar(x, actual_vals, width=0.6, edgecolor=color_map["Actual"], facecolor="none", linewidth=1.5, label="Actual")
-
-                    # Plot predicted reps as colored dots
-                    for j, rep in enumerate(preds):
-                        label = f"Rep {j + 1}"
-                        rep_data = {}
-                        for key, value in rep.get("regional_by_period", {}).items():
-                            # Parse the same way to extract period
-                            parts = key.strip("()").split("', '")
-                            if len(parts) == 2:
-                                rep_adm01_name = parts[0].strip("'")
-                                rep_period = parts[1].strip("'")
-                                if rep_period == period:
-                                    rep_data[rep_adm01_name] = value
-
-                        rep_vals = [rep_data.get(adm, 0) for adm in adm_labels]
-                        ax.scatter(x, rep_vals, label=label, color=color_map[label], marker="o", s=50)
-
-                    ax.set_title(f"Regional Cases - {period}")
-                    ax.set_xticks(x)
-                    ax.set_xticklabels(adm_labels, rotation=45, ha="right")
-                    ax.set_ylabel("Cases")
-                    ax.legend()
-
-            plt.tight_layout()
-            plt.savefig(output_dir / f"plot_{title_prefix.lower()}_regional_by_period.png")
-            plt.close()
 
 
 def plot_likelihoods(study, output_dir=None, use_log=True, trial_number=None):
