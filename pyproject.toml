@@ -107,6 +107,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 ignore = [
+    "C408", # dict calls
     "RUF059", # unused unpacked variables
     "RUF001", # ruff-specific rules ambiguous-unicode-character-string
     "S101", # flake8-bandit assert

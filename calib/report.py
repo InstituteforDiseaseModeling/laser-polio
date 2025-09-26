@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from sklearn.feature_selection import mutual_info_regression
 from sqlalchemy import create_engine
 
 # Ensure we're using the Agg backend for better cross-platform compatibility
@@ -167,9 +168,7 @@ def save_study_results(study, output_dir: Path, csv_name: str = "trials.csv"):
     print(f"Study results saved to '{output_dir}'")
 
 
-def plot_optuna(study_name, storage_url, output_dir=None):
-    study = optuna.load_study(study_name=study_name, storage=storage_url)
-
+def plot_optimization_history(study, output_dir=None):
     # Default output directory to current working dir if not provided
     output_dir = Path(output_dir) / "optuna_plots" if output_dir else Path.cwd()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -179,14 +178,16 @@ def plot_optuna(study_name, storage_url, output_dir=None):
     # Optimization history
     fig1 = vis.plot_optimization_history(study)
     fig1.update_yaxes(type="log")
-    fig1.write_html(output_dir / "plot_opt_history.html")
+    # fig1.write_html(output_dir / "plot_opt_history.html")
+    fig1.write_image(output_dir / "plot_opt_history.png", width=800, height=600, scale=2)
 
-    # # Param importances - WARNING! Can be slow for large studies
-    # try:
-    #     fig2 = vis.plot_param_importances(study)
-    #     fig2.write_html(output_dir / "plot_param_importances.html")
-    # except Exception as ex:
-    #     print("[WARN] Could not plot param importances:", ex)
+
+def plot_likelihoood_slices(study, output_dir=None):
+    # Default output directory to current working dir if not provided
+    output_dir = Path(output_dir) / "likelihood_plots" if output_dir else Path.cwd()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"[INFO] Saving Optuna plots to: {output_dir.resolve()}")
 
     # Slice plots
     params = study.best_params.keys()
@@ -195,37 +196,8 @@ def plot_optuna(study_name, storage_url, output_dir=None):
         # Set log scale on y-axis
         fig3.update_yaxes(type="log")
         # fig.update_layout(width=plot_width)
-        fig3.write_html(output_dir / f"plot_slice_{param}.html")
-
-    # Contour plots - WARNING! Can be slow for large studies
-    # try:
-    #     fig4 = vis.plot_contour(study, params=["r0", "radiation_k_log10"])
-    #     fig4.write_html(output_dir / "plot_contour_r0_radiation_k.html")
-    # try:
-    #     fig4 = vis.plot_contour(study, params=["r0", "gravity_k_exponent"])
-    #     fig4.write_html(output_dir / "plot_contour_gravity_k_exponent.html")
-    #     fig4 = vis.plot_contour(study, params=["r0", "gravity_c"])
-    #     fig4.write_html(output_dir / "plot_contour_r0_gravity_c.html")
-    # Candidate pairs to try
-    # param_pairs = [
-    #     ("r0", "radiation_k_log10"),
-    #     ("r0", "gravity_k_exponent"),
-    #     ("r0", "gravity_c"),
-    #     ("gravity_k_exponent", "gravity_c"),
-    # ]
-    # # Get set of all parameters in the study
-    # all_params = {k for t in study.trials if t.params for k in t.params.keys()}
-    # # Loop over param pairs and plot only if both exist
-    # for x, y in param_pairs:
-    #     if x in all_params and y in all_params:
-    #         try:
-    #             fig = vis.plot_contour(study, params=[x, y])
-    #             fig.write_html(output_dir / f"plot_contour_{x}_{y}.html")
-    #         except Exception as e:
-    #             print(f"[WARN] Failed to plot {x} vs {y}: {e}")
-    #     else:
-    #         print(f"[SKIP] Missing one or both params: {x}, {y}")
-    # print("done with countour plots")
+        # fig3.write_html(output_dir / f"plot_slice_{param}.html")
+        fig3.write_image(output_dir / f"slice_{param}.png", width=800, height=600, scale=2)
 
 
 def plot_case_diff_choropleth_temporal(
@@ -748,7 +720,7 @@ def plot_cases_by_period(actual, preds, trials, output_dir, color_map):
         # Single prediction
         trial_num = trials.iloc[0]["number"]
         pred_vals = [predicted_values[0].get(period, 0) for period in period_labels]
-        ax.plot(x, pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
+        ax.plot(x, pred_vals, "-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
     else:
         # Multiple predictions - simplified approach
         # Plot all non-best trials in one go for efficiency
@@ -764,7 +736,7 @@ def plot_cases_by_period(actual, preds, trials, output_dir, color_map):
         # Plot best trial last with markers
         best_trial_num = trials.iloc[0]["number"]
         best_pred_vals = [predicted_values[0].get(period, 0) for period in period_labels]
-        ax.plot(x, best_pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4)
+        ax.plot(x, best_pred_vals, "-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4)
 
     # Formatting improvements
     ax.set_xticks(x)
@@ -813,7 +785,7 @@ def plot_cases_by_month(actual, preds, trials, output_dir, color_map):
         # Single prediction
         trial_num = trials.iloc[0]["number"]
         pred_vals = predicted_values[0]
-        ax.plot(x, pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
+        ax.plot(x, pred_vals, "-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
     else:
         # Multiple predictions
         # Plot all non-best trials
@@ -829,7 +801,7 @@ def plot_cases_by_month(actual, preds, trials, output_dir, color_map):
         # Plot best trial last with markers
         best_trial_num = trials.iloc[0]["number"]
         best_pred_vals = predicted_values[0]
-        ax.plot(x, best_pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4)
+        ax.plot(x, best_pred_vals, "-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4)
 
     # Formatting
     ax.set_xticks(x)
@@ -881,7 +853,7 @@ def plot_cases_by_month_timeseries(actual, preds, trials, output_dir, color_map,
         # Single prediction
         trial_num = trials.iloc[0]["number"]
         pred_vals = predicted_values[0]
-        ax.plot(x, pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
+        ax.plot(x, pred_vals, "-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
     else:
         # Multiple predictions
         # Plot all non-best trials without markers
@@ -950,7 +922,7 @@ def plot_cases_by_region(actual, preds, trials, output_dir, color_map):
         # Single prediction
         trial_num = trials.iloc[0]["number"]
         pred_vals = list(predicted_values[0].values())
-        ax.plot(x, pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
+        ax.plot(x, pred_vals, "-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
     else:
         # Multiple predictions
         # Plot all non-best trials without markers
@@ -966,7 +938,7 @@ def plot_cases_by_region(actual, preds, trials, output_dir, color_map):
         # Plot best trial last with markers
         best_trial_num = trials.iloc[0]["number"]
         best_pred_vals = list(predicted_values[0].values())
-        ax.plot(x, best_pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4)
+        ax.plot(x, best_pred_vals, "-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4)
 
     # Formatting
     ax.set_xticks(x)
@@ -1031,7 +1003,7 @@ def plot_cases_by_region_period(actual, preds, trials, output_dir, color_map):
             trial_num = trials.iloc[0]["number"]
             rep_data = predicted_values[0]
             pred_vals = [rep_data.get(region, {}).get(period, 0) for region in regions]
-            ax.plot(x, pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
+            ax.plot(x, pred_vals, "-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3)
         else:
             # Multiple predictions
             # Plot all non-best trials without markers
@@ -1051,7 +1023,7 @@ def plot_cases_by_region_period(actual, preds, trials, output_dir, color_map):
             best_rep_data = predicted_values[0]
             best_pred_vals = [best_rep_data.get(region, {}).get(period, 0) for region in regions]
             ax.plot(
-                x, best_pred_vals, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4
+                x, best_pred_vals, "-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Best: Trial {best_trial_num}", zorder=4
             )
 
         # Formatting
@@ -1127,7 +1099,7 @@ def plot_cases_by_region_month(actual, preds, trials, output_dir, color_map, sta
             trial_num = trials.iloc[0]["number"]
             if region in predicted_values[0]:
                 pred_timeseries = predicted_values[0][region]
-                ax.plot(x, pred_timeseries, "o-", color=color_map[0], linewidth=2.5, markersize=5, label=f"Trial {trial_num}", zorder=3)
+                ax.plot(x, pred_timeseries, "-", color=color_map[0], linewidth=2.5, markersize=5, label=f"Trial {trial_num}", zorder=3)
         else:
             # Multiple predictions
             # Plot all non-best trials without markers
@@ -1148,7 +1120,7 @@ def plot_cases_by_region_month(actual, preds, trials, output_dir, color_map, sta
                 ax.plot(
                     x,
                     best_timeseries,
-                    "o-",
+                    "-",
                     color=color_map[0],
                     linewidth=2.5,
                     markersize=5,
@@ -1254,7 +1226,7 @@ def plot_case_bins_by_region(actual, preds, trials, output_dir, color_map, model
             if region in predicted_values[0]:
                 pred_counts = predicted_values[0][region]
                 ax.plot(
-                    x_positions, pred_counts, "o-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3
+                    x_positions, pred_counts, "-", color=color_map[0], linewidth=2.5, markersize=7, label=f"Trial {trial_num}", zorder=3
                 )
         else:
             # Multiple predictions
@@ -1406,14 +1378,14 @@ def plot_choropleth_panel(ax, shp, values, title, cmap="RdBu", center_zero=True)
     ax.axis("off")
 
 
-def plot_likelihoods(study, output_dir=None, use_log=True, trial_number=None):
+def plot_likelihood_contribution_best(study, output_dir=None, use_log=True, trial_number=None):
     # Default output directory to current working dir if not provided
     if output_dir:
         # If trial_number is specified, use output_dir directly, otherwise use optuna_plots subdirectory
         if trial_number is not None:
             output_dir = Path(output_dir)
         else:
-            output_dir = Path(output_dir) / "optuna_plots"
+            output_dir = Path(output_dir) / "likelihood_plots"
     else:
         output_dir = Path.cwd()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1456,7 +1428,7 @@ def plot_likelihoods(study, output_dir=None, use_log=True, trial_number=None):
     except Exception as e:
         print(f"[WARN] Could not add bar labels: {e}")
     plt.subplots_adjust(bottom=0.2)  # Reserve 20% of figure height for x-labels
-    plt.savefig(output_dir / "plot_likelihoods.png", bbox_inches="tight")
+    plt.savefig(output_dir / "likelihood_contribution_best.png", bbox_inches="tight")
     plt.close()
     plt.show()
 
@@ -1571,302 +1543,22 @@ def plot_multiple_choropleths(shp, node_lookup, actual_cases, trial_predictions,
     plt.close()
 
 
-# def plot_top_trials(study, output_dir, n_best=10, title="Top Calibration Results", shp=None, node_lookup=None, start_year=2018):
-#     """
-#     Plot the top n best calibration trials using the same visualizations as plot_targets.
-
-#     Args:
-#         study (optuna.Study): The Optuna study containing trials
-#         output_dir (Path): Directory to save plots
-#         n_best (int): Number of best trials to plot
-#         title (str): Title for the plot
-#         shp (GeoDataFrame, optional): Shapefile for choropleth plots
-#         node_lookup (dict, optional): Dictionary mapping dot_names to administrative regions
-#     """
-#     # Get trials sorted by value (ascending)
-#     trials = sorted(study.trials, key=lambda t: t.value if t.value is not None else float("inf"))
-#     top_trials = trials[:n_best]
-
-#     # Load metadata and model config
-#     metadata_path = Path(output_dir) / "study_metadata.json"
-#     if not metadata_path.exists():
-#         raise FileNotFoundError(f"study_metadata.json not found at {metadata_path}")
-#     with open(metadata_path) as f:
-#         metadata = json.load(f)
-#     model_config = metadata.get("model_config", {})
-
-#     # Generate shapefile if not provided
-#     if shp is None:
-#         try:
-#             shp, node_lookup = get_shapefile_from_config(model_config)
-#             print("[INFO] Generated shapefile from model config")
-#         except Exception as e:
-#             print(f"[WARN] Could not generate shapefile: {e}")
-#             shp = None
-
-#     # Define consistent colors for trials
-#     cmap = cm.get_cmap("tab20")
-#     color_map = {f"Trial {trial.number}": cmap(i) for i, trial in enumerate(top_trials)}
-
-#     # Create output directory for top trials plots
-#     top_trials_dir = Path(output_dir) / "top_10_trial_plots"
-#     top_trials_dir.mkdir(exist_ok=True)
-
-#     # Get actual data from first trial (should be same for all)
-#     actual = top_trials[0].user_attrs["actual"]
-
-#     # Total Infected
-#     if "total_infected" in actual:
-#         plt.figure()
-#         plt.title(f"Total Infected - Top {n_best} Trials")
-#         width = 0.8 / (n_best + 1)  # Adjust bar width based on number of trials
-#         x = np.arange(2)  # Just two bars: Actual and Predicted
-#         plt.bar(x[0], actual["total_infected"][0], width, label="Actual", color="black")
-#         for i, trial in enumerate(top_trials):
-#             pred = trial.user_attrs["predicted"][0]  # Get first replicate
-#             label = f"Trial {trial.number} (value={trial.value:.2f})"
-#             plt.bar(
-#                 x[1] + (i - n_best / 2) * width, pred["total_infected"][0], width, label=label, color=color_map[f"Trial {trial.number}"]
-#             )
-#         plt.xticks(x, ["Actual", "Predicted"])
-#         plt.ylabel("Cases")
-#         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-#         plt.tight_layout()
-#         plt.savefig(top_trials_dir / "total_infected_comparison.png", bbox_inches="tight")
-#         plt.close()
-
-#     # Yearly Cases
-#     if "yearly_cases" in actual:
-#         years = list(range(start_year, start_year + len(actual["yearly_cases"])))
-#         plt.figure(figsize=(10, 6))
-#         plt.title(f"Yearly Cases - Top {n_best} Trials")
-#         plt.plot(years, actual["yearly_cases"], "o-", label="Actual", color="black", linewidth=2)
-#         for trial in top_trials:
-#             pred = trial.user_attrs["predicted"][0]
-#             label = f"Trial {trial.number} (value={trial.value:.2f})"
-#             plt.plot(years, pred["yearly_cases"], "o--", label=label, color=color_map[f"Trial {trial.number}"])
-#         plt.xlabel("Year")
-#         plt.ylabel("Cases")
-#         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-#         plt.tight_layout()
-#         plt.savefig(top_trials_dir / "yearly_cases_comparison.png", bbox_inches="tight")
-#         plt.close()
-
-#     # Monthly Cases
-#     if "monthly_cases" in actual:
-#         months = list(range(1, 1 + len(actual["monthly_cases"])))
-#         plt.figure(figsize=(10, 6))
-#         plt.title(f"Monthly Cases - Top {n_best} Trials")
-#         plt.plot(months, actual["monthly_cases"], "o-", label="Actual", color="black", linewidth=2)
-#         for trial in top_trials:
-#             pred = trial.user_attrs["predicted"][0]
-#             label = f"Trial {trial.number} (value={trial.value:.2f})"
-#             plt.plot(months, pred["monthly_cases"], "o--", label=label, color=color_map[f"Trial {trial.number}"])
-#         plt.xlabel("Month")
-#         plt.ylabel("Cases")
-#         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-#         plt.tight_layout()
-#         plt.savefig(top_trials_dir / "monthly_cases_comparison.png", bbox_inches="tight")
-#         plt.close()
-
-#     # Monthly Timeseries
-#     if "monthly_timeseries" in actual:
-#         n_months = len(actual["monthly_timeseries"])
-#         months_series = pd.date_range(start=f"{start_year}-01-01", periods=n_months, freq="MS")
-#         plt.figure(figsize=(10, 6))
-#         plt.title(f"Monthly Timeseries - Top {n_best} Trials")
-#         plt.plot(months_series, actual["monthly_timeseries"], "o-", label="Actual", color="black", linewidth=2)
-#         for trial in top_trials:
-#             pred = trial.user_attrs["predicted"][0]
-#             label = f"Trial {trial.number} (value={trial.value:.2f})"
-#             plt.plot(months_series, pred["monthly_timeseries"], "o--", label=label, color=color_map[f"Trial {trial.number}"])
-#         plt.xlabel("Month")
-#         plt.ylabel("Cases")
-#         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-#         plt.tight_layout()
-#         plt.savefig(top_trials_dir / "monthly_timeseries_comparison.png", bbox_inches="tight")
-#         plt.close()
-
-#     # Total by Period if available
-#     total_by_period_actual = actual.get("total_by_period")
-#     if total_by_period_actual:
-#         # Use the keys from the dictionary in their natural order
-#         period_labels = list(actual["total_by_period"].keys())
-#         x = np.arange(len(period_labels))
-#         actual_vals = [actual["total_by_period"][period] for period in period_labels]
-
-#         plt.figure(figsize=(10, 6))
-#         plt.title(f"Total Cases by Period - Top {n_best} Trials")
-#         plt.bar(x, actual_vals, width=0.6, edgecolor="black", facecolor="none", linewidth=1.5, label="Actual")
-
-#         for trial in top_trials:
-#             pred = trial.user_attrs["predicted"][0]
-#             label = f"Trial {trial.number} (value={trial.value:.2f})"
-#             pred_vals = [pred["total_by_period"].get(period, 0) for period in period_labels]
-#             plt.scatter(x, pred_vals, label=label, color=color_map[f"Trial {trial.number}"], marker="o", s=50)
-
-#         plt.xticks(x, period_labels, rotation=45, ha="right")
-#         plt.ylabel("Cases")
-#         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-#         plt.tight_layout()
-#         plt.savefig(top_trials_dir / "total_by_period_comparison.png", bbox_inches="tight")
-#         plt.close()
-
-#     # ADM0 Cases if available
-#     adm0_actual = actual.get("adm0_cases")
-#     if adm0_actual:
-#         adm_labels = sorted(actual["adm0_cases"].keys())
-#         x = np.arange(len(adm_labels))
-#         actual_vals = [actual["adm0_cases"].get(adm, 0) for adm in adm_labels]
-
-#         plt.figure(figsize=(12, 6))
-#         plt.title(f"ADM0 Cases - Top {n_best} Trials")
-#         plt.bar(x, actual_vals, width=0.6, edgecolor="gray", facecolor="none", linewidth=1.5, label="Actual")
-
-#         for trial in top_trials:
-#             pred = trial.user_attrs["predicted"][0]
-#             label = f"Trial {trial.number} (value={trial.value:.2f})"
-#             pred_vals = [pred["adm0_cases"].get(adm, 0) for adm in adm_labels]
-#             plt.scatter(x, pred_vals, label=label, color=color_map[f"Trial {trial.number}"], marker="o", s=50)
-
-#         plt.xticks(x, adm_labels, rotation=45, ha="right")
-#         plt.ylabel("Cases")
-#         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-#         plt.tight_layout()
-#         plt.savefig(top_trials_dir / "adm0_cases_comparison.png", bbox_inches="tight")
-#         plt.close()
-
-#     # ADM01 Cases if available
-#     adm01_actual = actual.get("adm01_cases")
-#     if adm01_actual:
-#         adm_labels = sorted(actual["adm01_cases"].keys())
-#         x = np.arange(len(adm_labels))
-#         actual_vals = [actual["adm01_cases"].get(adm, 0) for adm in adm_labels]
-
-#         plt.figure(figsize=(12, 6))
-#         plt.title(f"ADM01 Regional Cases - Top {n_best} Trials")
-#         plt.bar(x, actual_vals, width=0.6, edgecolor="black", facecolor="none", linewidth=1.5, label="Actual")
-
-#         for trial in top_trials:
-#             pred = trial.user_attrs["predicted"][0]
-#             label = f"Trial {trial.number} (value={trial.value:.2f})"
-#             pred_vals = [pred["adm01_cases"].get(adm, 0) for adm in adm_labels]
-#             plt.scatter(x, pred_vals, label=label, color=color_map[f"Trial {trial.number}"], marker="o", s=50)
-
-#         plt.xticks(x, adm_labels, rotation=45, ha="right")
-#         plt.ylabel("Cases")
-#         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-#         plt.tight_layout()
-#         plt.savefig(top_trials_dir / "adm01_cases_comparison.png", bbox_inches="tight")
-#         plt.close()
-
-#     # Regional Cases
-#     if "regional_cases" in actual:
-#         region_labels = list(model_config.get("summary_config", {}).get("region_groups", {}).keys())
-#         x = np.arange(len(region_labels))
-#         width = 0.8 / (n_best + 1)
-
-#         plt.figure(figsize=(12, 6))
-#         plt.title(f"Regional Cases - Top {n_best} Trials")
-#         plt.bar(x, actual["regional_cases"], width, label="Actual", color="black")
-
-#         for i, trial in enumerate(top_trials):
-#             pred = trial.user_attrs["predicted"][0]
-#             label = f"Trial {trial.number} (value={trial.value:.2f})"
-#             plt.bar(x + (i + 1) * width, pred["regional_cases"], width, label=label, color=color_map[f"Trial {trial.number}"])
-
-#         plt.xticks(x + width * (n_best / 2), region_labels)
-#         plt.ylabel("Cases")
-#         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-#         plt.tight_layout()
-#         plt.savefig(top_trials_dir / "regional_cases_comparison.png", bbox_inches="tight")
-#         plt.close()
-
-#     # Total Nodes with Cases
-#     if "nodes_with_cases_total" in actual:
-#         plt.figure()
-#         plt.title(f"Total Nodes with Cases - Top {n_best} Trials")
-#         width = 0.8 / (n_best + 1)
-#         x = np.arange(2)  # Just two categories: Actual and Predicted
-#         plt.bar(x[0], actual["nodes_with_cases_total"][0], width, label="Actual", color="black")
-#         for i, trial in enumerate(top_trials):
-#             pred = trial.user_attrs["predicted"][0]
-#             label = f"Trial {trial.number} (value={trial.value:.2f})"
-#             plt.bar(
-#                 x[1] + (i - n_best / 2) * width,
-#                 pred["nodes_with_cases_total"][0],
-#                 width,
-#                 label=label,
-#                 color=color_map[f"Trial {trial.number}"],
-#             )
-#         plt.xticks(x, ["Actual", "Predicted"])
-#         plt.ylabel("Nodes")
-#         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-#         plt.tight_layout()
-#         plt.savefig(top_trials_dir / "nodes_with_cases_total_comparison.png", bbox_inches="tight")
-#         plt.close()
-
-#     # Monthly Nodes with Cases
-#     if "nodes_with_cases_timeseries" in actual:
-#         n_months = len(actual["nodes_with_cases_timeseries"])
-#         months = list(range(1, n_months + 1))
-#         plt.figure(figsize=(10, 6))
-#         plt.title(f"Monthly Nodes with Cases - Top {n_best} Trials")
-#         plt.plot(months, actual["nodes_with_cases_timeseries"], "o-", label="Actual", color="black", linewidth=2)
-#         for trial in top_trials:
-#             pred = trial.user_attrs["predicted"][0]
-#             label = f"Trial {trial.number} (value={trial.value:.2f})"
-#             plt.plot(months, pred["nodes_with_cases_timeseries"], "o-", label=label, color=color_map[f"Trial {trial.number}"])
-#         plt.xlabel("Month")
-#         plt.ylabel("Number of Nodes with ≥1 Case")
-#         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-#         plt.tight_layout()
-#         plt.savefig(top_trials_dir / "nodes_with_cases_timeseries_comparison.png", bbox_inches="tight")
-#         plt.close()
-
-#     # Plot choropleth of case count differences for all trials in one figure
-#     if shp is not None and node_lookup is not None:
-#         actual = top_trials[0].user_attrs["actual"]
-#         if "adm01_cases" in actual:
-#             trial_predictions = [(trial.number, trial.value, trial.user_attrs["predicted"][0]["adm01_cases"]) for trial in top_trials]
-#             plot_multiple_choropleths(
-#                 shp=shp,
-#                 node_lookup=node_lookup,
-#                 actual_cases=actual["adm01_cases"],
-#                 trial_predictions=trial_predictions,
-#                 output_path=top_trials_dir / "case_diff_choropleths.png",
-#                 legend_position="bottom",  # Add parameter to control legend position
-#             )
-
-#         # Plot temporal choropleth for the best trial
-#         if "cases_by_region_period" in actual:
-#             best_trial = top_trials[0]
-#             best_pred = best_trial.user_attrs["predicted"][0]
-#             plot_case_diff_choropleth_temporal(
-#                 shp=shp,
-#                 actual_cases_by_period=actual["cases_by_region_period"],
-#                 pred_cases_by_period=best_pred["cases_by_region_period"],
-#                 output_path=top_trials_dir / "case_diff_choropleth_temporal_best.png",
-#                 title=f"Case Count Difference by Period - Best Trial {best_trial.number} (value={best_trial.value:.2f})",
-#             )
-
-
-def plot_likelihoods_vs_params(study, output_dir=None, use_log=True, figsize=(12, 8), point_size=20, alpha=0.7):
+def plot_likelihoods_vs_params(study, output_dir=None, use_log=True, figsize=(12, 8)):
     # Load trials dataframe
-    df = study.trials_dataframe(attrs=("number", "value", "params", "state", "user_attrs"))
+    df = study.trials_dataframe(attrs=("number", "values", "params", "state", "user_attrs"))
     params = [c for c in df.columns if c.startswith("params_")]
     cols_to_keep = params + ["user_attrs_likelihoods"]  # noqa: RUF005
     df = df[cols_to_keep]
+
     # Expand dicts into separate columns
     expanded = df["user_attrs_likelihoods"].apply(pd.Series)
     if 0 in expanded.columns:
         expanded = expanded.drop(columns=[0])
-    # Optionally prefix the new columns
     expanded = expanded.add_prefix("ll_")
     ll_cols = [c for c in expanded.columns if c.startswith("ll_")]
-    # Join back to the original dataframe (and drop the old dict column if you want)
+
+    # Join back to the original dataframe
     df_expanded = pd.concat([df.drop(columns=["user_attrs_likelihoods"]), expanded], axis=1)
-    # Drop rows where any column is NaN
     df_expanded = df_expanded.dropna(how="any")
 
     for param in params:
@@ -1883,23 +1575,363 @@ def plot_likelihoods_vs_params(study, output_dir=None, use_log=True, figsize=(12
         for i, ycol in enumerate(ll_cols):
             ax = axes[i]
             y = df_expanded[ycol].values
-            ax.scatter(x, y, s=point_size, alpha=alpha)
-            if use_log:
-                # Only set log if all positive
-                if np.all(y > 0):
-                    ax.set_yscale("log")
-            like_label = ycol.replace("like_", "")
-            param_label = param.replace("params_", "")
-            ax.set_title(f"{like_label}")  # vs {param_label}
-            ax.set_xlabel(param_label)
-            ax.set_ylabel(like_label)
+
+            # Plot with improved visibility
+            # Option 1: Simple solid color points with transparency
+            ax.scatter(
+                x,
+                y,
+                s=10,  # Smaller size
+                alpha=0.25,  # More transparency
+                c="steelblue",  # Single solid color
+                edgecolors="none",  # No edge
+                rasterized=True,
+            )  # Better PDF rendering
+
+            if use_log and np.all(y > 0):
+                ax.set_yscale("log")
+
+            # Clean labels
+            like_label = ycol.replace("ll_", "").replace("_", " ").title()
+            param_label = param.replace("params_", "").replace("_", " ").title()
+
+            # Improved formatting
+            ax.set_title(like_label, fontsize=11, fontweight="bold")
+            ax.set_xlabel(param_label, fontsize=10)
+            ax.set_ylabel("Log Likelihood" if use_log else "Likelihood", fontsize=10)
+
+            # Add grid for better readability
+            ax.grid(True, alpha=0.2, linestyle="--")
+            ax.set_axisbelow(True)
+
+            # Remove top and right spines
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+
+            # Add trend line (optional)
+            # z = np.polyfit(x, np.log(y) if use_log and np.all(y > 0) else y, 1)
+            # p = np.poly1d(z)
+            # x_sorted = np.sort(x)
+            # ax.plot(x_sorted, np.exp(p(x_sorted)) if use_log else p(x_sorted),
+            #         'r-', alpha=0.3, linewidth=1)
 
         # Hide any unused subplots
         for j in range(i + 1, len(axes)):
             axes[j].set_visible(False)
 
+        fig.suptitle(f"Likelihood Components vs {param_label}", fontsize=14, fontweight="bold", y=1.02)
         fig.tight_layout()
-        out = Path(output_dir / "likelihoods_vs_params" / f"likelihoods_vs_{param_label}.png")
+
+        out = Path(output_dir / "likelihood_plots" / f"slices_by_component_for_{param_label.lower().replace(' ', '_')}.png")
         out.parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(out, dpi=200, bbox_inches="tight")
+        fig.savefig(out, dpi=150, bbox_inches="tight")
         plt.close(fig)
+
+
+def plot_likelihood_contribution_by_param(study, output_dir):
+    """Show how each parameter affects the contribution of each likelihood to total score."""
+
+    df = study.trials_dataframe()
+    df = df[df["state"] == "COMPLETE"].dropna()
+
+    # Get best parameters - either from study or from file
+    best_params_path = Path(output_dir) / "best_params.json"
+    if best_params_path.exists():
+        with open(best_params_path) as f:
+            best_params = json.load(f)
+    else:
+        # Get from study
+        best_trial = df.loc[df["value"].idxmin()]
+        best_params = {col.replace("params_", ""): best_trial[col] for col in df.columns if col.startswith("params_")}
+
+    param_cols = [c for c in df.columns if c.startswith("params_")]
+    ll_expanded = df["user_attrs_likelihoods"].apply(pd.Series)
+
+    # Separate total from components
+    if "total_log_likelihood" in ll_expanded.columns:
+        total_col = "total_log_likelihood"
+    elif "total" in ll_expanded.columns:
+        total_col = "total"
+    else:
+        ll_cols = [c for c in ll_expanded.columns if c not in [0, "total_log_likelihood", "total"]]
+        ll_expanded["total"] = ll_expanded[ll_cols].sum(axis=1)
+        total_col = "total"
+
+    # Get component columns (excluding total)
+    ll_cols = [c for c in ll_expanded.columns if c not in [0, total_col]]
+
+    # Calculate proportions
+    for ll in ll_cols:
+        ll_expanded[f"{ll}_prop"] = ll_expanded[ll] / ll_expanded[total_col]
+
+    # For each parameter, bin it and show average proportions
+    n_bins = 5
+    fig, axes = plt.subplots(len(param_cols), 1, figsize=(10, 4 * len(param_cols)))
+    if len(param_cols) == 1:
+        axes = [axes]
+
+    for idx, param in enumerate(param_cols):
+        ax = axes[idx]
+        param_clean = param.replace("params_", "")
+        best_value = best_params.get(param_clean)
+
+        # Bin parameter values
+        try:
+            param_bins = pd.qcut(df[param], q=n_bins, duplicates="drop")
+        except (ValueError, IndexError):
+            param_bins = pd.cut(df[param], bins=n_bins)
+
+        # Find which bin contains the best value
+        best_bin_idx = None
+        if best_value is not None:
+            for i, bin_val in enumerate(param_bins.cat.categories):
+                if bin_val.left <= best_value <= bin_val.right:
+                    best_bin_idx = i
+                    break
+
+        # Calculate mean proportions for each bin
+        prop_data = []
+        bin_labels = []
+
+        for bin_val in param_bins.cat.categories:
+            mask = param_bins == bin_val
+            if mask.sum() > 0:
+                means = [ll_expanded.loc[mask, f"{ll}_prop"].mean() for ll in ll_cols]
+                prop_data.append(means)
+                bin_labels.append(f"{bin_val.left:.3f}-{bin_val.right:.3f}")
+
+        if len(prop_data) > 0:
+            prop_data = np.array(prop_data).T
+            x = np.arange(len(bin_labels))
+            bottom = np.zeros(len(x))
+
+            colors = plt.cm.get_cmap("tab10")(np.linspace(0, 1, len(ll_cols)))
+
+            # Create bars
+            bars_list = []
+            for i, ll in enumerate(ll_cols):
+                bars = ax.bar(x, prop_data[i], bottom=bottom, label=ll.replace("_", " ").title(), width=0.7, color=colors[i])
+                bars_list.append(bars)
+                bottom += prop_data[i]
+
+            # Highlight the best parameter bin
+            if best_bin_idx is not None and best_bin_idx < len(x):
+                # # Add a red border around the best bin
+                # for bar_group in bars_list:
+                #     bar_group[best_bin_idx].set_edgecolor("red")
+                #     bar_group[best_bin_idx].set_linewidth(3)
+
+                # Add a star or marker above the best bin
+                ax.scatter(best_bin_idx, 1.05, marker="*", s=200, color="red", zorder=10, label=f"Best: {best_value:.3f}")
+
+                # Or add text annotation
+                ax.annotate(
+                    "Best",
+                    xy=(best_bin_idx, 1.02),
+                    xytext=(best_bin_idx, 1.08),
+                    ha="center",
+                    fontsize=9,
+                    color="red",
+                    arrowprops=dict(arrowstyle="->", color="red", lw=1.5),
+                )
+
+            ax.set_xlabel(f"{param_clean.replace('_', ' ').title()} (binned)", fontsize=10)
+            ax.set_ylabel("Proportion of Total Likelihood", fontsize=10)
+            ax.set_title(f"Likelihood Composition vs {param_clean.replace('_', ' ').title()}", fontsize=11, fontweight="bold")
+            ax.set_xticks(x)
+            ax.set_xticklabels(bin_labels, rotation=45, ha="right", fontsize=9)
+            ax.set_ylim(0, 1.15)  # Extra space for annotation
+            ax.grid(True, alpha=0.2, axis="y", linestyle="--")
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+
+            if idx == 0:
+                ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=9)
+
+    plt.tight_layout()
+    plt.savefig(output_dir / "likelihood_plots" / "likelihood_contribution_by_param.png", dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def plot_quadratic_fit(study, output_dir):
+    """
+    Plot a heatmap showing R-squared of quadratic fits for parameter-likelihood relationships.
+
+    For each parameter-likelihood pair, fits a second-degree polynomial (ax² + bx + c)
+    and calculates R² to measure fit quality. High R² values indicate V-shaped or
+    U-shaped relationships, suggesting the likelihood has a clear optimum for that parameter.
+
+    Notes
+    -----
+    - Requires at least 5 trials for reliable quadratic fitting
+    - R² specifically measures quadratic (parabolic) fit, not general correlation
+    - High R² suggests parameter has a clear optimum value for that likelihood
+    - Low R² doesn't mean no relationship - just not quadratic
+
+    """
+
+    df = study.trials_dataframe()
+    df = df[df["state"] == "COMPLETE"].dropna()
+
+    param_cols = [c for c in df.columns if c.startswith("params_")]
+    ll_expanded = df["user_attrs_likelihoods"].apply(pd.Series)
+    ll_cols = [c for c in ll_expanded.columns if c not in [0, "total_log_likelihood", "total"]]
+
+    # Calculate R-squared for each parameter-likelihood combination
+    results = []
+
+    for param in param_cols:
+        param_clean = param.replace("params_", "")
+        x = df[param].values
+
+        for ll in ll_cols:
+            y = ll_expanded[ll].values
+
+            # Sort by parameter value
+            sort_idx = np.argsort(x)
+            x_sorted = x[sort_idx]
+            y_sorted = y[sort_idx]
+
+            if len(x_sorted) < 5:  # Need minimum points for quadratic fit
+                r_squared = np.nan
+            else:
+                # Fit quadratic
+                coeffs = np.polyfit(x_sorted, y_sorted, 2)
+
+                # Calculate R-squared
+                y_pred = np.polyval(coeffs, x_sorted)
+                ss_res = np.sum((y_sorted - y_pred) ** 2)
+                ss_tot = np.sum((y_sorted - np.mean(y_sorted)) ** 2)
+                r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+                r_squared = max(0, r_squared)  # Ensure non-negative
+
+            results.append({"parameter": param_clean, "likelihood": ll, "r_squared": r_squared})
+
+    results_df = pd.DataFrame(results)
+
+    # Pivot for heatmap
+    r2_matrix = results_df.pivot(index="parameter", columns="likelihood", values="r_squared")
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot heatmap
+    im = ax.imshow(r2_matrix.values, cmap="viridis", aspect="auto", vmin=0, vmax=1)
+
+    # Set ticks and labels
+    ax.set_xticks(np.arange(len(r2_matrix.columns)))
+    ax.set_yticks(np.arange(len(r2_matrix.index)))
+    ax.set_xticklabels(r2_matrix.columns, rotation=45, ha="right", fontsize=10)
+    ax.set_yticklabels(r2_matrix.index, fontsize=10)
+
+    # Add colorbar
+    plt.colorbar(im, ax=ax, label="R² (Quadratic Fit)")
+
+    # Add text annotations
+    for i in range(len(r2_matrix.index)):
+        for j in range(len(r2_matrix.columns)):
+            val = r2_matrix.values[i, j]
+            if not np.isnan(val):
+                # Color text based on background
+                text_color = "white" if val > 0.6 else "black"
+                ax.text(j, i, f"{val:.2f}", ha="center", va="center", color=text_color, fontsize=9)
+
+    # Formatting
+    ax.set_title("Quadratic Fit (R²): Parameter-Likelihood Relationships", fontsize=14, fontweight="bold")
+    ax.set_xlabel("Likelihood Component", fontsize=12)
+    ax.set_ylabel("Parameter", fontsize=12)
+
+    plt.tight_layout()
+    plt.savefig(output_dir / "likelihood_plots" / "quadratic_fit_heatmap.png", dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def plot_mutual_information(study, output_dir):
+    """
+    Calculate and visualize mutual information between optimization parameters and likelihood components.
+
+    Mutual information (MI) quantifies the dependency between variables - how much knowing one
+    variable reduces uncertainty about another. Unlike correlation, MI captures any type of
+    relationship (linear, nonlinear, V-shaped, exponential, etc.).
+
+    Notes
+    -----
+    - MI values are unitless and relative - compare within the same study
+    - High MI indicates strong dependency but doesn't reveal the relationship shape
+    - Captures nonlinear and complex patterns (V-shapes, exponentials, step functions)
+    - Works for multimodal relationships (multiple peaks/valleys)
+
+    Calculation Details
+    -------------------
+    The sklearn implementation uses:
+    - k-nearest neighbors (k=5 by default) to estimate densities
+    - Kozachenko-Leonenko estimator for continuous variables
+    - Automatically handles mixed discrete/continuous parameters
+
+    Mathematical Background
+    -----------------------
+    Mutual information is defined as:
+        MI(X,Y) = ∫∫ p(x,y) log[p(x,y) / (p(x)p(y))] dx dy
+
+    Where:
+    - p(x,y) is the joint probability distribution
+    - p(x) and p(y) are marginal distributions
+    - MI = 0 when X and Y are independent
+    - MI > 0 when there's any dependency
+
+    In practice, scikit-learn estimates MI using k-nearest neighbors to approximate
+    the continuous distributions from your discrete trial data.
+
+    """
+
+    df = study.trials_dataframe()
+    df = df[df["state"] == "COMPLETE"].dropna()
+
+    # Get parameters and sort alphabetically
+    param_cols = sorted([c for c in df.columns if c.startswith("params_")])
+    X = df[param_cols].values
+    param_names = sorted([p.replace("params_", "") for p in param_cols])
+
+    # Get likelihood components and sort alphabetically
+    ll_expanded = df["user_attrs_likelihoods"].apply(pd.Series)
+    ll_cols = sorted([c for c in ll_expanded.columns if c not in [0, "total_log_likelihood", "total"]])
+
+    # Calculate MI for each likelihood
+    mi_matrix = pd.DataFrame(index=param_names, columns=ll_cols)
+
+    for ll in ll_cols:
+        y = ll_expanded[ll].values
+        mi_scores = mutual_info_regression(X, y, random_state=42, n_neighbors=5)
+        for i, param_name in enumerate(param_names):
+            mi_matrix.loc[param_name, ll] = mi_scores[i]
+
+    # Create single figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot heatmap
+    im = ax.imshow(mi_matrix.values.astype(float), cmap="viridis", aspect="auto")
+
+    # Set ticks and labels
+    ax.set_xticks(np.arange(len(mi_matrix.columns)))
+    ax.set_yticks(np.arange(len(mi_matrix.index)))
+    ax.set_xticklabels(mi_matrix.columns, rotation=45, ha="right", fontsize=10)
+    ax.set_yticklabels(mi_matrix.index, fontsize=10)
+
+    # Add colorbar
+    plt.colorbar(im, ax=ax, label="Mutual Information")
+
+    # Add annotations
+    for i in range(len(mi_matrix.index)):
+        for j in range(len(mi_matrix.columns)):
+            val = mi_matrix.values[i, j]
+            text_color = "white" if val > mi_matrix.values.max() / 2 else "black"
+            ax.text(j, i, f"{val:.2f}", ha="center", va="center", color=text_color, fontsize=9)
+
+    # Formatting
+    ax.set_title("Mutual Information: Parameter-Likelihood Relationships", fontsize=14, fontweight="bold")
+    ax.set_xlabel("Likelihood Component", fontsize=12)
+    ax.set_ylabel("Parameter", fontsize=12)
+
+    plt.tight_layout()
+    plt.savefig(output_dir / "likelihood_plots" / "mutual_information_heatmap.png", dpi=150, bbox_inches="tight")
+    plt.close()

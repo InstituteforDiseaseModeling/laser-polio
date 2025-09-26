@@ -7,9 +7,13 @@ import cloud_calib_config as cfg
 import optuna
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from report import plot_likelihoods
+from report import plot_likelihood_contribution_best
+from report import plot_likelihood_contribution_by_param
 from report import plot_likelihoods_vs_params
-from report import plot_optuna
+from report import plot_likelihoood_slices
+from report import plot_mutual_information
+from report import plot_optimization_history
+from report import plot_quadratic_fit
 from report import plot_runtimes
 from report import plot_targets
 from report import save_study_results
@@ -32,23 +36,35 @@ def main():
         results_path = Path("results") / cfg.study_name
         results_path.mkdir(parents=True, exist_ok=True)
 
-        print("📊 Plotting target comparisons for best trial...")
-        plot_targets(study, n=10, output_dir=results_path)
-
         print("💾 Saving results...")
         save_study_results(study, output_dir=results_path)
 
-        print("📈 Plotting optuna results...")
-        plot_optuna(cfg.study_name, study.storage_url, output_dir=results_path)
+        print("📊 Plotting target comparisons (actual vs. predicted) for top trial(s)...")
+        plot_targets(study, n=10, output_dir=results_path)
+
+        print("📈 Plotting optimization history...")
+        plot_optimization_history(study, output_dir=results_path)
 
         print("📊 Plotting runtimes...")
         plot_runtimes(study, output_dir=results_path)
 
-        print("📊 Plotting likelihoods...")
-        plot_likelihoods(study, output_dir=Path(results_path), use_log=True)
+        print("📊 Plotting likelihood contribution for best trial...")
+        plot_likelihood_contribution_best(study, output_dir=Path(results_path), use_log=True)
+
+        print("📊 Plotting likelihood contribution by parameter...")
+        plot_likelihood_contribution_by_param(study, output_dir=results_path)
+
+        print("📊 Plotting likelihood slices...")
+        plot_likelihoood_slices(study, output_dir=results_path)
 
         print("📊 Plotting likelihoods vs params...")
         plot_likelihoods_vs_params(study, output_dir=Path(results_path), use_log=True)
+
+        print("📊 Plotting quadratic fit quality...")
+        plot_quadratic_fit(study, output_dir=results_path)
+
+        print("📊 Plotting mutual information analysis...")
+        plot_mutual_information(study, output_dir=results_path)
 
         # print("📊 Running top trials on COMPS...")
         # from report import run_top_n_on_comps
