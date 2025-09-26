@@ -7,8 +7,14 @@ import calib_db
 import click
 import optuna
 import sciris as sc
-from report import plot_likelihoods
-from report import plot_optuna
+from report import plot_likelihood_contribution_best
+from report import plot_likelihood_contribution_by_param
+from report import plot_likelihood_slices
+from report import plot_likelihoods_vs_params
+from report import plot_mutual_information
+from report import plot_optimization_history
+from report import plot_quadratic_fit
+from report import plot_runtimes
 from report import plot_targets
 from report import save_study_results
 from worker import run_worker_main
@@ -89,7 +95,6 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
     )
 
     print(f"🔍 Running calibration for study '{study_name}'...")
-
     Path(results_path).mkdir(parents=True, exist_ok=True)
     # Run calibration and postprocess
     run_worker_main(
@@ -117,9 +122,17 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
 
     print("📊 Plotting study results...")
     if not os.getenv("HEADLESS"):
-        plot_optuna(study_name, storage_url, output_dir=results_path)
-        plot_targets(study, output_dir=results_path)
-        plot_likelihoods(study, output_dir=results_path, use_log=True)
+        plot_optimization_history(study, output_dir=results_path)
+        n_trials = min(10, len(study.trials))
+        plot_targets(study, n=n_trials, output_dir=results_path)
+        plot_likelihood_slices(study, output_dir=results_path)
+        plot_runtimes(study, output_dir=results_path)
+        plot_likelihood_contribution_best(study, output_dir=Path(results_path), use_log=True)
+        plot_likelihood_contribution_by_param(study, output_dir=results_path)
+        plot_likelihoods_vs_params(study, output_dir=Path(results_path), use_log=True)
+        if n_trials >= 5:
+            plot_quadratic_fit(study, output_dir=results_path)
+            plot_mutual_information(study, output_dir=results_path)
 
     sc.printcyan("✅ Calibration complete. Results saved.")
 
