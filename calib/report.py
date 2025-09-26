@@ -182,7 +182,7 @@ def plot_optimization_history(study, output_dir=None):
     fig1.write_image(output_dir / "plot_opt_history.png", width=800, height=600, scale=2)
 
 
-def plot_likelihoood_slices(study, output_dir=None):
+def plot_likelihood_slices(study, output_dir=None):
     # Default output directory to current working dir if not provided
     output_dir = Path(output_dir) / "likelihood_plots" if output_dir else Path.cwd()
     output_dir.mkdir(parents=True, exist_ok=True)

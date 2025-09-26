@@ -9,8 +9,8 @@ import optuna
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from report import plot_likelihood_contribution_best
 from report import plot_likelihood_contribution_by_param
+from report import plot_likelihood_slices
 from report import plot_likelihoods_vs_params
-from report import plot_likelihoood_slices
 from report import plot_mutual_information
 from report import plot_optimization_history
 from report import plot_quadratic_fit
@@ -55,7 +55,7 @@ def main():
         plot_likelihood_contribution_by_param(study, output_dir=results_path)
 
         print("📊 Plotting likelihood slices...")
-        plot_likelihoood_slices(study, output_dir=results_path)
+        plot_likelihood_slices(study, output_dir=results_path)
 
         print("📊 Plotting likelihoods vs params...")
         plot_likelihoods_vs_params(study, output_dir=Path(results_path), use_log=True)
