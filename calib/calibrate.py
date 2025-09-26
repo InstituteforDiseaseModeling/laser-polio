@@ -30,9 +30,15 @@ import laser_polio as lp
 # model_config = "nigeria_7y_2017_regions_radiation_ssn_nozi_underwt.yaml"
 # calib_config = "doy.yaml"
 
-# Goal: Try all core pars after adding cases_by_month
-study_name = "calib_nigeria_7y_2017_r0_amp_doy_radk_mmf_nozi_underwt_20250916"
-model_config = "nigeria_7y_2017_regions_r0_radk_mmf_ssn_nozi_underwt.yaml"
+# # Goal: Try all core pars after adding cases_by_month
+# study_name = "calib_nigeria_7y_2017_r0_amp_doy_radk_mmf_nozi_underwt_20250916"
+# model_config = "nigeria_7y_2017_regions_r0_radk_mmf_ssn_nozi_underwt.yaml"
+# calib_config = "r0_amp_doy_radk_mmf.yaml"
+
+# Goal: Try calibrating core pars in West Africa
+job_name = "lpsk10"
+study_name = "calib_wa_7y_2017_r0_amp_doy_radk_mmf_nozi_underwt_20250924"
+model_config = "wa_7y_2017_regions_r0_radk_mmf_ssn_nozi_underwt.yaml"
 calib_config = "r0_amp_doy_radk_mmf.yaml"
 
 fit_function = "log_likelihood"
