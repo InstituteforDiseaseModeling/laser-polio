@@ -95,29 +95,6 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
     )
 
     print(f"🔍 Running calibration for study '{study_name}'...")
-
-    print("💾 Saving study results...")
-    storage_url = calib_db.get_storage()
-    study = optuna.load_study(study_name=study_name, storage=storage_url)
-    study.results_path = results_path
-    study.storage_url = storage_url
-
-    print("📊 Plotting study results...")
-    if not os.getenv("HEADLESS"):
-        plot_optimization_history(study, output_dir=results_path)
-        n_trials = min(10, len(study.trials))
-        plot_targets(study, n=n_trials, output_dir=results_path)
-        plot_likelihood_slices(study, output_dir=results_path)
-        plot_runtimes(study, output_dir=results_path)
-        plot_likelihood_contribution_best(study, output_dir=Path(results_path), use_log=True)
-        plot_likelihood_contribution_by_param(study, output_dir=results_path)
-        plot_likelihoods_vs_params(study, output_dir=Path(results_path), use_log=True)
-        if n_trials >= 5:
-            plot_quadratic_fit(study, output_dir=results_path)
-            plot_mutual_information(study, output_dir=results_path)
-
-    sc.printcyan("✅ Calibration complete. Results saved.")
-
     Path(results_path).mkdir(parents=True, exist_ok=True)
     # Run calibration and postprocess
     run_worker_main(
@@ -143,13 +120,21 @@ def main(study_name, model_config, calib_config, fit_function, n_replicates, n_t
     study.storage_url = storage_url
     save_study_results(study, results_path)
 
-    # print("📊 Plotting study results...")
-    # if not os.getenv("HEADLESS"):
-    #     plot_optimization_history(study_name, output_dir=results_path)
-    #     plot_targets(study, output_dir=results_path)
-    #     plot_likelihood_slices(study, output_dir=results_path, use_log=True)
+    print("📊 Plotting study results...")
+    if not os.getenv("HEADLESS"):
+        plot_optimization_history(study, output_dir=results_path)
+        n_trials = min(10, len(study.trials))
+        plot_targets(study, n=n_trials, output_dir=results_path)
+        plot_likelihood_slices(study, output_dir=results_path)
+        plot_runtimes(study, output_dir=results_path)
+        plot_likelihood_contribution_best(study, output_dir=Path(results_path), use_log=True)
+        plot_likelihood_contribution_by_param(study, output_dir=results_path)
+        plot_likelihoods_vs_params(study, output_dir=Path(results_path), use_log=True)
+        if n_trials >= 5:
+            plot_quadratic_fit(study, output_dir=results_path)
+            plot_mutual_information(study, output_dir=results_path)
 
-    # sc.printcyan("✅ Calibration complete. Results saved.")
+    sc.printcyan("✅ Calibration complete. Results saved.")
 
 
 @click.command(context_settings=CONTEXT_SETTINGS)
