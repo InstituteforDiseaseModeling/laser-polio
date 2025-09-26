@@ -403,64 +403,132 @@ def get_shapefile_from_config(model_config):
     shp = shp[shp["dot_name"].isin(dot_names)]
     shp = shp.set_index("dot_name").loc[dot_names].reset_index()  # Ensure correct ordering
 
+    # Fix invalid geometries before any operations
+    shp["geometry"] = shp["geometry"].buffer(0)
+
+    # Additional geometry fixing
+    shp["geometry"] = shp["geometry"].apply(lambda geom: geom.make_valid() if hasattr(geom, "make_valid") else geom)
+
     if admin_level == 2:
         return shp
 
     elif admin_level == 1:
-        shp["geometry"] = shp["geometry"].buffer(0)  # Fix topology issues
-        shp = shp.dissolve(by="adm01", aggfunc="first").reset_index()  # Dissolve by adm01
+        # Use unary_union instead of dissolve for complex geometries
+        dissolved = []
+        for adm01 in shp["adm01"].unique():
+            subset = shp[shp["adm01"] == adm01]
+            merged_geom = unary_union(subset.geometry.values)
+            # Keep first row's attributes
+            first_row = subset.iloc[0].to_dict()
+            first_row["geometry"] = merged_geom
+            dissolved.append(first_row)
+
+        shp = gpd.GeoDataFrame(dissolved, crs=shp.crs)
         return shp
+
+        # shp["geometry"] = shp["geometry"].buffer(0)  # Fix topology issues
+        # shp = shp.dissolve(by="adm01", aggfunc="first").reset_index()  # Dissolve by adm01
+        # return shp
 
     elif admin_level == 0 and "region_groupings" not in summary_config:
-        shp["geometry"] = shp["geometry"].buffer(0)  # Fix topology issues
-        shp = lp.add_regional_groupings(shp)  # Add region column
-        shp = shp.dissolve(by="region", aggfunc="first").reset_index()  # Dissolve by adm0
-        shp = shp[["region", "geometry"]]
-        return shp
+        shp = lp.add_regional_groupings(shp)
+
+        # Use unary_union approach for dissolving
+        dissolved = []
+        for region in shp["region"].unique():
+            subset = shp[shp["region"] == region]
+            merged_geom = unary_union(subset.geometry.values)
+            dissolved.append({"region": region, "geometry": merged_geom})
+
+        shp = gpd.GeoDataFrame(dissolved, crs=shp.crs)
+        return shp[["region", "geometry"]]
+
+        # shp["geometry"] = shp["geometry"].buffer(0)  # Fix topology issues
+        # shp = lp.add_regional_groupings(shp)  # Add region column
+        # shp = shp.dissolve(by="region", aggfunc="first").reset_index()  # Dissolve by adm0
+        # shp = shp[["region", "geometry"]]
+        # return shp
 
     elif admin_level == 0 and "region_groupings" in summary_config:
-        shp = lp.add_regional_groupings(shp, summary_config["region_groupings"])  # Apply regional groupings
+        shp = lp.add_regional_groupings(shp, summary_config["region_groupings"])
 
-        # Step 1: Dissolve by region to group polygons
-        region_dissolved = shp.dissolve(by="region", as_index=False)
-
-        # Step 2: For each region, fully merge all geometry parts into a single polygon
-        def unify_region_geometry(region_df):
-            return unary_union(region_df.geometry)
-
+        # Use unary_union for each region
         unified_geoms = []
-        for region_name in region_dissolved["region"]:
-            region_geom = unary_union(shp[shp["region"] == region_name].geometry)
-            unified_geoms.append((region_name, region_geom))
+        for region_name in shp["region"].unique():
+            region_subset = shp[shp["region"] == region_name]
 
-        # Step 3: Build new GeoDataFrame
-        region_shp = gpd.GeoDataFrame(unified_geoms, columns=["region", "geometry"], crs=shp.crs)
+            # Try to merge geometries with buffer trick
+            try:
+                # Buffer out and back to fix topology
+                buffered_geoms = [geom.buffer(0.001) for geom in region_subset.geometry]
+                merged_geom = unary_union(buffered_geoms).buffer(-0.001)
+            except Exception as e:
+                print(f"Warning: Complex merge for {region_name}, using convex hull: {e}")
+                # Fallback to convex hull if topology is too complex
+                merged_geom = unary_union(region_subset.geometry.values).convex_hull
 
-        def extract_outer_shell(geom):
-            # If it's a MultiPolygon, merge and take the union of all exteriors
-            if geom.geom_type == "MultiPolygon":
-                merged = unary_union(geom)
-                largest = max(merged.geoms, key=lambda g: g.area)
-                return Polygon(largest.exterior)
-            elif geom.geom_type == "Polygon":
-                return Polygon(geom.exterior)
+            # Extract outer shell
+            if merged_geom.geom_type == "MultiPolygon":
+                largest = max(merged_geom.geoms, key=lambda g: g.area)
+                outer_geom = Polygon(largest.exterior)
+            elif merged_geom.geom_type == "Polygon":
+                outer_geom = Polygon(merged_geom.exterior)
             else:
-                return geom  # Fallback (shouldn't happen)
+                outer_geom = merged_geom
 
-        # Step 4: Extract outer shell of each region
-        unified_geoms = []
-        for region_name in region_dissolved["region"]:
-            merged_geom = unary_union(shp[shp["region"] == region_name].geometry)
-            outer_geom = extract_outer_shell(merged_geom)
             unified_geoms.append((region_name, outer_geom))
+
         region_shp = gpd.GeoDataFrame(unified_geoms, columns=["region", "geometry"], crs=shp.crs)
 
-        # Step 5: Add label points
-        region_shp_proj = region_shp.to_crs(epsg=3857)  # Reproject to projected CRS (meters)
+        # Add label points
+        region_shp_proj = region_shp.to_crs(epsg=3857)
         region_shp["center_lon"] = region_shp_proj.geometry.centroid.to_crs(epsg=4326).x
         region_shp["center_lat"] = region_shp_proj.geometry.centroid.to_crs(epsg=4326).y
 
         return region_shp
+
+        # shp = lp.add_regional_groupings(shp, summary_config["region_groupings"])  # Apply regional groupings
+
+        # # Step 1: Dissolve by region to group polygons
+        # region_dissolved = shp.dissolve(by="region", as_index=False)
+
+        # # Step 2: For each region, fully merge all geometry parts into a single polygon
+        # def unify_region_geometry(region_df):
+        #     return unary_union(region_df.geometry)
+
+        # unified_geoms = []
+        # for region_name in region_dissolved["region"]:
+        #     region_geom = unary_union(shp[shp["region"] == region_name].geometry)
+        #     unified_geoms.append((region_name, region_geom))
+
+        # # Step 3: Build new GeoDataFrame
+        # region_shp = gpd.GeoDataFrame(unified_geoms, columns=["region", "geometry"], crs=shp.crs)
+
+        # def extract_outer_shell(geom):
+        #     # If it's a MultiPolygon, merge and take the union of all exteriors
+        #     if geom.geom_type == "MultiPolygon":
+        #         merged = unary_union(geom)
+        #         largest = max(merged.geoms, key=lambda g: g.area)
+        #         return Polygon(largest.exterior)
+        #     elif geom.geom_type == "Polygon":
+        #         return Polygon(geom.exterior)
+        #     else:
+        #         return geom  # Fallback (shouldn't happen)
+
+        # # Step 4: Extract outer shell of each region
+        # unified_geoms = []
+        # for region_name in region_dissolved["region"]:
+        #     merged_geom = unary_union(shp[shp["region"] == region_name].geometry)
+        #     outer_geom = extract_outer_shell(merged_geom)
+        #     unified_geoms.append((region_name, outer_geom))
+        # region_shp = gpd.GeoDataFrame(unified_geoms, columns=["region", "geometry"], crs=shp.crs)
+
+        # # Step 5: Add label points
+        # region_shp_proj = region_shp.to_crs(epsg=3857)  # Reproject to projected CRS (meters)
+        # region_shp["center_lon"] = region_shp_proj.geometry.centroid.to_crs(epsg=4326).x
+        # region_shp["center_lat"] = region_shp_proj.geometry.centroid.to_crs(epsg=4326).y
+
+        # return region_shp
 
 
 def get_trial_by_number(study, trial_number):
@@ -567,6 +635,80 @@ def get_top_trials(study, n=10, include_params=True, include_user_attrs=True):
         engine.dispose()
 
 
+def plot_shapefile(shp, title="Shapefile Visualization", figsize=(12, 8), label_col=None, color_col=None, output_path=None):
+    """
+    Quick visualization of a shapefile with optional labels and coloring.
+
+    Parameters
+    ----------
+    shp : GeoDataFrame
+        The shapefile to plot
+    title : str
+        Plot title
+    figsize : tuple
+        Figure size (width, height)
+    label_col : str, optional
+        Column name to use for labeling regions
+    color_col : str, optional
+        Column name to use for coloring (creates choropleth)
+    output_path : Path or str, optional
+        If provided, saves the figure
+    """
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Plot the shapefile
+    if color_col and color_col in shp.columns:
+        # Choropleth if color column specified
+        shp.plot(column=color_col, ax=ax, legend=True, edgecolor="black", linewidth=0.5, cmap="viridis")
+    else:
+        # Simple plot with single color
+        shp.plot(ax=ax, color="lightblue", edgecolor="black", linewidth=1)
+
+    # Add labels if specified
+    if label_col and label_col in shp.columns:
+        # Use centroid for label placement
+        for _idx, row in shp.iterrows():
+            centroid = row.geometry.centroid
+            ax.text(
+                centroid.x,
+                centroid.y,
+                str(row[label_col]),
+                ha="center",
+                va="center",
+                fontsize=9,
+                fontweight="bold",
+                bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.7),
+            )
+    elif "center_lon" in shp.columns and "center_lat" in shp.columns:
+        # Use pre-calculated centers if available
+        for idx, row in shp.iterrows():
+            label = row.get("region", row.get("adm01", f"Region {idx}"))
+            ax.text(
+                row["center_lon"],
+                row["center_lat"],
+                str(label),
+                ha="center",
+                va="center",
+                fontsize=9,
+                fontweight="bold",
+                bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.7),
+            )
+
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Latitude")
+    ax.axis("off")  # Remove axis for cleaner look
+
+    plt.tight_layout()
+
+    if output_path:
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+    return
+
+
 def plot_targets(study, n=1, output_dir=None, shp=None):
     # Load top trials
     trials = get_top_trials(study, n=n)
@@ -590,6 +732,7 @@ def plot_targets(study, n=1, output_dir=None, shp=None):
         except Exception as e:
             print(f"[WARN] Could not generate shapefile: {e}")
             shp = None
+    plot_shapefile(shp, title="Model Regions", label_col="region", output_path=output_dir / "shp_map.png")
 
     # Define consistent colors using seaborn's 'flare' palette
     # Option 1: Use seaborn color palette directly
