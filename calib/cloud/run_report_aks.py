@@ -11,7 +11,7 @@ from report import plot_likelihoods
 from report import plot_likelihoods_vs_params
 from report import plot_optuna
 from report import plot_runtimes
-from report import plot_targets_new
+from report import plot_targets
 from report import save_study_results
 
 
@@ -31,12 +31,9 @@ def main():
         study.study_name = cfg.study_name
         results_path = Path("results") / cfg.study_name
         results_path.mkdir(parents=True, exist_ok=True)
-        # with open(Path("calib/model_configs/") / cfg.model_config) as f:
-        #     model_config = yaml.safe_load(f)
-        #     start_year = model_config["start_year"]
 
         print("📊 Plotting target comparisons for best trial...")
-        plot_targets_new(study, n=10, output_dir=results_path)
+        plot_targets(study, n=10, output_dir=results_path)
 
         print("💾 Saving results...")
         save_study_results(study, output_dir=results_path)
